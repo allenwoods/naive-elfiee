@@ -76,12 +76,14 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 1 (MANDATORY per Constitution) ⚠️
 
 **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T010 [P] [US1] Unit test for Rust backend logic in src-tauri/src/[module]/tests.rs
+- [ ] T011 [P] [US1] Unit test for React component in src/components/__tests__/[Component].test.tsx
+- [ ] T012 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].ts
+- [ ] T013 [P] [US1] End-to-end test for complete user scenario in tests/e2e/[scenario].spec.ts
 
 ### Implementation for User Story 1
 
@@ -102,10 +104,12 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 2 (MANDATORY per Constitution) ⚠️
 
-- [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T018 [P] [US2] Unit test for Rust backend logic in src-tauri/src/[module]/tests.rs
+- [ ] T019 [P] [US2] Unit test for React component in src/components/__tests__/[Component].test.tsx
+- [ ] T020 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].ts
+- [ ] T021 [P] [US2] End-to-end test for complete user scenario in tests/e2e/[scenario].spec.ts
 
 ### Implementation for User Story 2
 
@@ -124,10 +128,12 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 3 (MANDATORY per Constitution) ⚠️
 
-- [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T024 [P] [US3] Unit test for Rust backend logic in src-tauri/src/[module]/tests.rs
+- [ ] T025 [P] [US3] Unit test for React component in src/components/__tests__/[Component].test.tsx
+- [ ] T026 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].ts
+- [ ] T027 [P] [US3] End-to-end test for complete user scenario in tests/e2e/[scenario].spec.ts
 
 ### Implementation for User Story 3
 

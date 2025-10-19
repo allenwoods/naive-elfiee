@@ -90,6 +90,34 @@
 - **FR-004**: System MUST [data requirement, e.g., "persist user preferences"]
 - **FR-005**: System MUST [behavior, e.g., "log all security events"]
 
+### Code Quality Requirements
+
+- **CQ-001**: All Rust code MUST pass `clippy` analysis with zero warnings
+- **CQ-002**: All React components MUST use TypeScript with proper type definitions
+- **CQ-003**: All public APIs MUST have complete documentation comments with examples
+- **CQ-004**: Code complexity MUST be maintained within cyclomatic complexity limits
+
+### Testing Requirements
+
+- **TR-001**: All core business logic MUST have unit test coverage ≥ 90%
+- **TR-002**: All React components MUST have unit tests with React Testing Library
+- **TR-003**: All user scenarios MUST be verified through end-to-end testing
+- **TR-004**: TDD approach MUST be followed: Tests first → User approval → Tests fail → Then implement
+
+### Performance Requirements
+
+- **PR-001**: Focus on clarifying application design and basic business logic
+- **PR-002**: Performance optimization MUST only be done when absolutely necessary
+- **PR-003**: Code clarity MUST be prioritized over performance unless performance is critical
+- **PR-004**: Avoid performance optimizations that may obscure code logic
+
+### User Experience Requirements
+
+- **UX-001**: All interactions MUST use Shadcn/ui components for consistency
+- **UX-002**: All interactive elements MUST support keyboard navigation
+- **UX-003**: Color contrast MUST meet WCAG 2.1 AA standards
+- **UX-004**: Error messages MUST be clear and accessible
+
 *Example of marking unclear requirements:*
 
 - **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]

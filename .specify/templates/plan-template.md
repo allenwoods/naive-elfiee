@@ -31,7 +31,37 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+### Code Quality Compliance
+- [ ] All Rust code will use `clippy` and `rustfmt` for static analysis and formatting
+- [ ] React code will use ESLint and Prettier for consistency and quality checks
+- [ ] All public APIs will have complete documentation comments
+- [ ] Code complexity will be kept within maintainable limits
+
+### Testing Standards Verification
+- [ ] TDD approach will be followed: Tests first → User approval → Tests fail → Then implement
+- [ ] Rust backend will have unit tests covering core business logic
+- [ ] React frontend components will have unit and integration tests
+- [ ] All user scenarios will be verified through end-to-end testing
+
+### User Experience Consistency
+- [ ] Shadcn/ui component library will be used to ensure visual consistency
+- [ ] All interactions will meet modern desktop application user expectations
+- [ ] Responsive design principles will apply to different screen sizes
+- [ ] Error handling and loading states will have unified user experience
+- [ ] Accessibility standards will meet WCAG 2.1 AA level
+
+### Performance Requirements
+- [ ] Focus on clarifying application design and basic business logic
+- [ ] Avoid unnecessary performance optimizations that may obscure code logic
+- [ ] Performance optimization should only be done when absolutely necessary
+- [ ] Prioritize code clarity over performance unless performance is critical
+
+### Technology Stack Alignment
+- [ ] Rust will be used as backend core language, React + TypeScript as frontend framework
+- [ ] Shadcn/ui will be used as UI component library
+- [ ] State management will use React Context only, avoiding over-engineering
+- [ ] Data persistence will use SQLite (via Tauri plugin) or local file system
+- [ ] Unnecessary dependencies and complexity will be avoided
 
 ## Project Structure
 
