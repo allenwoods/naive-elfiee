@@ -121,7 +121,7 @@ Follow these guides in order. Each part is self-contained with clear steps, code
 **Key Deliverables**:
 - ⬜ `CapabilityHandler` trait
 - ⬜ Capability registry
-- ⬜ Built-in capabilities: `core.create`, `core.link`, `core.delete`, `core.grant`
+- ⬜ Built-in capabilities: `core.create`, `core.delete`,`core.link`, `core.unlink`, `core.grant`, `core.revoke`
 - ⬜ Example: `markdown.write`
 
 **Depends on**: Part 1 (uses models)
