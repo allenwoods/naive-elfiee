@@ -1,4 +1,3 @@
-use crate::engine::EventStore;
 use crate::models::Event;
 use std::collections::HashMap;
 
@@ -69,12 +68,6 @@ impl GrantsTable {
         }
 
         table
-    }
-
-    /// Project grants table from an EventStore.
-    pub fn from_event_store(store: &EventStore) -> Result<Self, rusqlite::Error> {
-        let events = store.get_all_events()?;
-        Ok(Self::from_events(&events))
     }
 
     /// Add a grant to the table.

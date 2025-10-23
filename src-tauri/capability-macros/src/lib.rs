@@ -10,12 +10,13 @@ use syn::{
 /// Usage:
 /// ```
 /// #[capability(id = "core.link", target = "core/*")]
-/// fn handle_link(cmd: &Command, block: &Block) -> CapResult<Vec<Event>> {
+/// fn handle_link(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
 ///     // implementation
 /// }
 /// ```
 ///
 /// This generates a struct implementing CapabilityHandler trait.
+/// The handler function must accept Option<&Block> as the second parameter.
 #[proc_macro_attribute]
 pub fn capability(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args with Punctuated::<Meta, Token![,]>::parse_terminated);
@@ -67,7 +68,7 @@ pub fn capability(args: TokenStream, input: TokenStream) -> TokenStream {
             fn handler(
                 &self,
                 cmd: &crate::models::Command,
-                block: &crate::models::Block,
+                block: Option<&crate::models::Block>,
             ) -> crate::capabilities::core::CapResult<Vec<crate::models::Event>> {
                 #fn_name(cmd, block)
             }

@@ -6,7 +6,8 @@ use capability_macros::capability;
 ///
 /// Removes a link between two blocks by removing the target from the relation.
 #[capability(id = "core.unlink", target = "core/*")]
-fn handle_unlink(cmd: &Command, block: &Block) -> CapResult<Vec<Event>> {
+fn handle_unlink(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    let block = block.ok_or("Block required for core.unlink")?;
     // Extract relation type
     let relation = cmd.payload.get("relation")
         .and_then(|v| v.as_str())

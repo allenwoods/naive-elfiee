@@ -116,7 +116,7 @@ mod tests {
             }),
         );
 
-        let events = cap.handler(&cmd, &block).unwrap();
+        let events = cap.handler(&cmd, Some(&block)).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].entity, block.block_id);
         assert_eq!(events[0].attribute, "editor1/core.link");
@@ -144,7 +144,7 @@ mod tests {
             }),
         );
 
-        let events = cap.handler(&cmd, &dummy_block).unwrap();
+        let events = cap.handler(&cmd, Some(&dummy_block)).unwrap();
         assert_eq!(events.len(), 1); // Single event with full initial state
         assert_eq!(events[0].attribute, "editor1/core.create");
         // Verify the event contains all initial state
@@ -177,7 +177,7 @@ mod tests {
             }),
         );
 
-        let events = cap.handler(&cmd, &block).unwrap();
+        let events = cap.handler(&cmd, Some(&block)).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].attribute, "editor1/core.grant");
     }
@@ -210,7 +210,7 @@ mod tests {
             }),
         );
 
-        let events = cap.handler(&cmd, &block).unwrap();
+        let events = cap.handler(&cmd, Some(&block)).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].entity, block.block_id);
         assert_eq!(events[0].attribute, "editor1/core.unlink");
@@ -246,7 +246,7 @@ mod tests {
             }),
         );
 
-        let events = cap.handler(&cmd, &block).unwrap();
+        let events = cap.handler(&cmd, Some(&block)).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].attribute, "editor1/core.revoke");
     }
@@ -285,7 +285,7 @@ mod tests {
 
         // Execute capability
         let cap = registry.get("core.link").unwrap();
-        let result = cap.handler(&cmd, &block);
+        let result = cap.handler(&cmd, Some(&block));
         assert!(result.is_ok(), "Owner should be able to execute capability");
     }
 
@@ -363,7 +363,7 @@ mod tests {
 
         // Execute capability
         let cap = registry.get("core.link").unwrap();
-        let result = cap.handler(&cmd, &block);
+        let result = cap.handler(&cmd, Some(&block));
         assert!(result.is_ok(), "User with grant should be able to execute capability");
     }
 
@@ -429,8 +429,8 @@ mod tests {
 
         // Execute capabilities
         let cap = registry.get("core.link").unwrap();
-        assert!(cap.handler(&cmd1, &block1).is_ok());
-        assert!(cap.handler(&cmd2, &block2).is_ok());
+        assert!(cap.handler(&cmd1, Some(&block1)).is_ok());
+        assert!(cap.handler(&cmd2, Some(&block2)).is_ok());
     }
 
     #[test]

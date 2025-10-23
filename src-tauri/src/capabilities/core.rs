@@ -44,7 +44,11 @@ pub trait CapabilityHandler: Send + Sync {
     /// Execute the capability and return events to be appended.
     ///
     /// This method contains the actual logic of the capability.
-    fn handler(&self, cmd: &Command, block: &Block) -> CapResult<Vec<Event>>;
+    ///
+    /// # Arguments
+    /// * `cmd` - The command to execute
+    /// * `block` - The target block (None for capabilities like core.create that create new blocks)
+    fn handler(&self, cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>>;
 }
 
 /// Helper function to create a standard Event with vector clock.

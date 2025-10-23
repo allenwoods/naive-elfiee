@@ -1,14 +1,54 @@
 use crate::models::Event;
-use rusqlite::{Connection, Result};
+use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+use sqlx::Row;
+use std::str::FromStr;
 
-pub struct EventStore {
-    conn: Connection,
-}
+/// Event store for persisting events to SQLite database.
+///
+/// This implementation uses sqlx for async database operations,
+/// making it compatible with tokio runtime and safe to use across threads.
+pub struct EventStore;
 
 impl EventStore {
-    pub fn new(path: &str) -> Result<Self> {
-        let conn = Connection::open(path)?;
-        conn.execute(
+    /// Create a new event store and initialize the database schema.
+    ///
+    /// The path can be:
+    /// - A file path like "events.db" or "./data/events.db"
+    /// - ":memory:" for in-memory database (testing)
+    ///
+    /// Returns a SqlitePool connected to the database.
+    pub async fn create(path: &str) -> Result<SqlitePool, sqlx::Error> {
+        let connection_string = if path == ":memory:" {
+            "sqlite::memory:".to_string()
+        } else {
+            // Ensure parent directory exists
+            if let Some(parent) = std::path::Path::new(path).parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(sqlx::Error::Io)?;
+            }
+
+            // Use sqlite: prefix for file paths
+            format!("sqlite://{}", path)
+        };
+
+        let pool = SqlitePoolOptions::new()
+            .max_connections(5)
+            .connect_with(
+                sqlx::sqlite::SqliteConnectOptions::from_str(&connection_string)?
+                    .create_if_missing(true)
+            )
+            .await?;
+
+        // Initialize schema
+        Self::init_schema(&pool).await?;
+
+        Ok(pool)
+    }
+
+    /// Initialize the database schema (tables and indexes).
+    async fn init_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+        // Create events table
+        sqlx::query(
             "CREATE TABLE IF NOT EXISTS events (
                 event_id TEXT PRIMARY KEY,
                 entity TEXT NOT NULL,
@@ -16,92 +56,109 @@ impl EventStore {
                 value TEXT NOT NULL,
                 timestamp TEXT NOT NULL
             )",
-            [],
-        )?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_entity ON events(entity)",
-            [],
-        )?;
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_attribute ON events(attribute)",
-            [],
-        )?;
-        Ok(Self { conn })
+        )
+        .execute(pool)
+        .await?;
+
+        // Create index on entity for faster lookups
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_entity ON events(entity)")
+            .execute(pool)
+            .await?;
+
+        // Create index on attribute
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_attribute ON events(attribute)")
+            .execute(pool)
+            .await?;
+
+        Ok(())
     }
 
-    pub fn append_events(&self, events: &[Event]) -> Result<()> {
+    /// Append events to the database.
+    pub async fn append_events(pool: &SqlitePool, events: &[Event]) -> Result<(), sqlx::Error> {
         for event in events {
             let timestamp_json = serde_json::to_string(&event.timestamp)
-                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+                .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
             let value_json = serde_json::to_string(&event.value)
-                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+                .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
 
-            self.conn.execute(
-                "INSERT INTO events (event_id, entity, attribute, value, timestamp) VALUES (?1, ?2, ?3, ?4, ?5)",
-                rusqlite::params![
-                    &event.event_id,
-                    &event.entity,
-                    &event.attribute,
-                    &value_json,
-                    &timestamp_json,
-                ],
-            )?;
+            sqlx::query(
+                "INSERT INTO events (event_id, entity, attribute, value, timestamp)
+                 VALUES ($1, $2, $3, $4, $5)",
+            )
+            .bind(&event.event_id)
+            .bind(&event.entity)
+            .bind(&event.attribute)
+            .bind(&value_json)
+            .bind(&timestamp_json)
+            .execute(pool)
+            .await?;
         }
         Ok(())
     }
 
-    pub fn get_all_events(&self) -> Result<Vec<Event>> {
-        let mut stmt = self.conn.prepare("SELECT event_id, entity, attribute, value, timestamp FROM events ORDER BY rowid")?;
-        let events = stmt
-            .query_map([], |row| {
-                let event_id: String = row.get(0)?;
-                let entity: String = row.get(1)?;
-                let attribute: String = row.get(2)?;
-                let value_json: String = row.get(3)?;
-                let timestamp_json: String = row.get(4)?;
+    /// Get all events from the database, ordered by insertion order (rowid).
+    pub async fn get_all_events(pool: &SqlitePool) -> Result<Vec<Event>, sqlx::Error> {
+        let rows = sqlx::query(
+            "SELECT event_id, entity, attribute, value, timestamp
+             FROM events
+             ORDER BY rowid",
+        )
+        .fetch_all(pool)
+        .await?;
 
-                let value: serde_json::Value = serde_json::from_str(&value_json)
-                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e)))?;
-                let timestamp = serde_json::from_str(&timestamp_json)
-                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e)))?;
+        let mut events = Vec::new();
+        for row in rows {
+            let event = Self::row_to_event(row)?;
+            events.push(event);
+        }
 
-                Ok(Event {
-                    event_id,
-                    entity,
-                    attribute,
-                    value,
-                    timestamp,
-                })
-            })?
-            .collect::<Result<Vec<_>>>()?;
         Ok(events)
     }
 
-    pub fn get_events_by_entity(&self, entity: &str) -> Result<Vec<Event>> {
-        let mut stmt = self.conn.prepare("SELECT event_id, entity, attribute, value, timestamp FROM events WHERE entity = ?1 ORDER BY rowid")?;
-        let events = stmt
-            .query_map([entity], |row| {
-                let event_id: String = row.get(0)?;
-                let entity: String = row.get(1)?;
-                let attribute: String = row.get(2)?;
-                let value_json: String = row.get(3)?;
-                let timestamp_json: String = row.get(4)?;
+    /// Get events for a specific entity.
+    pub async fn get_events_by_entity(
+        pool: &SqlitePool,
+        entity: &str,
+    ) -> Result<Vec<Event>, sqlx::Error> {
+        let rows = sqlx::query(
+            "SELECT event_id, entity, attribute, value, timestamp
+             FROM events
+             WHERE entity = $1
+             ORDER BY rowid",
+        )
+        .bind(entity)
+        .fetch_all(pool)
+        .await?;
 
-                let value: serde_json::Value = serde_json::from_str(&value_json)
-                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(3, rusqlite::types::Type::Text, Box::new(e)))?;
-                let timestamp = serde_json::from_str(&timestamp_json)
-                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e)))?;
+        let mut events = Vec::new();
+        for row in rows {
+            let event = Self::row_to_event(row)?;
+            events.push(event);
+        }
 
-                Ok(Event {
-                    event_id,
-                    entity,
-                    attribute,
-                    value,
-                    timestamp,
-                })
-            })?
-            .collect::<Result<Vec<_>>>()?;
         Ok(events)
+    }
+
+    /// Convert a database row to an Event.
+    fn row_to_event(row: sqlx::sqlite::SqliteRow) -> Result<Event, sqlx::Error> {
+        let event_id: String = row.try_get(0)?;
+        let entity: String = row.try_get(1)?;
+        let attribute: String = row.try_get(2)?;
+        let value_json: String = row.try_get(3)?;
+        let timestamp_json: String = row.try_get(4)?;
+
+        let value: serde_json::Value = serde_json::from_str(&value_json)
+            .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+        let timestamp = serde_json::from_str(&timestamp_json)
+            .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+
+        Ok(Event {
+            event_id,
+            entity,
+            attribute,
+            value,
+            timestamp,
+        })
     }
 }
 
@@ -110,9 +167,9 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    #[test]
-    fn test_append_and_retrieve_events() {
-        let store = EventStore::new(":memory:").unwrap();
+    #[tokio::test]
+    async fn test_append_and_retrieve_events() {
+        let pool = EventStore::create(":memory:").await.unwrap();
 
         let mut timestamp = HashMap::new();
         timestamp.insert("editor1".to_string(), 1);
@@ -132,18 +189,18 @@ mod tests {
             ),
         ];
 
-        store.append_events(&events).unwrap();
+        EventStore::append_events(&pool, &events).await.unwrap();
 
-        let retrieved = store.get_all_events().unwrap();
+        let retrieved = EventStore::get_all_events(&pool).await.unwrap();
         assert_eq!(retrieved.len(), 2);
         assert_eq!(retrieved[0].entity, "block1");
         assert_eq!(retrieved[0].attribute, "name");
         assert_eq!(retrieved[1].attribute, "type");
     }
 
-    #[test]
-    fn test_get_events_by_entity() {
-        let store = EventStore::new(":memory:").unwrap();
+    #[tokio::test]
+    async fn test_get_events_by_entity() {
+        let pool = EventStore::create(":memory:").await.unwrap();
 
         let mut timestamp = HashMap::new();
         timestamp.insert("editor1".to_string(), 1);
@@ -169,9 +226,11 @@ mod tests {
             ),
         ];
 
-        store.append_events(&events).unwrap();
+        EventStore::append_events(&pool, &events).await.unwrap();
 
-        let block1_events = store.get_events_by_entity("block1").unwrap();
+        let block1_events = EventStore::get_events_by_entity(&pool, "block1")
+            .await
+            .unwrap();
         assert_eq!(block1_events.len(), 2);
         assert_eq!(block1_events[0].attribute, "name");
         assert_eq!(block1_events[1].attribute, "type");

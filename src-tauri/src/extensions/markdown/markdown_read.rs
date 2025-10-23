@@ -8,7 +8,8 @@ use capability_macros::capability;
 /// Returns the current markdown content as an event for the reader to observe.
 /// This is a read operation that creates an event recording the read action.
 #[capability(id = "markdown.read", target = "markdown")]
-fn handle_markdown_read(cmd: &Command, block: &Block) -> CapResult<Vec<Event>> {
+fn handle_markdown_read(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    let block = block.ok_or("Block required for markdown.read")?;
     // Extract markdown content from block
     let markdown_content = block.contents.get("markdown")
         .ok_or("No markdown content found in block")?;

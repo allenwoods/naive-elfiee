@@ -4,20 +4,20 @@ This document provides the master overview of the Elfiee implementation. Each pa
 
 ## Current Progress
 
-**Overall**: 50% Complete (3 of 6 parts done)
+**Overall**: 83% Complete (5 of 6 parts done)
 
 | Part | Status | Files | Tests | Commit |
 |------|--------|-------|-------|--------|
 | Part 1: Core Models | ✅ DONE | `models/*.rs`, `types/models.ts` | ✓ Compiles | `69b491e` |
 | Part 2: Event Store | ✅ DONE | `engine/event_store.rs` | ✓ 2 pass | `652d649` |
 | Part 3: ELF Format | ✅ DONE | `elf/archive.rs` | ✓ 3 pass | `b7eb88a` |
-| Part 4: Extensions | ⏳ NEXT | `capabilities/*.rs` | - | - |
-| Part 5: Engine | ⬜ TODO | `engine/actor.rs`, `engine/projector.rs` | - | - |
-| Part 6: Tauri App | ⬜ TODO | `commands/*.rs`, `src/` | - | - |
+| Part 4: Extensions | ✅ DONE | `capabilities/*.rs`, `capability-macros/` | ✓ 33 pass | `6d24d3c` |
+| Part 5: Engine | ✅ DONE | `engine/{actor,state,manager}.rs` | ✓ 48+ pass | TBD |
+| Part 6: Tauri App | ⏳ NEXT | `commands/*.rs`, `src/` | - | - |
 
-**Latest**: Part 3 completed - ZIP-based .elf file format with full round-trip preservation
+**Latest**: Part 5 completed - Actor-based engine with sqlx persistence and multi-file support
 
-**Next**: Part 4 - Implement capability system with trait-based handlers
+**Next**: Part 6 - Build Tauri app interface with React frontend
 
 ## Implementation Philosophy
 
@@ -110,53 +110,61 @@ Follow these guides in order. Each part is self-contained with clear steps, code
 
 ---
 
-### [Part 4: Extension Interface](./part4-extension-interface.md) ⏳ NEXT
+### [Part 4: Extension Interface](./part4-extension-interface.md) ✅ COMPLETED
 
-**Status**: ⏳ **TODO** - Next to implement
+**Status**: ✅ **DONE** (Commit: `6d24d3c`)
 
 **What**: Capability system for extending block types
 
 **Time**: 1 week
 
 **Key Deliverables**:
-- ⬜ `CapabilityHandler` trait
-- ⬜ Capability registry
-- ⬜ Built-in capabilities: `core.create`, `core.delete`,`core.link`, `core.unlink`, `core.grant`, `core.revoke`
-- ⬜ Example: `markdown.write`
+- ✅ `CapabilityHandler` trait with procedural macro
+- ✅ Capability registry
+- ✅ Built-in capabilities: `core.create`, `core.delete`, `core.link`, `core.unlink`, `core.grant`, `core.revoke`
+- ✅ Example extensions: `markdown.write`, `markdown.read`
+- ✅ CBAC with GrantsTable for authorization
+- ✅ 33 tests passing
 
 **Depends on**: Part 1 (uses models)
 
-**Design**: Tauri-command-style - simple functions with trait that provides authorization automatically
+**Design**: Procedural macro for capability definitions, trait-based handlers with automatic authorization
 
-**Commit message example**: `Part 4: Capability system with core handlers`
+**Commit**: `Part 4: Capability system with procedural macros`
 
 ---
 
-### [Part 5: Elfile Engine](./part5-elfile-engine.md)
+### [Part 5: Elfile Engine](./part5-elfile-engine.md) ✅ COMPLETED
 
-**Status**: ⬜ **TODO**
+**Status**: ✅ **DONE** (Commit: TBD)
 
-**What**: Command processor with state projection
+**What**: Actor-based command processor with async persistence
 
 **Time**: 1.5 weeks
 
 **Key Deliverables**:
-- ⬜ State projector (replay events → in-memory state)
-- ⬜ Command processor (authorize → execute → commit)
-- ⬜ Vector clock updates
-- ⬜ Basic tests
+- ✅ StateProjector (replay events → in-memory state, integrates GrantsTable)
+- ✅ ElfileEngineActor (authorize → execute → commit with tokio)
+- ✅ Async persistence with sqlx (migrated from rusqlite)
+- ✅ Vector clock updates for conflict detection (MVP version)
+- ✅ EngineManager for multi-file support
+- ✅ 48+ tests passing (7 actor + 2 event_store + 3 archive + 4 state + 33 capability)
 
 **Depends on**: Parts 2, 4 (uses EventStore, CapabilityRegistry)
 
-**What's Included**: Actor model with tokio, engine manager, conflict detection
+**Key Decisions**:
+- Used sqlx instead of rusqlite for async compatibility
+- Handler interface accepts `Option<&Block>` for create operations
+- StateProjector reuses GrantsTable (no duplication)
+- MVP-level conflict detection (simple editor count checking)
 
-**Commit message example**: `Part 5: Engine actor with tokio and conflict detection`
+**Commit**: `Part 5: Complete Elfile Engine with sqlx and EngineManager`
 
 ---
 
 ### [Part 6: Tauri App Interface](./part6-tauri-app.md)
 
-**Status**: ⬜ **TODO**
+**Status**: ⏳ **NEXT** - Ready to implement
 
 **What**: Connect Rust backend to React frontend
 

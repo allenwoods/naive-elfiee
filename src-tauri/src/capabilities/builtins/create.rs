@@ -5,9 +5,9 @@ use capability_macros::capability;
 /// Handler for core.create capability.
 ///
 /// Creates a new block with name, type, and owner.
-/// Note: The block parameter is a placeholder for create operations.
+/// Note: The block parameter is None for create since the block doesn't exist yet.
 #[capability(id = "core.create", target = "core/*")]
-fn handle_create(cmd: &Command, _block: &Block) -> CapResult<Vec<Event>> {
+fn handle_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>> {
     // Extract block name
     let name = cmd.payload.get("name")
         .and_then(|v| v.as_str())

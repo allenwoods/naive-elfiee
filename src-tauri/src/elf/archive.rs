@@ -1,4 +1,5 @@
 use crate::engine::EventStore;
+use sqlx::SqlitePool;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -12,12 +13,13 @@ pub struct ElfArchive {
 
 impl ElfArchive {
     /// Create a new empty .elf archive
-    pub fn new() -> std::io::Result<Self> {
+    pub async fn new() -> std::io::Result<Self> {
         let temp_dir = TempDir::new()?;
         let db_path = temp_dir.path().join("events.db");
 
         // Initialize empty event store
-        EventStore::new(db_path.to_str().unwrap())
+        EventStore::create(db_path.to_str().unwrap())
+            .await
             .map_err(std::io::Error::other)?;
 
         Ok(Self { temp_dir, db_path })
@@ -42,9 +44,9 @@ impl ElfArchive {
         Ok(Self { temp_dir, db_path })
     }
 
-    /// Get the EventStore for reading/writing events
-    pub fn event_store(&self) -> Result<EventStore, rusqlite::Error> {
-        EventStore::new(self.db_path.to_str().unwrap())
+    /// Get a SqlitePool for reading/writing events
+    pub async fn event_pool(&self) -> Result<SqlitePool, sqlx::Error> {
+        EventStore::create(self.db_path.to_str().unwrap()).await
     }
 
     /// Save the archive to a .elf file
@@ -79,10 +81,10 @@ mod tests {
     use std::collections::HashMap;
     use tempfile::NamedTempFile;
 
-    #[test]
-    fn test_create_and_save() {
-        let archive = ElfArchive::new().unwrap();
-        let store = archive.event_store().unwrap();
+    #[tokio::test]
+    async fn test_create_and_save() {
+        let archive = ElfArchive::new().await.unwrap();
+        let pool = archive.event_pool().await.unwrap();
 
         let mut timestamp = HashMap::new();
         timestamp.insert("editor1".to_string(), 1);
@@ -94,7 +96,7 @@ mod tests {
             timestamp,
         )];
 
-        store.append_events(&events).unwrap();
+        EventStore::append_events(&pool, &events).await.unwrap();
 
         let temp_elf = NamedTempFile::new().unwrap();
         archive.save(temp_elf.path()).unwrap();
@@ -104,11 +106,11 @@ mod tests {
         assert!(metadata.len() > 0);
     }
 
-    #[test]
-    fn test_open_and_read() {
+    #[tokio::test]
+    async fn test_open_and_read() {
         // Create and save an archive
-        let archive = ElfArchive::new().unwrap();
-        let store = archive.event_store().unwrap();
+        let archive = ElfArchive::new().await.unwrap();
+        let pool = archive.event_pool().await.unwrap();
 
         let mut timestamp = HashMap::new();
         timestamp.insert("editor1".to_string(), 1);
@@ -128,27 +130,27 @@ mod tests {
             ),
         ];
 
-        store.append_events(&events).unwrap();
+        EventStore::append_events(&pool, &events).await.unwrap();
 
         let temp_elf = NamedTempFile::new().unwrap();
         archive.save(temp_elf.path()).unwrap();
 
         // Open the saved archive
         let opened = ElfArchive::open(temp_elf.path()).unwrap();
-        let opened_store = opened.event_store().unwrap();
+        let opened_pool = opened.event_pool().await.unwrap();
 
-        let retrieved = opened_store.get_all_events().unwrap();
+        let retrieved = EventStore::get_all_events(&opened_pool).await.unwrap();
         assert_eq!(retrieved.len(), 2);
         assert_eq!(retrieved[0].entity, "block1");
         assert_eq!(retrieved[0].attribute, "name");
         assert_eq!(retrieved[1].attribute, "type");
     }
 
-    #[test]
-    fn test_round_trip() {
+    #[tokio::test]
+    async fn test_round_trip() {
         // Create -> Save -> Open -> Read should preserve data
-        let archive1 = ElfArchive::new().unwrap();
-        let store1 = archive1.event_store().unwrap();
+        let archive1 = ElfArchive::new().await.unwrap();
+        let pool1 = archive1.event_pool().await.unwrap();
 
         let mut timestamp = HashMap::new();
         timestamp.insert("editor1".to_string(), 5);
@@ -160,15 +162,17 @@ mod tests {
             timestamp,
         );
 
-        store1.append_events(&[event]).unwrap();
+        EventStore::append_events(&pool1, &[event]).await.unwrap();
 
         let temp_elf = NamedTempFile::new().unwrap();
         archive1.save(temp_elf.path()).unwrap();
 
         let archive2 = ElfArchive::open(temp_elf.path()).unwrap();
-        let store2 = archive2.event_store().unwrap();
+        let pool2 = archive2.event_pool().await.unwrap();
 
-        let events = store2.get_events_by_entity("testblock").unwrap();
+        let events = EventStore::get_events_by_entity(&pool2, "testblock")
+            .await
+            .unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].attribute, "content");
         assert_eq!(events[0].value["text"], "Hello World");

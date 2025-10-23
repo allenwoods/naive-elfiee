@@ -6,7 +6,8 @@ use capability_macros::capability;
 ///
 /// Soft-deletes a block by marking it as deleted.
 #[capability(id = "core.delete", target = "core/*")]
-fn handle_delete(cmd: &Command, block: &Block) -> CapResult<Vec<Event>> {
+fn handle_delete(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    let block = block.ok_or("Block required for core.delete")?;
     // Create event marking block as deleted
     let event = create_event(
         block.block_id.clone(),

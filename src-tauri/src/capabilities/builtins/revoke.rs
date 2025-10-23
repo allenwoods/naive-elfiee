@@ -6,7 +6,7 @@ use capability_macros::capability;
 ///
 /// Revokes a capability from an editor for a specific block (or wildcard).
 #[capability(id = "core.revoke", target = "core/*")]
-fn handle_revoke(cmd: &Command, _block: &Block) -> CapResult<Vec<Event>> {
+fn handle_revoke(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>> {
     // Extract target editor
     let target_editor = cmd.payload.get("target_editor")
         .and_then(|v| v.as_str())

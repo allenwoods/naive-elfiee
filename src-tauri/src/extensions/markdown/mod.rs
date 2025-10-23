@@ -70,7 +70,7 @@ mod tests {
             }),
         );
 
-        let events = cap.handler(&cmd, &block).unwrap();
+        let events = cap.handler(&cmd, Some(&block)).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].entity, block.block_id);
         assert_eq!(events[0].attribute, "alice/markdown.write");
@@ -103,7 +103,7 @@ mod tests {
             serde_json::json!({}),
         );
 
-        let events = cap.handler(&cmd, &block).unwrap();
+        let events = cap.handler(&cmd, Some(&block)).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].entity, cmd.editor_id);  // Entity is reader
         assert_eq!(events[0].attribute, "alice/markdown.read");
@@ -131,7 +131,7 @@ mod tests {
             serde_json::json!({}),  // Missing content field
         );
 
-        let result = cap.handler(&cmd, &block);
+        let result = cap.handler(&cmd, Some(&block));
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "Missing 'content' in payload");
     }
@@ -155,7 +155,7 @@ mod tests {
             serde_json::json!({}),
         );
 
-        let result = cap.handler(&cmd, &block);
+        let result = cap.handler(&cmd, Some(&block));
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "No markdown content found in block");
     }
@@ -187,7 +187,7 @@ mod tests {
 
         // Execute
         let cap = registry.get("markdown.write").unwrap();
-        assert!(cap.handler(&cmd, &block).is_ok());
+        assert!(cap.handler(&cmd, Some(&block)).is_ok());
     }
 
     #[test]
@@ -249,7 +249,7 @@ mod tests {
 
         // Execute
         let cap = registry.get("markdown.write").unwrap();
-        assert!(cap.handler(&cmd, &block).is_ok());
+        assert!(cap.handler(&cmd, Some(&block)).is_ok());
     }
 
     #[test]
@@ -287,7 +287,7 @@ mod tests {
 
         // Execute
         let cap = registry.get("markdown.read").unwrap();
-        assert!(cap.handler(&cmd, &block).is_ok());
+        assert!(cap.handler(&cmd, Some(&block)).is_ok());
     }
 
     #[test]
@@ -314,7 +314,7 @@ mod tests {
             serde_json::json!({ "content": "New content" }),
         );
 
-        let events = cap.handler(&cmd, &block).unwrap();
+        let events = cap.handler(&cmd, Some(&block)).unwrap();
         let contents = events[0].value.get("contents").unwrap();
 
         // Verify markdown was updated

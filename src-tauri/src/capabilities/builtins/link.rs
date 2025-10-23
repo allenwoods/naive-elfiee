@@ -6,7 +6,8 @@ use capability_macros::capability;
 ///
 /// Links two blocks together by adding a relation to the block's children.
 #[capability(id = "core.link", target = "core/*")]
-fn handle_link(cmd: &Command, block: &Block) -> CapResult<Vec<Event>> {
+fn handle_link(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    let block = block.ok_or("Block required for core.link")?;
     // Extract relation type
     let relation = cmd.payload.get("relation")
         .and_then(|v| v.as_str())

@@ -7,7 +7,8 @@ use capability_macros::capability;
 /// Writes markdown content to a markdown block's contents field.
 /// The content is stored under the "markdown" key in the contents HashMap.
 #[capability(id = "markdown.write", target = "markdown")]
-fn handle_markdown_write(cmd: &Command, block: &Block) -> CapResult<Vec<Event>> {
+fn handle_markdown_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    let block = block.ok_or("Block required for markdown.write")?;
     // Extract markdown content from payload
     let markdown_content = cmd.payload.get("content")
         .and_then(|v| v.as_str())
