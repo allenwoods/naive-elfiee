@@ -549,4 +549,5 @@ let read_events = cap.handler(&read_cmd, &block).unwrap();
 For more information, see:
 - [README.md](../../README.md) - Project overview and architecture
 - [Part 4: Extension Interface](../plans/part4-extension-interface.md) - Technical specification
-- [Capability Macros](../../capability-macros/) - Macro implementation details
+- [Part 7: Content Schema Proposal](../plans/part7-content-schema-proposal.md) - Future schema design
+- [Capability Macros](../../src-tauri/capability-macros/) - Macro implementation details

@@ -1,17 +1,18 @@
 # Implementation Status - Elfiee MVP
 
 **Last Updated**: 2025-10-23
-**Current Phase**: Part 4 - Extension Interface (Next)
-**Overall Progress**: 50% (3 of 6 parts complete)
+**Current Phase**: Part 5 - ElFile Engine (Next)
+**Overall Progress**: 67% (4 of 6 parts complete)
 
 ## Summary
 
-The first three foundational parts of the Elfiee MVP are complete:
+The first four foundational parts of the Elfiee MVP are complete:
 - ✅ Core data models with serde serialization
 - ✅ SQLite event store with EAVT schema
 - ✅ ZIP-based .elf file format handler
+- ✅ Extension interface with CBAC and Markdown example
 
-All implementations follow TDD methodology with comprehensive test coverage (5 tests total, all passing).
+All implementations follow TDD methodology with comprehensive test coverage (33 tests total, all passing).
 
 ## Completed Parts
 
@@ -167,6 +168,59 @@ All implementations follow TDD methodology with comprehensive test coverage (5 t
 
 ---
 
+### Part 4: Extension Interface & CBAC ✅
+
+**Commit**: `6d24d3c - feat: Implement Part 4 - Extension Interface and CBAC`
+**Completed**: 2025-10-23
+
+#### What Was Built
+
+**CBAC System** (`src-tauri/src/capabilities/grants.rs`):
+- `GrantsTable` struct for capability-based access control
+- Projection from grant/revoke events in EventStore
+- Authorization logic: owner-always-authorized + grant-based
+- Wildcard grants with `"*"` block_id support
+- 6 comprehensive tests for grant management
+
+**Event Format Standardization** (`src-tauri/src/capabilities/core.rs`):
+- Modified `create_event()` to auto-format attribute as `{editor_id}/{cap_id}`
+- Updated all 6 builtin capabilities:
+  - `core.create`: Consolidated to single event with full initial state
+  - `core.link/unlink/delete`: Updated event creation
+  - `core.grant/revoke`: Fixed entity to be granter/revoker editor_id
+
+**Capability Registry** (`src-tauri/src/capabilities/registry.rs`):
+- Central registry for all capability handlers
+- `register_builtins()` for core capabilities
+- `register_extensions()` for extension capabilities
+- 5 certificator tests verifying authorization logic
+
+**Markdown Extension** (`src-tauri/src/extensions/markdown/`):
+- `markdown.write` capability: Writes content to blocks
+- `markdown.read` capability: Reads content from blocks
+- Proper JSON handling for block contents
+- 9 comprehensive tests (functionality, validation, authorization)
+
+**Documentation**:
+- Extension Development Guide (500+ lines)
+- Updated CLAUDE.md with Part 4 architecture
+- Content Schema Proposal for future reference
+
+#### Key Implementation Details
+
+- **Authorization Model**: `owner == editor_id || has_grant(editor_id, cap_id, block_id)`
+- **Event Attribute Format**: `{editor_id}/{cap_id}` (e.g., "alice/markdown.write")
+- **Procedural Macros**: `#[capability(id = "...", target = "...")]` for capability definitions
+- **Extensibility**: Clean interface for adding custom block types and capabilities
+
+#### Testing
+
+- ✅ All 33 tests passing (24 original + 9 new markdown tests)
+- ✅ Clippy clean with no warnings
+- ✅ Comprehensive coverage of capabilities, authorization, and extensions
+
+---
+
 ## Current Architecture
 
 ### Directory Structure
@@ -186,11 +240,41 @@ src-tauri/src/
 ├── elf/
 │   ├── archive.rs        ✅ ZIP handler
 │   └── mod.rs            ✅ Module exports
+├── capabilities/         ✅ Part 4
+│   ├── core.rs           ✅ Helper functions
+│   ├── grants.rs         ✅ GrantsTable for CBAC
+│   ├── registry.rs       ✅ CapabilityRegistry
+│   ├── builtins/         ✅ Core capabilities
+│   │   ├── create.rs     ✅ core.create
+│   │   ├── link.rs       ✅ core.link
+│   │   ├── unlink.rs     ✅ core.unlink
+│   │   ├── delete.rs     ✅ core.delete
+│   │   ├── grant.rs      ✅ core.grant
+│   │   ├── revoke.rs     ✅ core.revoke
+│   │   └── mod.rs        ✅ Module exports
+│   └── mod.rs            ✅ Module exports
+├── extensions/           ✅ Part 4
+│   ├── markdown/         ✅ Markdown extension
+│   │   ├── markdown_write.rs  ✅ markdown.write
+│   │   ├── markdown_read.rs   ✅ markdown.read
+│   │   └── mod.rs        ✅ Module exports
+│   └── mod.rs            ✅ Module exports
 ├── lib.rs                ✅ Crate root with module declarations
 └── main.rs               (Tauri entry point)
 
 src/types/
 └── models.ts             ✅ TypeScript type definitions
+
+docs/
+├── guides/
+│   └── EXTENSION_DEVELOPMENT.md  ✅ Extension dev guide
+└── plans/
+    ├── part1-core-models.md
+    ├── part2-event-structure.md
+    ├── part3-elf-file-format.md
+    ├── part4-extension-interface.md
+    ├── part7-content-schema-proposal.md  ✅ Future design
+    └── STATUS.md
 ```
 
 ### Dependencies (Cargo.toml)
@@ -207,10 +291,15 @@ tempfile = "3.8"
 
 ### Test Statistics
 
-- **Total Tests**: 5
-- **Passing**: 5 (100%)
+- **Total Tests**: 33
+- **Passing**: 33 (100%)
 - **Failing**: 0
-- **Coverage**: Core functionality for Parts 1-3
+- **Coverage**: Core functionality for Parts 1-4
+  - 6 GrantsTable tests
+  - 19 Capability/Registry tests (5 new certificator tests)
+  - 9 Markdown extension tests
+  - 2 EventStore tests
+  - 3 ElfArchive tests
 
 ---
 
@@ -220,15 +309,19 @@ tempfile = "3.8"
 2. ✅ **Event Persistence**: SQLite EAVT storage with queries
 3. ✅ **File Format**: .elf files can be created, saved, and reopened
 4. ✅ **Round-trip**: Data persists perfectly through save/load cycle
-5. ✅ **TDD Workflow**: All tests written first, then implementation
-6. ✅ **Git Commits**: Clean commit history following plan guidelines
+5. ✅ **CBAC System**: GrantsTable with owner and grant-based authorization
+6. ✅ **Capability Registry**: All builtin capabilities registered and working
+7. ✅ **Extension Interface**: Markdown extension as working example
+8. ✅ **TDD Workflow**: All tests written first, then implementation
+9. ✅ **Git Commits**: Clean commit history following plan guidelines
+10. ✅ **Documentation**: Comprehensive guides for extension development
 
 ---
 
-## Next Steps: Part 4 - Extension Interface
+## Next Steps: Part 5 - ElFile Engine
 
 ### Overview
-Implement capability-based access control (CBAC) system for block operations.
+Implement the core engine that coordinates block state management, command execution, and event processing.
 
 ### Planned Deliverables
 
