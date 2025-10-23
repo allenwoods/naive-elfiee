@@ -2,7 +2,7 @@
 
 **Status**: ✅ COMPLETED
 **Date**: 2025-10-23
-**Commit**: TBD
+**Commit**: `f46db44`
 
 ## Overview
 
@@ -304,10 +304,14 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 ## Next Steps
 
 1. ✅ Implement EngineManager
-2. ✅ Verify all tests pass (48+ expected)
+2. ✅ Verify all tests pass (51 tests passing)
 3. ✅ Run clippy
-4. ✅ Git commit: "Part 5: Complete Elfile Engine with sqlx and EngineManager"
+4. ✅ Git commit: "Part 5: Complete Elfile Engine with sqlx and EngineManager" (f46db44)
 5. ⏭️ Begin Part 6: Tauri App Interface
+
+## References
+
+For detailed architecture explanation, see [Engine Architecture Guide](./engine-architecture.md).
 
 ## Conclusion
 

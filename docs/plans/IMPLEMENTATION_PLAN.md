@@ -136,7 +136,7 @@ Follow these guides in order. Each part is self-contained with clear steps, code
 
 ### [Part 5: Elfile Engine](./part5-elfile-engine.md) ✅ COMPLETED
 
-**Status**: ✅ **DONE** (Commit: TBD)
+**Status**: ✅ **DONE** (Commit: `f46db44`)
 
 **What**: Actor-based command processor with async persistence
 
@@ -148,7 +148,7 @@ Follow these guides in order. Each part is self-contained with clear steps, code
 - ✅ Async persistence with sqlx (migrated from rusqlite)
 - ✅ Vector clock updates for conflict detection (MVP version)
 - ✅ EngineManager for multi-file support
-- ✅ 48+ tests passing (7 actor + 2 event_store + 3 archive + 4 state + 33 capability)
+- ✅ 51 tests passing (7 actor + 7 manager + 4 state + 2 event_store + 3 archive + 33 capability)
 
 **Depends on**: Parts 2, 4 (uses EventStore, CapabilityRegistry)
 
@@ -158,7 +158,9 @@ Follow these guides in order. Each part is self-contained with clear steps, code
 - StateProjector reuses GrantsTable (no duplication)
 - MVP-level conflict detection (simple editor count checking)
 
-**Commit**: `Part 5: Complete Elfile Engine with sqlx and EngineManager`
+**Architecture**: See detailed [Engine Architecture Guide](./engine-architecture.md)
+
+**Commit**: `Part 5: Complete Elfile Engine with sqlx and EngineManager` (`f46db44`)
 
 ---
 
