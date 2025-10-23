@@ -10,8 +10,8 @@ fn handle_delete(cmd: &Command, block: &Block) -> CapResult<Vec<Event>> {
     // Create event marking block as deleted
     let event = create_event(
         block.block_id.clone(),
-        "deleted".to_string(),
-        serde_json::json!(true),
+        "core.delete",  // cap_id
+        serde_json::json!({ "deleted": true }),
         &cmd.editor_id,
         1, // TODO: Replace with actual vector clock count
     );

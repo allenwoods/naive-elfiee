@@ -21,30 +21,21 @@ fn handle_create(cmd: &Command, _block: &Block) -> CapResult<Vec<Event>> {
     // Generate new block ID
     let block_id = uuid::Uuid::new_v4().to_string();
 
-    // Create events for the new block
-    let events = vec![
-        create_event(
-            block_id.clone(),
-            "name".to_string(),
-            serde_json::json!(name),
-            &cmd.editor_id,
-            1, // TODO: Replace with actual vector clock count from state
-        ),
-        create_event(
-            block_id.clone(),
-            "type".to_string(),
-            serde_json::json!(block_type),
-            &cmd.editor_id,
-            1,
-        ),
-        create_event(
-            block_id.clone(),
-            "owner".to_string(),
-            serde_json::json!(cmd.editor_id),
-            &cmd.editor_id,
-            1,
-        ),
-    ];
+    // Create a single event with full initial state
+    // Per README.md Part 2: create events contain the full initial state
+    let event = create_event(
+        block_id.clone(),
+        "core.create",  // cap_id
+        serde_json::json!({
+            "name": name,
+            "type": block_type,
+            "owner": cmd.editor_id,
+            "contents": {},
+            "children": {}
+        }),
+        &cmd.editor_id,
+        1, // TODO: Replace with actual vector clock count from state
+    );
 
-    Ok(events)
+    Ok(vec![event])
 }

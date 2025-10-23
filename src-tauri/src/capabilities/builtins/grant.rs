@@ -22,13 +22,11 @@ fn handle_grant(cmd: &Command, _block: &Block) -> CapResult<Vec<Event>> {
         .and_then(|v| v.as_str())
         .unwrap_or("*");
 
-    // Create grant entity ID
-    let grant_entity = format!("grant:{}:{}:{}", target_editor, grant_cap_id, target_block);
-
     // Create grant event
+    // Entity is the granter's editor_id per README.md Part 2
     let event = create_event(
-        grant_entity,
-        "grant".to_string(),
+        cmd.editor_id.clone(),
+        "core.grant",  // cap_id
         serde_json::json!({
             "editor": target_editor,
             "capability": grant_cap_id,

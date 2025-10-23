@@ -49,16 +49,20 @@ pub trait CapabilityHandler: Send + Sync {
 
 /// Helper function to create a standard Event with vector clock.
 ///
+/// The attribute is automatically formatted as `{editor_id}/{cap_id}` per EAVT spec.
 /// This simplifies event creation in capability handlers.
 pub fn create_event(
     entity: String,
-    attribute: String,
+    cap_id: &str,
     value: serde_json::Value,
     editor_id: &str,
     editor_count: u64,
 ) -> Event {
     let mut timestamp = HashMap::new();
     timestamp.insert(editor_id.to_string(), editor_count);
+
+    // Format attribute as {editor_id}/{cap_id} per README.md Part 2
+    let attribute = format!("{}/{}", editor_id, cap_id);
 
     Event::new(entity, attribute, value, timestamp)
 }

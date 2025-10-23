@@ -27,8 +27,8 @@ fn handle_link(cmd: &Command, block: &Block) -> CapResult<Vec<Event>> {
     // Create event
     let event = create_event(
         block.block_id.clone(),
-        "children".to_string(),
-        serde_json::json!(new_children),
+        "core.link",  // cap_id
+        serde_json::json!({ "children": new_children }),
         &cmd.editor_id,
         1, // TODO: Replace with actual vector clock count
     );

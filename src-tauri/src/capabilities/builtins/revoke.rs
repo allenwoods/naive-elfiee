@@ -22,13 +22,11 @@ fn handle_revoke(cmd: &Command, _block: &Block) -> CapResult<Vec<Event>> {
         .and_then(|v| v.as_str())
         .unwrap_or("*");
 
-    // Create revoke entity ID
-    let revoke_entity = format!("revoke:{}:{}:{}", target_editor, revoke_cap_id, target_block);
-
     // Create revoke event
+    // Entity is the revoker's editor_id
     let event = create_event(
-        revoke_entity,
-        "revoke".to_string(),
+        cmd.editor_id.clone(),
+        "core.revoke",  // cap_id
         serde_json::json!({
             "editor": target_editor,
             "capability": revoke_cap_id,

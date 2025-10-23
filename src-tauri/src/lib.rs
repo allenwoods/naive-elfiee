@@ -2,6 +2,7 @@ pub mod models;
 pub mod engine;
 pub mod elf;
 pub mod capabilities;
+pub mod extensions;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]

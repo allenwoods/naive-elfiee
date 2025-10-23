@@ -280,3 +280,43 @@ cd src-tauri && cargo fmt
 # Lint Rust code
 cd src-tauri && cargo clippy
 ```
+
+### Part 4: Extension Interface & CBAC
+
+**Capability System** implemented with procedural macros:
+
+- **CapabilityRegistry**: Central registry for all capability handlers
+- **GrantsTable**: CBAC authorization table projected from grant/revoke events
+- **Procedural Macro**: `#[capability(id = "...", target = "...")]` for capability definitions
+
+**Authorization Model**:
+1. **Owner Always Authorized**: Block owners can perform any capability
+2. **Grant-Based**: Non-owners need explicit grants in GrantsTable
+3. **Wildcard Grants**: `block_id = "*"` grants permission on all blocks
+
+**Event Attribute Format**: `{editor_id}/{cap_id}` (e.g., "alice/markdown.write")
+
+**Extension System**:
+- Extensions live in `src/extensions/`
+- Each extension provides capabilities for specific block types
+- Example: Markdown extension with `markdown.write` and `markdown.read`
+
+**Creating Extensions**:
+1. Create directory in `src/extensions/my_extension/`
+2. Define capabilities using `#[capability]` macro
+3. Register in `CapabilityRegistry::register_extensions()`
+4. Add comprehensive tests including authorization checks
+
+See `src-tauri/docs/guides/EXTENSION_DEVELOPMENT.md` for complete guide.
+
+**Built-in Capabilities**:
+- `core.create`: Create new blocks with full initial state
+- `core.link`: Add relations between blocks
+- `core.unlink`: Remove relations between blocks
+- `core.delete`: Soft-delete blocks
+- `core.grant`: Grant capabilities to editors
+- `core.revoke`: Revoke capabilities from editors
+
+**Extension Capabilities** (Markdown):
+- `markdown.write`: Write markdown content to markdown blocks
+- `markdown.read`: Read markdown content from markdown blocks

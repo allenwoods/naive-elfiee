@@ -19,6 +19,9 @@ impl CapabilityRegistry {
         // Register built-in capabilities
         registry.register_builtins();
 
+        // Register extension capabilities
+        registry.register_extensions();
+
         registry
     }
 
@@ -42,6 +45,14 @@ impl CapabilityRegistry {
         self.register(Arc::new(CoreDeleteCapability));
         self.register(Arc::new(CoreGrantCapability));
         self.register(Arc::new(CoreRevokeCapability));
+    }
+
+    /// Register all extension capabilities.
+    fn register_extensions(&mut self) {
+        use crate::extensions::markdown::*;
+
+        self.register(Arc::new(MarkdownWriteCapability));
+        self.register(Arc::new(MarkdownReadCapability));
     }
 }
 
@@ -108,7 +119,7 @@ mod tests {
         let events = cap.handler(&cmd, &block).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].entity, block.block_id);
-        assert_eq!(events[0].attribute, "children");
+        assert_eq!(events[0].attribute, "editor1/core.link");
     }
 
     #[test]
@@ -134,10 +145,13 @@ mod tests {
         );
 
         let events = cap.handler(&cmd, &dummy_block).unwrap();
-        assert_eq!(events.len(), 3); // name, type, owner
-        assert_eq!(events[0].attribute, "name");
-        assert_eq!(events[1].attribute, "type");
-        assert_eq!(events[2].attribute, "owner");
+        assert_eq!(events.len(), 1); // Single event with full initial state
+        assert_eq!(events[0].attribute, "editor1/core.create");
+        // Verify the event contains all initial state
+        let value = &events[0].value;
+        assert_eq!(value.get("name").and_then(|v| v.as_str()), Some("New Block"));
+        assert_eq!(value.get("type").and_then(|v| v.as_str()), Some("markdown"));
+        assert_eq!(value.get("owner").and_then(|v| v.as_str()), Some("editor1"));
     }
 
     #[test]
@@ -165,7 +179,7 @@ mod tests {
 
         let events = cap.handler(&cmd, &block).unwrap();
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0].attribute, "grant");
+        assert_eq!(events[0].attribute, "editor1/core.grant");
     }
 
     #[test]
@@ -199,10 +213,12 @@ mod tests {
         let events = cap.handler(&cmd, &block).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].entity, block.block_id);
+        assert_eq!(events[0].attribute, "editor1/core.unlink");
 
         // Verify block3 still exists, block2 was removed
+        let value_obj = events[0].value.as_object().unwrap();
         let new_children: HashMap<String, Vec<String>> =
-            serde_json::from_value(events[0].value.clone()).unwrap();
+            serde_json::from_value(value_obj.get("children").unwrap().clone()).unwrap();
         assert_eq!(new_children.get("references").unwrap().len(), 1);
         assert_eq!(new_children.get("references").unwrap()[0], "block3");
     }
@@ -232,6 +248,224 @@ mod tests {
 
         let events = cap.handler(&cmd, &block).unwrap();
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0].attribute, "revoke");
+        assert_eq!(events[0].attribute, "editor1/core.revoke");
+    }
+
+    #[test]
+    fn test_certificator_owner_always_authorized() {
+        use crate::capabilities::grants::GrantsTable;
+        use crate::models::{Block, Command};
+
+        let grants_table = GrantsTable::new(); // Empty grants table
+        let registry = CapabilityRegistry::new();
+
+        // Owner is "alice"
+        let block = Block::new(
+            "Test Block".to_string(),
+            "markdown".to_string(),
+            "alice".to_string(),
+        );
+
+        // Alice (owner) tries to link - should succeed even with empty grants
+        let cmd = Command::new(
+            "alice".to_string(),
+            "core.link".to_string(),
+            block.block_id.clone(),
+            serde_json::json!({
+                "relation": "references",
+                "target_id": "block2"
+            }),
+        );
+
+        // Certificator check: owner should always have permission
+        assert!(
+            block.owner == cmd.editor_id || grants_table.has_grant(&cmd.editor_id, "core.link", &block.block_id),
+            "Owner should always be authorized"
+        );
+
+        // Execute capability
+        let cap = registry.get("core.link").unwrap();
+        let result = cap.handler(&cmd, &block);
+        assert!(result.is_ok(), "Owner should be able to execute capability");
+    }
+
+    #[test]
+    fn test_certificator_non_owner_without_grant_rejected() {
+        use crate::capabilities::grants::GrantsTable;
+        use crate::models::{Block, Command};
+
+        let grants_table = GrantsTable::new(); // Empty grants table
+        let _registry = CapabilityRegistry::new();
+
+        // Owner is "alice"
+        let block = Block::new(
+            "Test Block".to_string(),
+            "markdown".to_string(),
+            "alice".to_string(),
+        );
+
+        // Bob (non-owner) tries to link without grant
+        let cmd = Command::new(
+            "bob".to_string(),
+            "core.link".to_string(),
+            block.block_id.clone(),
+            serde_json::json!({
+                "relation": "references",
+                "target_id": "block2"
+            }),
+        );
+
+        // Certificator check: non-owner without grant should be rejected
+        let is_authorized = block.owner == cmd.editor_id
+            || grants_table.has_grant(&cmd.editor_id, "core.link", &block.block_id);
+
+        assert!(!is_authorized, "Non-owner without grant should not be authorized");
+    }
+
+    #[test]
+    fn test_certificator_non_owner_with_specific_grant_authorized() {
+        use crate::capabilities::grants::GrantsTable;
+        use crate::models::{Block, Command};
+
+        let mut grants_table = GrantsTable::new();
+        let registry = CapabilityRegistry::new();
+
+        // Owner is "alice"
+        let block = Block::new(
+            "Test Block".to_string(),
+            "markdown".to_string(),
+            "alice".to_string(),
+        );
+
+        // Grant bob specific permission for this block
+        grants_table.add_grant(
+            "bob".to_string(),
+            "core.link".to_string(),
+            block.block_id.clone(),
+        );
+
+        // Bob tries to link with explicit grant
+        let cmd = Command::new(
+            "bob".to_string(),
+            "core.link".to_string(),
+            block.block_id.clone(),
+            serde_json::json!({
+                "relation": "references",
+                "target_id": "block2"
+            }),
+        );
+
+        // Certificator check: non-owner with specific grant should be authorized
+        let is_authorized = block.owner == cmd.editor_id
+            || grants_table.has_grant(&cmd.editor_id, "core.link", &block.block_id);
+
+        assert!(is_authorized, "Non-owner with specific grant should be authorized");
+
+        // Execute capability
+        let cap = registry.get("core.link").unwrap();
+        let result = cap.handler(&cmd, &block);
+        assert!(result.is_ok(), "User with grant should be able to execute capability");
+    }
+
+    #[test]
+    fn test_certificator_wildcard_grant_works_for_any_block() {
+        use crate::capabilities::grants::GrantsTable;
+        use crate::models::{Block, Command};
+
+        let mut grants_table = GrantsTable::new();
+        let registry = CapabilityRegistry::new();
+
+        // Grant bob wildcard permission
+        grants_table.add_grant(
+            "bob".to_string(),
+            "core.link".to_string(),
+            "*".to_string(),
+        );
+
+        // Create multiple blocks with different owners
+        let block1 = Block::new(
+            "Block 1".to_string(),
+            "markdown".to_string(),
+            "alice".to_string(),
+        );
+
+        let block2 = Block::new(
+            "Block 2".to_string(),
+            "markdown".to_string(),
+            "charlie".to_string(),
+        );
+
+        // Bob tries to link on block1
+        let cmd1 = Command::new(
+            "bob".to_string(),
+            "core.link".to_string(),
+            block1.block_id.clone(),
+            serde_json::json!({
+                "relation": "references",
+                "target_id": "other_block"
+            }),
+        );
+
+        // Bob tries to link on block2
+        let cmd2 = Command::new(
+            "bob".to_string(),
+            "core.link".to_string(),
+            block2.block_id.clone(),
+            serde_json::json!({
+                "relation": "references",
+                "target_id": "other_block"
+            }),
+        );
+
+        // Certificator checks: wildcard grant should work for any block
+        assert!(
+            grants_table.has_grant(&cmd1.editor_id, "core.link", &block1.block_id),
+            "Wildcard grant should work for block1"
+        );
+        assert!(
+            grants_table.has_grant(&cmd2.editor_id, "core.link", &block2.block_id),
+            "Wildcard grant should work for block2"
+        );
+
+        // Execute capabilities
+        let cap = registry.get("core.link").unwrap();
+        assert!(cap.handler(&cmd1, &block1).is_ok());
+        assert!(cap.handler(&cmd2, &block2).is_ok());
+    }
+
+    #[test]
+    fn test_certificator_different_capability_not_authorized() {
+        use crate::capabilities::grants::GrantsTable;
+        use crate::models::{Block, Command};
+
+        let mut grants_table = GrantsTable::new();
+
+        // Owner is "alice"
+        let block = Block::new(
+            "Test Block".to_string(),
+            "markdown".to_string(),
+            "alice".to_string(),
+        );
+
+        // Grant bob permission for core.link only
+        grants_table.add_grant(
+            "bob".to_string(),
+            "core.link".to_string(),
+            block.block_id.clone(),
+        );
+
+        // Bob tries to delete (different capability)
+        let cmd = Command::new(
+            "bob".to_string(),
+            "core.delete".to_string(),
+            block.block_id.clone(),
+            serde_json::json!({}),
+        );
+
+        // Certificator check: should not have permission for different capability
+        let is_authorized = block.owner == cmd.editor_id
+            || grants_table.has_grant(&cmd.editor_id, "core.delete", &block.block_id);
+
+        assert!(!is_authorized, "Grant for one capability should not authorize another");
     }
 }
