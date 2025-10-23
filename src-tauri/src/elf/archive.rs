@@ -18,7 +18,7 @@ impl ElfArchive {
 
         // Initialize empty event store
         EventStore::new(db_path.to_str().unwrap())
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         Ok(Self { temp_dir, db_path })
     }

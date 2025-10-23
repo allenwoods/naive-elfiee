@@ -96,7 +96,7 @@ fn derive_struct_name(cap_id: &str) -> proc_macro2::Ident {
             match chars.next() {
                 Some(first_char) => {
                     let mut capitalized = first_char.to_uppercase().to_string();
-                    capitalized.push_str(&chars.as_str());
+                    capitalized.push_str(chars.as_str());
                     capitalized
                 }
                 None => String::new(),

@@ -21,7 +21,7 @@ fn handle_link(cmd: &Command, block: &Block) -> CapResult<Vec<Event>> {
     let mut new_children = block.children.clone();
     new_children
         .entry(relation.to_string())
-        .or_insert_with(Vec::new)
+        .or_default()
         .push(target_id.to_string());
 
     // Create event
