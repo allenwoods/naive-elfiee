@@ -211,7 +211,7 @@ naive-elfiee/
 ### Backend (Rust)
 
 **Key Crates**:
-- `rusqlite`: SQLite interface for event store
+- `sqlx`: SQLite interface for event store
 - `serde`, `serde_json`: JSON serialization for events/commands
 - `uuid`: Generate block_id, event_id, etc.
 - `zip`: Handle `.elf` archive reading/writing
