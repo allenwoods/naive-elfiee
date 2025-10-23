@@ -2,6 +2,23 @@
 
 This document provides the master overview of the Elfiee implementation. Each part has its own detailed guide.
 
+## Current Progress
+
+**Overall**: 50% Complete (3 of 6 parts done)
+
+| Part | Status | Files | Tests | Commit |
+|------|--------|-------|-------|--------|
+| Part 1: Core Models | ✅ DONE | `models/*.rs`, `types/models.ts` | ✓ Compiles | `69b491e` |
+| Part 2: Event Store | ✅ DONE | `engine/event_store.rs` | ✓ 2 pass | `652d649` |
+| Part 3: ELF Format | ✅ DONE | `elf/archive.rs` | ✓ 3 pass | `b7eb88a` |
+| Part 4: Extensions | ⏳ NEXT | `capabilities/*.rs` | - | - |
+| Part 5: Engine | ⬜ TODO | `engine/actor.rs`, `engine/projector.rs` | - | - |
+| Part 6: Tauri App | ⬜ TODO | `commands/*.rs`, `src/` | - | - |
+
+**Latest**: Part 3 completed - ZIP-based .elf file format with full round-trip preservation
+
+**Next**: Part 4 - Implement capability system with trait-based handlers
+
 ## Implementation Philosophy
 
 1. **No Over-Engineering**: Build the simplest thing that works. Optimize only when needed.
@@ -32,7 +49,9 @@ naive-elfiee/
 
 Follow these guides in order. Each part is self-contained with clear steps, code examples, and tests.
 
-### [Part 1: Core Data Models](./part1-core-models.md)
+### [Part 1: Core Data Models](./part1-core-models.md) ✅ COMPLETED
+
+**Status**: ✅ **DONE** (Commit: `69b491e`)
 
 **What**: Define fundamental data structures (Block, Editor, Capability, Command, Event)
 
@@ -45,11 +64,13 @@ Follow these guides in order. Each part is self-contained with clear steps, code
 
 **Start here**: This is the foundation. No dependencies on other parts.
 
-**Commit message example**: `Part 1: Core data models with serde`
+**Commit**: `Part 1: Core data models with serde`
 
 ---
 
-### [Part 2: Event Structure](./part2-event-structure.md)
+### [Part 2: Event Structure](./part2-event-structure.md) ✅ COMPLETED
+
+**Status**: ✅ **DONE** (Commit: `652d649`)
 
 **What**: Implement SQLite event store using EAVT schema
 
@@ -59,15 +80,17 @@ Follow these guides in order. Each part is self-contained with clear steps, code
 - ✅ SQLite database with EAVT table
 - ✅ Append events atomically
 - ✅ Query by entity and retrieve all events
-- ✅ Basic test coverage
+- ✅ Basic test coverage (2 tests pass)
 
 **Depends on**: Part 1 (uses Event model)
 
-**Commit message example**: `Part 2: SQLite event store with EAVT schema`
+**Commit**: `Part 2: SQLite event store with EAVT schema`
 
 ---
 
-### [Part 3: ELF File Format](./part3-elf-file-format.md)
+### [Part 3: ELF File Format](./part3-elf-file-format.md) ✅ COMPLETED
+
+**Status**: ✅ **DONE** (Commit: `b7eb88a`)
 
 **What**: Handle .elf files as ZIP archives
 
@@ -77,26 +100,29 @@ Follow these guides in order. Each part is self-contained with clear steps, code
 - ✅ Extract ZIP to temp directory
 - ✅ Access event store and block assets
 - ✅ Re-zip and save
+- ✅ Round-trip preservation (3 tests pass)
 
 **Depends on**: Part 2 (uses EventStore)
 
 **Deferred**: `_snapshot`, `_blocks_hash`, `_blocks_relation` caches (optimize later)
 
-**Commit message example**: `Part 3: ZIP-based .elf file format handler`
+**Commit**: `Part 3: ZIP-based .elf file format handler`
 
 ---
 
-### [Part 4: Extension Interface](./part4-extension-interface.md)
+### [Part 4: Extension Interface](./part4-extension-interface.md) ⏳ NEXT
+
+**Status**: ⏳ **TODO** - Next to implement
 
 **What**: Capability system for extending block types
 
 **Time**: 1 week
 
 **Key Deliverables**:
-- ✅ `CapabilityHandler` trait
-- ✅ Capability registry
-- ✅ Built-in capabilities: `core.create`, `core.link`, `core.delete`, `core.grant`
-- ✅ Example: `markdown.write`
+- ⬜ `CapabilityHandler` trait
+- ⬜ Capability registry
+- ⬜ Built-in capabilities: `core.create`, `core.link`, `core.delete`, `core.grant`
+- ⬜ Example: `markdown.write`
 
 **Depends on**: Part 1 (uses models)
 
@@ -108,15 +134,17 @@ Follow these guides in order. Each part is self-contained with clear steps, code
 
 ### [Part 5: Elfile Engine](./part5-elfile-engine.md)
 
+**Status**: ⬜ **TODO**
+
 **What**: Command processor with state projection
 
 **Time**: 1.5 weeks
 
 **Key Deliverables**:
-- ✅ State projector (replay events → in-memory state)
-- ✅ Command processor (authorize → execute → commit)
-- ✅ Vector clock updates
-- ✅ Basic tests
+- ⬜ State projector (replay events → in-memory state)
+- ⬜ Command processor (authorize → execute → commit)
+- ⬜ Vector clock updates
+- ⬜ Basic tests
 
 **Depends on**: Parts 2, 4 (uses EventStore, CapabilityRegistry)
 
@@ -128,16 +156,18 @@ Follow these guides in order. Each part is self-contained with clear steps, code
 
 ### [Part 6: Tauri App Interface](./part6-tauri-app.md)
 
+**Status**: ⬜ **TODO**
+
 **What**: Connect Rust backend to React frontend
 
 **Time**: 1.5 weeks
 
 **Key Deliverables**:
-- ✅ Tauri commands (file ops, block ops)
-- ✅ App state management
-- ✅ React UI with shadcn components
-- ✅ Basic block visualization
-- ✅ Create and view blocks
+- ⬜ Tauri commands (file ops, block ops)
+- ⬜ App state management
+- ⬜ React UI with shadcn components
+- ⬜ Basic block visualization
+- ⬜ Create and view blocks
 
 **Depends on**: Parts 3, 5 (uses ElfArchive, EngineManager)
 
