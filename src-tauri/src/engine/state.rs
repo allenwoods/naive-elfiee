@@ -17,7 +17,7 @@ pub struct StateProjector {
     pub grants: GrantsTable,
 
     /// Vector clock counts for each editor (for conflict detection)
-    pub editor_counts: HashMap<String, u64>,
+    pub editor_counts: HashMap<String, i64>,
 }
 
 impl StateProjector {
@@ -168,7 +168,7 @@ impl StateProjector {
     }
 
     /// Get the current transaction count for an editor.
-    pub fn get_editor_count(&self, editor_id: &str) -> u64 {
+    pub fn get_editor_count(&self, editor_id: &str) -> i64 {
         *self.editor_counts.get(editor_id).unwrap_or(&0)
     }
 
@@ -176,7 +176,7 @@ impl StateProjector {
     ///
     /// Returns true if the command is based on stale state.
     /// For MVP, we only check the command editor's count.
-    pub fn has_conflict(&self, editor_id: &str, expected_count: u64) -> bool {
+    pub fn has_conflict(&self, editor_id: &str, expected_count: i64) -> bool {
         let current_count = self.get_editor_count(editor_id);
         expected_count < current_count
     }

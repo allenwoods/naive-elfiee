@@ -60,7 +60,7 @@ pub fn create_event(
     cap_id: &str,
     value: serde_json::Value,
     editor_id: &str,
-    editor_count: u64,
+    editor_count: i64,
 ) -> Event {
     let mut timestamp = HashMap::new();
     timestamp.insert(editor_id.to_string(), editor_count);

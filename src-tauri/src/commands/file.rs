@@ -1,5 +1,6 @@
 use crate::elf::ElfArchive;
 use crate::state::{AppState, FileInfo};
+use specta::specta;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
@@ -13,6 +14,7 @@ use tauri::State;
 /// * `Ok(file_id)` - Unique identifier for the opened file
 /// * `Err(message)` - Error description if creation fails
 #[tauri::command]
+#[specta]
 pub async fn create_file(
     path: String,
     state: State<'_, AppState>,
@@ -63,6 +65,7 @@ pub async fn create_file(
 /// * `Ok(file_id)` - Unique identifier for the opened file
 /// * `Err(message)` - Error description if opening fails
 #[tauri::command]
+#[specta]
 pub async fn open_file(
     path: String,
     state: State<'_, AppState>,
@@ -109,6 +112,7 @@ pub async fn open_file(
 /// * `Ok(())` - File saved successfully
 /// * `Err(message)` - Error description if save fails
 #[tauri::command]
+#[specta]
 pub async fn save_file(
     file_id: String,
     state: State<'_, AppState>,
@@ -140,6 +144,7 @@ pub async fn save_file(
 /// * `Ok(())` - File closed successfully
 /// * `Err(message)` - Error description if close fails
 #[tauri::command]
+#[specta]
 pub async fn close_file(
     file_id: String,
     state: State<'_, AppState>,
@@ -159,6 +164,7 @@ pub async fn close_file(
 /// * `Ok(Vec<file_id>)` - List of file IDs currently open
 /// * `Err(message)` - Error description if retrieval fails
 #[tauri::command]
+#[specta]
 pub async fn list_open_files(
     state: State<'_, AppState>,
 ) -> Result<Vec<String>, String> {

@@ -34,4 +34,7 @@ tempfile = "3.8"
 capability-macros = { path = "capability-macros" }
 tokio = { version = "1.36", features = ["full"] }
 dashmap = "5.5"
+specta = { version = "=2.0.0-rc.22", features = ["serde_json", "chrono"] }
+specta-typescript = "0.0.9"
+tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 

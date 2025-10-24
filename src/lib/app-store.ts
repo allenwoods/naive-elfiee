@@ -9,7 +9,7 @@
  */
 
 import { create } from 'zustand';
-import type { Block } from './types';
+import type { Block } from '@/bindings';
 import TauriClient from './tauri-client';
 
 interface FileState {

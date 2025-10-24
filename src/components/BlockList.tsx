@@ -7,7 +7,7 @@
 import { useAppStore } from '@/lib/app-store';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
-import type { Block } from '@/lib/types';
+import type { Block } from '@/bindings';
 
 function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
   const { deleteBlock, selectBlock, getSelectedBlock } = useAppStore();
