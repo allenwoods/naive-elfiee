@@ -36,8 +36,8 @@ interface AppStore {
   loadBlocks: (fileId: string) => Promise<void>;
   createBlock: (
     fileId: string,
-    parentId: string | null,
-    content: { type: 'text' | 'link'; data: string }
+    name: string,
+    blockType?: string
   ) => Promise<void>;
   updateBlock: (
     fileId: string,
@@ -168,15 +168,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   createBlock: async (
     fileId: string,
-    parentId: string | null,
-    content: { type: 'text' | 'link'; data: string }
+    name: string,
+    blockType: string = 'markdown'
   ) => {
+    console.log('[AppStore] createBlock called', { fileId, name, blockType });
     try {
       set({ isLoading: true, error: null });
       const blockId = `block-${crypto.randomUUID()}`;
-      await TauriClient.block.createBlock(fileId, blockId, parentId, content);
+      console.log('[AppStore] Generated blockId:', blockId);
+      console.log('[AppStore] Calling TauriClient.block.createBlock...');
+      await TauriClient.block.createBlock(fileId, blockId, name, blockType);
+      console.log('[AppStore] TauriClient.block.createBlock succeeded');
+      console.log('[AppStore] Loading blocks...');
       await get().loadBlocks(fileId);
+      console.log('[AppStore] Blocks loaded');
     } catch (error) {
+      console.error('[AppStore] createBlock error:', error);
       set({ error: String(error) });
     } finally {
       set({ isLoading: false });
@@ -233,7 +240,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   getSelectedBlock: (fileId: string) => {
     const fileState = get().files.get(fileId);
     if (!fileState || !fileState.selectedBlockId) return null;
-    return fileState.blocks.find((b) => b.id === fileState.selectedBlockId) || null;
+    return fileState.blocks.find((b) => b.block_id === fileState.selectedBlockId) || null;
   },
 
   // UI Actions

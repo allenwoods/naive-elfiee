@@ -8,19 +8,35 @@ import { useAppStore } from '@/lib/app-store';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2 } from 'lucide-react';
 import type { Block } from '@/bindings';
+import { message } from '@tauri-apps/plugin-dialog';
 
 function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
   const { deleteBlock, selectBlock, getSelectedBlock } = useAppStore();
   const selectedBlock = getSelectedBlock(fileId);
-  const isSelected = selectedBlock?.id === block.id;
+  const isSelected = selectedBlock?.block_id === block.block_id;
 
   const handleDelete = async () => {
-    await deleteBlock(fileId, block.id);
+    await deleteBlock(fileId, block.block_id);
   };
 
   const handleSelect = () => {
-    selectBlock(fileId, block.id);
+    selectBlock(fileId, block.block_id);
   };
+
+  // Helper to display contents
+  const displayContent = () => {
+    if (typeof block.contents === 'string') return block.contents;
+    if (typeof block.contents === 'object' && block.contents !== null) {
+      return JSON.stringify(block.contents);
+    }
+    return '(empty)';
+  };
+
+  // Count children
+  const childrenCount = Object.values(block.children || {}).reduce(
+    (acc, arr) => acc + (arr?.length || 0),
+    0
+  );
 
   return (
     <div
@@ -34,19 +50,17 @@ function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="text-xs text-muted-foreground mb-1">
-            {block.id}
+            {block.name || block.block_id}
+          </div>
+          <div className="text-xs text-muted-foreground mb-1">
+            Type: {block.block_type}
           </div>
           <div className="text-sm break-words">
-            {block.content.data || '(empty)'}
+            {displayContent()}
           </div>
-          {block.parent_id && (
+          {childrenCount > 0 && (
             <div className="text-xs text-muted-foreground mt-1">
-              Parent: {block.parent_id}
-            </div>
-          )}
-          {block.linked_to.length > 0 && (
-            <div className="text-xs text-muted-foreground mt-1">
-              Links: {block.linked_to.length}
+              Children: {childrenCount}
             </div>
           )}
         </div>
@@ -71,12 +85,29 @@ export function BlockList() {
   const activeFile = getActiveFile();
 
   const handleCreateBlock = async () => {
-    if (!activeFileId) return;
+    console.log('[BlockList] handleCreateBlock called');
+    console.log('[BlockList] activeFileId:', activeFileId);
 
-    const content = prompt('Enter block content:');
-    if (content === null) return;
+    if (!activeFileId) {
+      console.log('[BlockList] No active file, returning');
+      return;
+    }
 
-    await createBlock(activeFileId, null, { type: 'text', data: content });
+    // For MVP, we'll create a simple markdown block with timestamp as name
+    // TODO: Replace with a proper dialog/input component
+    const timestamp = new Date().toLocaleString();
+    const blockName = `Block ${timestamp}`;
+    console.log('[BlockList] Creating block with name:', blockName);
+
+    console.log('[BlockList] Calling createBlock...');
+    try {
+      await createBlock(activeFileId, blockName, 'markdown');
+      console.log('[BlockList] createBlock succeeded');
+      await message('Block created successfully!', { title: 'Success', kind: 'info' });
+    } catch (error) {
+      console.error('[BlockList] createBlock failed:', error);
+      await message(`Failed to create block: ${error}`, { title: 'Error', kind: 'error' });
+    }
   };
 
   if (!activeFileId || !activeFile) {
@@ -110,7 +141,7 @@ export function BlockList() {
           <div className="space-y-2">
             {activeFile.blocks.map((block) => (
               <BlockItem
-                key={block.id}
+                key={block.block_id}
                 block={block}
                 fileId={activeFileId}
               />
