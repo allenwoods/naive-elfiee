@@ -7,7 +7,12 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import type { Block, Command, Event } from './types';
+import type { Block, Command, Event, CreateBlockPayload, WriteBlockPayload, LinkBlockPayload, UpdateMetadataPayload } from './types';
+
+/**
+ * Default editor ID for single-user MVP
+ */
+const DEFAULT_EDITOR_ID = 'default-editor';
 
 /**
  * File Operations
@@ -78,6 +83,25 @@ export class FileOperations {
 }
 
 /**
+ * Helper function to create a Command
+ */
+function createCommand(
+  editorId: string,
+  capId: string,
+  blockId: string,
+  payload: unknown
+): Command {
+  return {
+    cmd_id: crypto.randomUUID(),
+    editor_id: editorId,
+    cap_id: capId,
+    block_id: blockId,
+    payload,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
  * Block Operations
  */
 export class BlockOperations {
@@ -119,12 +143,12 @@ export class BlockOperations {
     parentId: string | null,
     content: { type: 'text' | 'link'; data: string }
   ): Promise<Event[]> {
-    return await this.executeCommand(fileId, {
-      type: 'Create',
-      block_id: blockId,
+    const payload: CreateBlockPayload = {
       parent_id: parentId,
-      content
-    });
+      content,
+    };
+    const cmd = createCommand(DEFAULT_EDITOR_ID, 'core.create', blockId, payload);
+    return await this.executeCommand(fileId, cmd);
   }
 
   /**
@@ -135,43 +159,35 @@ export class BlockOperations {
     blockId: string,
     content: { type: 'text' | 'link'; data: string }
   ): Promise<Event[]> {
-    return await this.executeCommand(fileId, {
-      type: 'Write',
-      block_id: blockId,
-      content
-    });
+    const payload: WriteBlockPayload = { content };
+    const cmd = createCommand(DEFAULT_EDITOR_ID, 'markdown.write', blockId, payload);
+    return await this.executeCommand(fileId, cmd);
   }
 
   /**
    * Helper: Delete a block
    */
   static async deleteBlock(fileId: string, blockId: string): Promise<Event[]> {
-    return await this.executeCommand(fileId, {
-      type: 'Delete',
-      block_id: blockId
-    });
+    const cmd = createCommand(DEFAULT_EDITOR_ID, 'core.delete', blockId, {});
+    return await this.executeCommand(fileId, cmd);
   }
 
   /**
    * Helper: Link two blocks
    */
   static async linkBlocks(fileId: string, fromId: string, toId: string): Promise<Event[]> {
-    return await this.executeCommand(fileId, {
-      type: 'Link',
-      from_id: fromId,
-      to_id: toId
-    });
+    const payload: LinkBlockPayload = { to_id: toId };
+    const cmd = createCommand(DEFAULT_EDITOR_ID, 'core.link', fromId, payload);
+    return await this.executeCommand(fileId, cmd);
   }
 
   /**
    * Helper: Unlink two blocks
    */
   static async unlinkBlocks(fileId: string, fromId: string, toId: string): Promise<Event[]> {
-    return await this.executeCommand(fileId, {
-      type: 'Unlink',
-      from_id: fromId,
-      to_id: toId
-    });
+    const payload: LinkBlockPayload = { to_id: toId };
+    const cmd = createCommand(DEFAULT_EDITOR_ID, 'core.unlink', fromId, payload);
+    return await this.executeCommand(fileId, cmd);
   }
 
   /**
@@ -182,11 +198,9 @@ export class BlockOperations {
     blockId: string,
     metadata: Record<string, string>
   ): Promise<Event[]> {
-    return await this.executeCommand(fileId, {
-      type: 'UpdateMetadata',
-      block_id: blockId,
-      metadata
-    });
+    const payload: UpdateMetadataPayload = { metadata };
+    const cmd = createCommand(DEFAULT_EDITOR_ID, 'core.update_metadata', blockId, payload);
+    return await this.executeCommand(fileId, cmd);
   }
 }
 

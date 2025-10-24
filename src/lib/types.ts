@@ -33,13 +33,37 @@ export type EventType =
   | 'ContentWritten'
   | 'MetadataUpdated';
 
-export type Command =
-  | { type: 'Create'; block_id: string; parent_id: string | null; content: BlockContent }
-  | { type: 'Delete'; block_id: string }
-  | { type: 'Link'; from_id: string; to_id: string }
-  | { type: 'Unlink'; from_id: string; to_id: string }
-  | { type: 'Write'; block_id: string; content: BlockContent }
-  | { type: 'UpdateMetadata'; block_id: string; metadata: Record<string, string> };
+/**
+ * Command structure matching Rust backend
+ */
+export interface Command {
+  cmd_id: string;
+  editor_id: string;
+  cap_id: string;
+  block_id: string;
+  payload: unknown;
+  timestamp: string;
+}
+
+/**
+ * Helper types for creating commands
+ */
+export type CreateBlockPayload = {
+  parent_id: string | null;
+  content: BlockContent;
+};
+
+export type WriteBlockPayload = {
+  content: BlockContent;
+};
+
+export type LinkBlockPayload = {
+  to_id: string;
+};
+
+export type UpdateMetadataPayload = {
+  metadata: Record<string, string>;
+};
 
 export interface FileInfo {
   fileId: string;
