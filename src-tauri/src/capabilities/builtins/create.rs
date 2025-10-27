@@ -1,4 +1,4 @@
-use crate::capabilities::core::{CapResult, create_event};
+use crate::capabilities::core::{create_event, CapResult};
 use crate::models::{Block, Command, Event};
 use capability_macros::capability;
 
@@ -9,12 +9,16 @@ use capability_macros::capability;
 #[capability(id = "core.create", target = "core/*")]
 fn handle_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>> {
     // Extract block name
-    let name = cmd.payload.get("name")
+    let name = cmd
+        .payload
+        .get("name")
         .and_then(|v| v.as_str())
         .ok_or("Missing 'name' in payload")?;
 
     // Extract block type
-    let block_type = cmd.payload.get("block_type")
+    let block_type = cmd
+        .payload
+        .get("block_type")
         .and_then(|v| v.as_str())
         .ok_or("Missing 'block_type' in payload")?;
 
@@ -25,7 +29,7 @@ fn handle_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>>
     // Per README.md Part 2: create events contain the full initial state
     let event = create_event(
         block_id.clone(),
-        "core.create",  // cap_id
+        "core.create", // cap_id
         serde_json::json!({
             "name": name,
             "type": block_type,

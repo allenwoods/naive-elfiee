@@ -1,4 +1,4 @@
-use crate::capabilities::core::{CapResult, create_event};
+use crate::capabilities::core::{create_event, CapResult};
 use crate::models::{Block, Command, Event};
 use capability_macros::capability;
 
@@ -9,12 +9,16 @@ use capability_macros::capability;
 fn handle_unlink(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for core.unlink")?;
     // Extract relation type
-    let relation = cmd.payload.get("relation")
+    let relation = cmd
+        .payload
+        .get("relation")
         .and_then(|v| v.as_str())
         .ok_or("Missing 'relation' in payload")?;
 
     // Extract target block ID to remove
-    let target_id = cmd.payload.get("target_id")
+    let target_id = cmd
+        .payload
+        .get("target_id")
         .and_then(|v| v.as_str())
         .ok_or("Missing 'target_id' in payload")?;
 
@@ -31,7 +35,7 @@ fn handle_unlink(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
     // Create event
     let event = create_event(
         block.block_id.clone(),
-        "core.unlink",  // cap_id
+        "core.unlink", // cap_id
         serde_json::json!({ "children": new_children }),
         &cmd.editor_id,
         1, // TODO: Replace with actual vector clock count

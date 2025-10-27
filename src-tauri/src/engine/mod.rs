@@ -1,9 +1,9 @@
-mod event_store;
-mod state;
 mod actor;
+mod event_store;
 mod manager;
+mod state;
 
+pub use actor::{spawn_engine, EngineHandle, EngineMessage};
 pub use event_store::EventStore;
-pub use state::StateProjector;
-pub use actor::{EngineHandle, EngineMessage, spawn_engine};
 pub use manager::EngineManager;
+pub use state::StateProjector;

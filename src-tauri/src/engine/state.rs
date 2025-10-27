@@ -66,22 +66,27 @@ impl StateProjector {
                 if let Some(obj) = event.value.as_object() {
                     let block = Block {
                         block_id: event.entity.clone(),
-                        name: obj.get("name")
+                        name: obj
+                            .get("name")
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string(),
-                        block_type: obj.get("type")
+                        block_type: obj
+                            .get("type")
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string(),
-                        owner: obj.get("owner")
+                        owner: obj
+                            .get("owner")
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string(),
-                        contents: obj.get("contents")
+                        contents: obj
+                            .get("contents")
                             .cloned()
                             .unwrap_or_else(|| serde_json::json!({})),
-                        children: obj.get("children")
+                        children: obj
+                            .get("children")
                             .and_then(|v| serde_json::from_value(v.clone()).ok())
                             .unwrap_or_default(),
                     };

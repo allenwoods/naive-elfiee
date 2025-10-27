@@ -23,8 +23,7 @@ impl EventStore {
         } else {
             // Ensure parent directory exists
             if let Some(parent) = std::path::Path::new(path).parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(sqlx::Error::Io)?;
+                std::fs::create_dir_all(parent).map_err(sqlx::Error::Io)?;
             }
 
             // Use sqlite: prefix for file paths
@@ -35,7 +34,7 @@ impl EventStore {
             .max_connections(5)
             .connect_with(
                 sqlx::sqlite::SqliteConnectOptions::from_str(&connection_string)?
-                    .create_if_missing(true)
+                    .create_if_missing(true),
             )
             .await?;
 
@@ -147,10 +146,10 @@ impl EventStore {
         let value_json: String = row.try_get(3)?;
         let timestamp_json: String = row.try_get(4)?;
 
-        let value: serde_json::Value = serde_json::from_str(&value_json)
-            .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
-        let timestamp = serde_json::from_str(&timestamp_json)
-            .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+        let value: serde_json::Value =
+            serde_json::from_str(&value_json).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+        let timestamp =
+            serde_json::from_str(&timestamp_json).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
 
         Ok(Event {
             event_id,

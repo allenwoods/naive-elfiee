@@ -1,9 +1,47 @@
 use crate::elf::ElfArchive;
+use crate::models::Command;
 use crate::state::{AppState, FileInfo};
 use specta::specta;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
+
+/// Bootstrap the editor system for a file.
+///
+/// If no editors exist, creates a "system" editor and sets it as active.
+/// This ensures every file always has at least one editor available.
+async fn bootstrap_editors(file_id: &str, state: &AppState) -> Result<(), String> {
+    // Get engine handle
+    let handle = state
+        .engine_manager
+        .get_engine(file_id)
+        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
+
+    // Check if any editors exist
+    let editors = handle.get_all_editors().await;
+
+    if editors.is_empty() {
+        // Create system editor
+        let cmd = Command::new(
+            "system".to_string(),
+            "editor.create".to_string(),
+            "".to_string(),
+            serde_json::json!({ "name": "System" }),
+        );
+
+        let events = handle.process_command(cmd).await?;
+
+        // Extract editor_id from created event
+        if let Some(event) = events.first() {
+            let system_editor_id = event.entity.clone();
+
+            // Set as active editor
+            state.set_active_editor(file_id.to_string(), system_editor_id);
+        }
+    }
+
+    Ok(())
+}
 
 /// Create a new .elf file and open it for editing.
 ///
@@ -15,10 +53,7 @@ use tauri::State;
 /// * `Err(message)` - Error description if creation fails
 #[tauri::command]
 #[specta]
-pub async fn create_file(
-    path: String,
-    state: State<'_, AppState>,
-) -> Result<String, String> {
+pub async fn create_file(path: String, state: State<'_, AppState>) -> Result<String, String> {
     // Generate unique file ID
     let file_id = format!("file-{}", uuid::Uuid::new_v4());
 
@@ -53,6 +88,9 @@ pub async fn create_file(
         },
     );
 
+    // Bootstrap editors (create system editor if none exist)
+    bootstrap_editors(&file_id, &state).await?;
+
     Ok(file_id)
 }
 
@@ -66,16 +104,13 @@ pub async fn create_file(
 /// * `Err(message)` - Error description if opening fails
 #[tauri::command]
 #[specta]
-pub async fn open_file(
-    path: String,
-    state: State<'_, AppState>,
-) -> Result<String, String> {
+pub async fn open_file(path: String, state: State<'_, AppState>) -> Result<String, String> {
     // Generate unique file ID
     let file_id = format!("file-{}", uuid::Uuid::new_v4());
 
     // Open existing archive
-    let archive = ElfArchive::open(Path::new(&path))
-        .map_err(|e| format!("Failed to open file: {}", e))?;
+    let archive =
+        ElfArchive::open(Path::new(&path)).map_err(|e| format!("Failed to open file: {}", e))?;
 
     // Get event pool for this archive
     let event_pool = archive
@@ -98,6 +133,9 @@ pub async fn open_file(
         },
     );
 
+    // Bootstrap editors (create system editor if none exist)
+    bootstrap_editors(&file_id, &state).await?;
+
     Ok(file_id)
 }
 
@@ -113,10 +151,7 @@ pub async fn open_file(
 /// * `Err(message)` - Error description if save fails
 #[tauri::command]
 #[specta]
-pub async fn save_file(
-    file_id: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn save_file(file_id: String, state: State<'_, AppState>) -> Result<(), String> {
     // Get file info
     let file_info = state
         .files
@@ -145,10 +180,7 @@ pub async fn save_file(
 /// * `Err(message)` - Error description if close fails
 #[tauri::command]
 #[specta]
-pub async fn close_file(
-    file_id: String,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+pub async fn close_file(file_id: String, state: State<'_, AppState>) -> Result<(), String> {
     // Shutdown engine actor
     state.engine_manager.shutdown_engine(&file_id).await?;
 
@@ -165,9 +197,7 @@ pub async fn close_file(
 /// * `Err(message)` - Error description if retrieval fails
 #[tauri::command]
 #[specta]
-pub async fn list_open_files(
-    state: State<'_, AppState>,
-) -> Result<Vec<String>, String> {
+pub async fn list_open_files(state: State<'_, AppState>) -> Result<Vec<String>, String> {
     let file_ids: Vec<String> = state
         .files
         .iter()

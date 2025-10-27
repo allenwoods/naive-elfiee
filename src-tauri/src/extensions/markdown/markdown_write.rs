@@ -1,4 +1,4 @@
-use crate::capabilities::core::{CapResult, create_event};
+use crate::capabilities::core::{create_event, CapResult};
 use crate::models::{Block, Command, Event};
 use capability_macros::capability;
 
@@ -10,7 +10,9 @@ use capability_macros::capability;
 fn handle_markdown_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for markdown.write")?;
     // Extract markdown content from payload
-    let markdown_content = cmd.payload.get("content")
+    let markdown_content = cmd
+        .payload
+        .get("content")
         .and_then(|v| v.as_str())
         .ok_or("Missing 'content' in payload")?;
 
@@ -25,7 +27,7 @@ fn handle_markdown_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<
     // Create event
     let event = create_event(
         block.block_id.clone(),
-        "markdown.write",  // cap_id
+        "markdown.write", // cap_id
         serde_json::json!({ "contents": new_contents }),
         &cmd.editor_id,
         1, // TODO: Replace with actual vector clock count

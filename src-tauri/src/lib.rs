@@ -1,9 +1,9 @@
-pub mod models;
-pub mod engine;
-pub mod elf;
 pub mod capabilities;
-pub mod extensions;
 pub mod commands;
+pub mod elf;
+pub mod engine;
+pub mod extensions;
+pub mod models;
 pub mod state;
 
 use state::AppState;
@@ -21,8 +21,8 @@ pub fn run() {
     // Generate TypeScript bindings in debug mode
     #[cfg(debug_assertions)]
     let builder = {
-        let specta_builder = tauri_specta::Builder::<tauri::Wry>::new()
-            .commands(tauri_specta::collect_commands![
+        let specta_builder =
+            tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
                 // File operations
                 commands::file::create_file,
                 commands::file::open_file,
@@ -33,6 +33,12 @@ pub fn run() {
                 commands::block::execute_command,
                 commands::block::get_block,
                 commands::block::get_all_blocks,
+                // Editor operations
+                commands::editor::create_editor,
+                commands::editor::list_editors,
+                commands::editor::get_editor,
+                commands::editor::set_active_editor,
+                commands::editor::get_active_editor,
             ]);
 
         // Export TypeScript bindings on app startup
@@ -60,6 +66,12 @@ pub fn run() {
         commands::block::execute_command,
         commands::block::get_block,
         commands::block::get_all_blocks,
+        // Editor operations
+        commands::editor::create_editor,
+        commands::editor::list_editors,
+        commands::editor::get_editor,
+        commands::editor::set_active_editor,
+        commands::editor::get_active_editor,
     ]);
 
     builder

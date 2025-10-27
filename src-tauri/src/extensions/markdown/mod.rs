@@ -1,3 +1,4 @@
+pub mod markdown_read;
 /// Markdown extension for Elfiee.
 ///
 /// This extension provides capabilities for reading and writing markdown content
@@ -38,22 +39,23 @@
 /// );
 /// ```
 pub mod markdown_write;
-pub mod markdown_read;
 
 // Re-export the capability handlers for registration
-pub use markdown_write::*;
 pub use markdown_read::*;
+pub use markdown_write::*;
 
 #[cfg(test)]
 mod tests {
-    use crate::capabilities::CapabilityRegistry;
     use crate::capabilities::grants::GrantsTable;
+    use crate::capabilities::CapabilityRegistry;
     use crate::models::{Block, Command};
 
     #[test]
     fn test_markdown_write_capability() {
         let registry = CapabilityRegistry::new();
-        let cap = registry.get("markdown.write").expect("markdown.write should be registered");
+        let cap = registry
+            .get("markdown.write")
+            .expect("markdown.write should be registered");
 
         let block = Block::new(
             "My Document".to_string(),
@@ -84,7 +86,9 @@ mod tests {
     #[test]
     fn test_markdown_read_capability() {
         let registry = CapabilityRegistry::new();
-        let cap = registry.get("markdown.read").expect("markdown.read should be registered");
+        let cap = registry
+            .get("markdown.read")
+            .expect("markdown.read should be registered");
 
         // Create a block with existing markdown content
         let mut block = Block::new(
@@ -105,7 +109,7 @@ mod tests {
 
         let events = cap.handler(&cmd, Some(&block)).unwrap();
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0].entity, cmd.editor_id);  // Entity is reader
+        assert_eq!(events[0].entity, cmd.editor_id); // Entity is reader
         assert_eq!(events[0].attribute, "alice/markdown.read");
 
         // Verify read event contains the content
@@ -128,7 +132,7 @@ mod tests {
             "alice".to_string(),
             "markdown.write".to_string(),
             block.block_id.clone(),
-            serde_json::json!({}),  // Missing content field
+            serde_json::json!({}), // Missing content field
         );
 
         let result = cap.handler(&cmd, Some(&block));
@@ -212,7 +216,10 @@ mod tests {
         // Check authorization
         let is_authorized = block.owner == cmd.editor_id
             || grants_table.has_grant(&cmd.editor_id, "markdown.write", &block.block_id);
-        assert!(!is_authorized, "Non-owner without grant should not be authorized");
+        assert!(
+            !is_authorized,
+            "Non-owner without grant should not be authorized"
+        );
     }
 
     #[test]
@@ -318,8 +325,14 @@ mod tests {
         let contents = events[0].value.get("contents").unwrap();
 
         // Verify markdown was updated
-        assert_eq!(contents.get("markdown").unwrap().as_str().unwrap(), "New content");
+        assert_eq!(
+            contents.get("markdown").unwrap().as_str().unwrap(),
+            "New content"
+        );
         // Verify other fields are preserved
-        assert_eq!(contents.get("other_field").unwrap().as_str().unwrap(), "preserved");
+        assert_eq!(
+            contents.get("other_field").unwrap().as_str().unwrap(),
+            "preserved"
+        );
     }
 }

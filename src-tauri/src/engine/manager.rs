@@ -147,9 +147,7 @@ mod tests {
         let manager = EngineManager::new();
         let pool = create_test_pool().await;
 
-        let result = manager
-            .spawn_engine("test.elf".to_string(), pool)
-            .await;
+        let result = manager.spawn_engine("test.elf".to_string(), pool).await;
 
         assert!(result.is_ok());
         assert_eq!(manager.count(), 1);
@@ -169,9 +167,7 @@ mod tests {
             .expect("First spawn should succeed");
 
         // Second spawn fails
-        let result = manager
-            .spawn_engine("test.elf".to_string(), pool2)
-            .await;
+        let result = manager.spawn_engine("test.elf".to_string(), pool2).await;
 
         assert!(result.is_err());
         assert!(result

@@ -1,9 +1,6 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{
-    parse_macro_input, Expr, ExprLit, ItemFn, Lit, Meta,
-    punctuated::Punctuated, Token,
-};
+use syn::{parse_macro_input, punctuated::Punctuated, Expr, ExprLit, ItemFn, Lit, Meta, Token};
 
 /// Procedural macro to define capabilities with minimal boilerplate.
 ///
@@ -29,11 +26,19 @@ pub fn capability(args: TokenStream, input: TokenStream) -> TokenStream {
     for meta in args {
         if let Meta::NameValue(nv) = meta {
             if nv.path.is_ident("id") {
-                if let Expr::Lit(ExprLit { lit: Lit::Str(lit_str), .. }) = nv.value {
+                if let Expr::Lit(ExprLit {
+                    lit: Lit::Str(lit_str),
+                    ..
+                }) = nv.value
+                {
                     cap_id = Some(lit_str.value());
                 }
             } else if nv.path.is_ident("target") {
-                if let Expr::Lit(ExprLit { lit: Lit::Str(lit_str), .. }) = nv.value {
+                if let Expr::Lit(ExprLit {
+                    lit: Lit::Str(lit_str),
+                    ..
+                }) = nv.value
+                {
                     target = Some(lit_str.value());
                 }
             }

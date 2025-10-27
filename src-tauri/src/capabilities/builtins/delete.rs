@@ -1,4 +1,4 @@
-use crate::capabilities::core::{CapResult, create_event};
+use crate::capabilities::core::{create_event, CapResult};
 use crate::models::{Block, Command, Event};
 use capability_macros::capability;
 
@@ -11,7 +11,7 @@ fn handle_delete(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
     // Create event marking block as deleted
     let event = create_event(
         block.block_id.clone(),
-        "core.delete",  // cap_id
+        "core.delete", // cap_id
         serde_json::json!({ "deleted": true }),
         &cmd.editor_id,
         1, // TODO: Replace with actual vector clock count

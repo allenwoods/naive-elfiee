@@ -33,9 +33,9 @@ pub trait CapabilityHandler: Send + Sync {
 
         // Check grants
         if let Some(editor_grants) = grants.get(editor_id) {
-            editor_grants.iter().any(|(cap, blk)| {
-                cap == self.cap_id() && (blk == &block.block_id || blk == "*")
-            })
+            editor_grants
+                .iter()
+                .any(|(cap, blk)| cap == self.cap_id() && (blk == &block.block_id || blk == "*"))
         } else {
             false
         }

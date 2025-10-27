@@ -45,6 +45,7 @@ impl CapabilityRegistry {
         self.register(Arc::new(CoreDeleteCapability));
         self.register(Arc::new(CoreGrantCapability));
         self.register(Arc::new(CoreRevokeCapability));
+        self.register(Arc::new(EditorCreateCapability));
     }
 
     /// Register all extension capabilities.
@@ -71,12 +72,30 @@ mod tests {
         let registry = CapabilityRegistry::new();
 
         // Verify 6 core capabilities are registered
-        assert!(registry.get("core.create").is_some(), "core.create should be registered");
-        assert!(registry.get("core.link").is_some(), "core.link should be registered");
-        assert!(registry.get("core.unlink").is_some(), "core.unlink should be registered");
-        assert!(registry.get("core.delete").is_some(), "core.delete should be registered");
-        assert!(registry.get("core.grant").is_some(), "core.grant should be registered");
-        assert!(registry.get("core.revoke").is_some(), "core.revoke should be registered");
+        assert!(
+            registry.get("core.create").is_some(),
+            "core.create should be registered"
+        );
+        assert!(
+            registry.get("core.link").is_some(),
+            "core.link should be registered"
+        );
+        assert!(
+            registry.get("core.unlink").is_some(),
+            "core.unlink should be registered"
+        );
+        assert!(
+            registry.get("core.delete").is_some(),
+            "core.delete should be registered"
+        );
+        assert!(
+            registry.get("core.grant").is_some(),
+            "core.grant should be registered"
+        );
+        assert!(
+            registry.get("core.revoke").is_some(),
+            "core.revoke should be registered"
+        );
     }
 
     #[test]
@@ -149,7 +168,10 @@ mod tests {
         assert_eq!(events[0].attribute, "editor1/core.create");
         // Verify the event contains all initial state
         let value = &events[0].value;
-        assert_eq!(value.get("name").and_then(|v| v.as_str()), Some("New Block"));
+        assert_eq!(
+            value.get("name").and_then(|v| v.as_str()),
+            Some("New Block")
+        );
         assert_eq!(value.get("type").and_then(|v| v.as_str()), Some("markdown"));
         assert_eq!(value.get("owner").and_then(|v| v.as_str()), Some("editor1"));
     }
@@ -197,7 +219,10 @@ mod tests {
             "editor1".to_string(),
         );
         let mut children = HashMap::new();
-        children.insert("references".to_string(), vec!["block2".to_string(), "block3".to_string()]);
+        children.insert(
+            "references".to_string(),
+            vec!["block2".to_string(), "block3".to_string()],
+        );
         block.children = children;
 
         let cmd = Command::new(
@@ -279,7 +304,8 @@ mod tests {
 
         // Certificator check: owner should always have permission
         assert!(
-            block.owner == cmd.editor_id || grants_table.has_grant(&cmd.editor_id, "core.link", &block.block_id),
+            block.owner == cmd.editor_id
+                || grants_table.has_grant(&cmd.editor_id, "core.link", &block.block_id),
             "Owner should always be authorized"
         );
 
@@ -319,7 +345,10 @@ mod tests {
         let is_authorized = block.owner == cmd.editor_id
             || grants_table.has_grant(&cmd.editor_id, "core.link", &block.block_id);
 
-        assert!(!is_authorized, "Non-owner without grant should not be authorized");
+        assert!(
+            !is_authorized,
+            "Non-owner without grant should not be authorized"
+        );
     }
 
     #[test]
@@ -359,12 +388,18 @@ mod tests {
         let is_authorized = block.owner == cmd.editor_id
             || grants_table.has_grant(&cmd.editor_id, "core.link", &block.block_id);
 
-        assert!(is_authorized, "Non-owner with specific grant should be authorized");
+        assert!(
+            is_authorized,
+            "Non-owner with specific grant should be authorized"
+        );
 
         // Execute capability
         let cap = registry.get("core.link").unwrap();
         let result = cap.handler(&cmd, Some(&block));
-        assert!(result.is_ok(), "User with grant should be able to execute capability");
+        assert!(
+            result.is_ok(),
+            "User with grant should be able to execute capability"
+        );
     }
 
     #[test]
@@ -376,11 +411,7 @@ mod tests {
         let registry = CapabilityRegistry::new();
 
         // Grant bob wildcard permission
-        grants_table.add_grant(
-            "bob".to_string(),
-            "core.link".to_string(),
-            "*".to_string(),
-        );
+        grants_table.add_grant("bob".to_string(), "core.link".to_string(), "*".to_string());
 
         // Create multiple blocks with different owners
         let block1 = Block::new(
@@ -466,6 +497,9 @@ mod tests {
         let is_authorized = block.owner == cmd.editor_id
             || grants_table.has_grant(&cmd.editor_id, "core.delete", &block.block_id);
 
-        assert!(!is_authorized, "Grant for one capability should not authorize another");
+        assert!(
+            !is_authorized,
+            "Grant for one capability should not authorize another"
+        );
     }
 }

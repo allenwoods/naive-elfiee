@@ -1,4 +1,4 @@
-use crate::capabilities::core::{CapResult, create_event};
+use crate::capabilities::core::{create_event, CapResult};
 use crate::models::{Block, Command, Event};
 use capability_macros::capability;
 
@@ -11,15 +11,17 @@ use capability_macros::capability;
 fn handle_markdown_read(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for markdown.read")?;
     // Extract markdown content from block
-    let markdown_content = block.contents.get("markdown")
+    let markdown_content = block
+        .contents
+        .get("markdown")
         .ok_or("No markdown content found in block")?;
 
     // Create read event
     // Note: This is a read operation, so we create an event that records the read
     // but doesn't mutate the block state. The entity is the reader's editor_id.
     let event = create_event(
-        cmd.editor_id.clone(),  // Entity is the reader
-        "markdown.read",  // cap_id
+        cmd.editor_id.clone(), // Entity is the reader
+        "markdown.read",       // cap_id
         serde_json::json!({
             "block_id": block.block_id,
             "content": markdown_content

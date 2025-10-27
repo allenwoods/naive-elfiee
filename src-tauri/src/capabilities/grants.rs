@@ -33,30 +33,39 @@ impl GrantsTable {
 
             if event.attribute.ends_with("/core.grant") {
                 if let Some(grant_obj) = event.value.as_object() {
-                    let editor = grant_obj.get("editor")
+                    let editor = grant_obj
+                        .get("editor")
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
-                    let capability = grant_obj.get("capability")
+                    let capability = grant_obj
+                        .get("capability")
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
-                    let block = grant_obj.get("block")
+                    let block = grant_obj
+                        .get("block")
                         .and_then(|v| v.as_str())
                         .unwrap_or("*");
 
                     if !editor.is_empty() && !capability.is_empty() {
-                        table.add_grant(editor.to_string(), capability.to_string(), block.to_string());
+                        table.add_grant(
+                            editor.to_string(),
+                            capability.to_string(),
+                            block.to_string(),
+                        );
                     }
                 }
-            }
-            else if event.attribute.ends_with("/core.revoke") {
+            } else if event.attribute.ends_with("/core.revoke") {
                 if let Some(revoke_obj) = event.value.as_object() {
-                    let editor = revoke_obj.get("editor")
+                    let editor = revoke_obj
+                        .get("editor")
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
-                    let capability = revoke_obj.get("capability")
+                    let capability = revoke_obj
+                        .get("capability")
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
-                    let block = revoke_obj.get("block")
+                    let block = revoke_obj
+                        .get("block")
                         .and_then(|v| v.as_str())
                         .unwrap_or("*");
 
@@ -108,9 +117,9 @@ impl GrantsTable {
     /// Check if an editor has a specific grant.
     pub fn has_grant(&self, editor_id: &str, cap_id: &str, block_id: &str) -> bool {
         if let Some(editor_grants) = self.grants.get(editor_id) {
-            editor_grants.iter().any(|(cap, blk)| {
-                cap == cap_id && (blk == block_id || blk == "*")
-            })
+            editor_grants
+                .iter()
+                .any(|(cap, blk)| cap == cap_id && (blk == block_id || blk == "*"))
         } else {
             false
         }
@@ -132,19 +141,34 @@ mod tests {
     fn test_add_grant() {
         let mut table = GrantsTable::new();
 
-        table.add_grant("alice".to_string(), "markdown.write".to_string(), "block1".to_string());
+        table.add_grant(
+            "alice".to_string(),
+            "markdown.write".to_string(),
+            "block1".to_string(),
+        );
 
         let grants = table.get_grants("alice").unwrap();
         assert_eq!(grants.len(), 1);
-        assert_eq!(grants[0], ("markdown.write".to_string(), "block1".to_string()));
+        assert_eq!(
+            grants[0],
+            ("markdown.write".to_string(), "block1".to_string())
+        );
     }
 
     #[test]
     fn test_add_duplicate_grant() {
         let mut table = GrantsTable::new();
 
-        table.add_grant("alice".to_string(), "markdown.write".to_string(), "block1".to_string());
-        table.add_grant("alice".to_string(), "markdown.write".to_string(), "block1".to_string());
+        table.add_grant(
+            "alice".to_string(),
+            "markdown.write".to_string(),
+            "block1".to_string(),
+        );
+        table.add_grant(
+            "alice".to_string(),
+            "markdown.write".to_string(),
+            "block1".to_string(),
+        );
 
         let grants = table.get_grants("alice").unwrap();
         assert_eq!(grants.len(), 1, "Duplicate grants should not be added");
@@ -154,8 +178,16 @@ mod tests {
     fn test_remove_grant() {
         let mut table = GrantsTable::new();
 
-        table.add_grant("alice".to_string(), "markdown.write".to_string(), "block1".to_string());
-        table.add_grant("alice".to_string(), "core.link".to_string(), "block2".to_string());
+        table.add_grant(
+            "alice".to_string(),
+            "markdown.write".to_string(),
+            "block1".to_string(),
+        );
+        table.add_grant(
+            "alice".to_string(),
+            "core.link".to_string(),
+            "block2".to_string(),
+        );
 
         table.remove_grant("alice", "markdown.write", "block1");
 
@@ -167,7 +199,11 @@ mod tests {
     #[test]
     fn test_has_grant_exact_match() {
         let mut table = GrantsTable::new();
-        table.add_grant("alice".to_string(), "markdown.write".to_string(), "block1".to_string());
+        table.add_grant(
+            "alice".to_string(),
+            "markdown.write".to_string(),
+            "block1".to_string(),
+        );
 
         assert!(table.has_grant("alice", "markdown.write", "block1"));
         assert!(!table.has_grant("alice", "markdown.write", "block2"));
@@ -177,7 +213,11 @@ mod tests {
     #[test]
     fn test_has_grant_wildcard() {
         let mut table = GrantsTable::new();
-        table.add_grant("alice".to_string(), "markdown.write".to_string(), "*".to_string());
+        table.add_grant(
+            "alice".to_string(),
+            "markdown.write".to_string(),
+            "*".to_string(),
+        );
 
         assert!(table.has_grant("alice", "markdown.write", "block1"));
         assert!(table.has_grant("alice", "markdown.write", "block2"));
@@ -192,7 +232,7 @@ mod tests {
 
         let grant_event = Event::new(
             "alice".to_string(),
-            "alice/core.grant".to_string(),  // attribute format: {editor_id}/{cap_id}
+            "alice/core.grant".to_string(), // attribute format: {editor_id}/{cap_id}
             serde_json::json!({
                 "editor": "bob",
                 "capability": "markdown.write",
@@ -206,7 +246,7 @@ mod tests {
 
         let revoke_event = Event::new(
             "alice".to_string(),
-            "alice/core.revoke".to_string(),  // attribute format: {editor_id}/{cap_id}
+            "alice/core.revoke".to_string(), // attribute format: {editor_id}/{cap_id}
             serde_json::json!({
                 "editor": "bob",
                 "capability": "markdown.write",

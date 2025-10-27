@@ -54,8 +54,8 @@ impl ElfArchive {
         let file = File::create(elf_path)?;
         let mut zip = ZipWriter::new(file);
 
-        let options = zip::write::FileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+        let options =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         // Add events.db to the archive
         zip.start_file("events.db", options)?;

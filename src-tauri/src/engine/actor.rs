@@ -1,7 +1,7 @@
 use crate::capabilities::registry::CapabilityRegistry;
 use crate::engine::event_store::EventStore;
 use crate::engine::state::StateProjector;
-use crate::models::{Block, Command, Event};
+use crate::models::{Block, Command, Editor, Event};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use tokio::sync::{mpsc, oneshot};
@@ -22,6 +22,10 @@ pub enum EngineMessage {
     /// Get all blocks
     GetAllBlocks {
         response: oneshot::Sender<HashMap<String, Block>>,
+    },
+    /// Get all editors
+    GetAllEditors {
+        response: oneshot::Sender<HashMap<String, Editor>>,
     },
     /// Shutdown the actor
     Shutdown,
@@ -95,6 +99,10 @@ impl ElfileEngineActor {
                     let blocks = self.state.blocks.clone();
                     let _ = response.send(blocks);
                 }
+                EngineMessage::GetAllEditors { response } => {
+                    let editors = self.state.editors.clone();
+                    let _ = response.send(editors);
+                }
                 EngineMessage::Shutdown => {
                     break;
                 }
@@ -120,8 +128,9 @@ impl ElfileEngineActor {
             .get(&cmd.cap_id)
             .ok_or_else(|| format!("Unknown capability: {}", cmd.cap_id))?;
 
-        // 2. Get block (None for create, Some for others)
-        let block_opt = if cmd.cap_id == "core.create" {
+        // 2. Get block (None for create operations, Some for others)
+        // System-level operations like core.create and editor.create don't require a block
+        let block_opt = if cmd.cap_id == "core.create" || cmd.cap_id == "editor.create" {
             None
         } else {
             Some(
@@ -156,9 +165,7 @@ impl ElfileEngineActor {
         let new_count = current_count + 1;
 
         for event in &mut events {
-            event
-                .timestamp
-                .insert(cmd.editor_id.clone(), new_count);
+            event.timestamp.insert(cmd.editor_id.clone(), new_count);
         }
 
         // 6. Check for conflicts (MVP simple version)
@@ -242,6 +249,20 @@ impl EngineHandle {
         rx.await.unwrap_or_default()
     }
 
+    /// Get all editors.
+    pub async fn get_all_editors(&self) -> HashMap<String, Editor> {
+        let (tx, rx) = oneshot::channel();
+        if self
+            .sender
+            .send(EngineMessage::GetAllEditors { response: tx })
+            .is_err()
+        {
+            return HashMap::new();
+        }
+
+        rx.await.unwrap_or_default()
+    }
+
     /// Shutdown the engine actor.
     pub async fn shutdown(&self) {
         let _ = self.sender.send(EngineMessage::Shutdown);
@@ -251,10 +272,7 @@ impl EngineHandle {
 /// Spawn a new engine actor for a file.
 ///
 /// Returns a handle for interacting with the actor.
-pub async fn spawn_engine(
-    file_id: String,
-    event_pool: SqlitePool,
-) -> Result<EngineHandle, String> {
+pub async fn spawn_engine(file_id: String, event_pool: SqlitePool) -> Result<EngineHandle, String> {
     let (tx, rx) = mpsc::unbounded_channel();
 
     let actor = ElfileEngineActor::new(file_id.clone(), event_pool, rx).await?;

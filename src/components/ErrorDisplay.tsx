@@ -4,22 +4,22 @@
  * Displays error messages with dismiss functionality
  */
 
-import { useAppStore } from '@/lib/app-store';
-import { Button } from '@/components/ui/button';
-import { X, AlertCircle } from 'lucide-react';
+import { useAppStore } from '@/lib/app-store'
+import { Button } from '@/components/ui/button'
+import { X, AlertCircle } from 'lucide-react'
 
 export function ErrorDisplay() {
-  const { error, clearError } = useAppStore();
+  const { error, clearError } = useAppStore()
 
-  if (!error) return null;
+  if (!error) return null
 
   return (
-    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 m-4">
+    <div className="bg-destructive/10 border-destructive/20 m-4 rounded-lg border p-4">
       <div className="flex items-start gap-3">
-        <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-destructive mb-1">Error</h3>
-          <p className="text-sm text-destructive/90 break-words">{error}</p>
+        <AlertCircle className="text-destructive mt-0.5 h-5 w-5 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-destructive mb-1 font-semibold">Error</h3>
+          <p className="text-destructive/90 text-sm break-words">{error}</p>
         </div>
         <Button
           onClick={clearError}
@@ -31,5 +31,5 @@ export function ErrorDisplay() {
         </Button>
       </div>
     </div>
-  );
+  )
 }
