@@ -1,5 +1,5 @@
 use crate::capabilities::core::{create_event, CapResult};
-use crate::models::{Block, Command, Event};
+use crate::models::{Block, Command, Event, UnlinkBlockPayload};
 use capability_macros::capability;
 
 /// Handler for core.unlink capability.
@@ -8,27 +8,18 @@ use capability_macros::capability;
 #[capability(id = "core.unlink", target = "core/*")]
 fn handle_unlink(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for core.unlink")?;
-    // Extract relation type
-    let relation = cmd
-        .payload
-        .get("relation")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing 'relation' in payload")?;
 
-    // Extract target block ID to remove
-    let target_id = cmd
-        .payload
-        .get("target_id")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing 'target_id' in payload")?;
+    // Strongly-typed deserialization
+    let payload: UnlinkBlockPayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Invalid payload for core.unlink: {}", e))?;
 
     // Update children HashMap - remove the target
     let mut new_children = block.children.clone();
-    if let Some(targets) = new_children.get_mut(relation) {
-        targets.retain(|id| id != target_id);
+    if let Some(targets) = new_children.get_mut(&payload.relation) {
+        targets.retain(|id| id != &payload.target_id);
         // Remove the relation key if no targets left
         if targets.is_empty() {
-            new_children.remove(relation);
+            new_children.remove(&payload.relation);
         }
     }
 

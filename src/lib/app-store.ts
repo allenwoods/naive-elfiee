@@ -21,12 +21,20 @@ interface FileState {
   grants: Grant[]
 }
 
+interface Notification {
+  id: string
+  type: 'error' | 'warning' | 'info' | 'success'
+  message: string
+  timestamp: number
+}
+
 interface AppStore {
   // State
   files: Map<string, FileState>
   activeFileId: string | null
   isLoading: boolean
   error: string | null
+  notifications: Notification[]
 
   // File Actions
   createFile: () => Promise<void>
@@ -70,6 +78,30 @@ interface AppStore {
     targetBlock?: string
   ) => Promise<void>
 
+  // Block Content Actions
+  readBlockContent: (fileId: string, blockId: string) => Promise<string>
+  writeBlockContent: (
+    fileId: string,
+    blockId: string,
+    content: string
+  ) => Promise<void>
+  getBlockContent: (block: Block) => string
+
+  // Block Link Actions
+  linkBlocks: (
+    fileId: string,
+    fromId: string,
+    toId: string,
+    relation: string
+  ) => Promise<void>
+  unlinkBlocks: (
+    fileId: string,
+    fromId: string,
+    toId: string,
+    relation: string
+  ) => Promise<void>
+  getBlockLinks: (block: Block) => Array<{ relation: string; targetIds: string[] }>
+
   // Getters
   getActiveFile: () => FileState | null
   getBlocks: (fileId: string) => Block[]
@@ -82,6 +114,9 @@ interface AppStore {
   // UI Actions
   setError: (error: string | null) => void
   clearError: () => void
+  addNotification: (type: 'error' | 'warning' | 'info' | 'success', message: string) => void
+  removeNotification: (id: string) => void
+  clearAllNotifications: () => void
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -90,6 +125,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activeFileId: null,
   isLoading: false,
   error: null,
+  notifications: [],
 
   // File Actions
   createFile: async () => {
@@ -113,7 +149,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         await get().loadGrants(fileId)
       }
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -140,7 +176,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         await get().loadGrants(fileId)
       }
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -163,7 +199,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
       set({ files, activeFileId: newActiveFileId })
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -174,7 +210,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ isLoading: true, error: null })
       await TauriClient.file.saveFile(fileId)
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -197,7 +233,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ files })
       }
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -263,10 +299,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
         )
       }
 
-      await TauriClient.block.writeBlock(fileId, blockId, content, editorId)
+      await TauriClient.block.writeBlock(fileId, blockId, content.data, editorId)
       await get().loadBlocks(fileId)
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -289,7 +325,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await TauriClient.block.deleteBlock(fileId, blockId, editorId)
       await get().loadBlocks(fileId)
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -358,7 +394,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ files })
       }
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -370,7 +406,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await TauriClient.editor.createEditor(fileId, name)
       await get().loadEditors(fileId)
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -389,7 +425,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ files })
       }
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -408,7 +444,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ files })
       }
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -442,7 +478,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       )
       await get().loadGrants(fileId)
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -476,10 +512,129 @@ export const useAppStore = create<AppStore>((set, get) => ({
       )
       await get().loadGrants(fileId)
     } catch (error) {
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
+  },
+
+  // Block Content Actions
+  readBlockContent: async (fileId: string, blockId: string) => {
+    try {
+      // For now, we can read directly from block.contents
+      // In the future, might use markdown.read command
+      const block = await TauriClient.block.getBlock(fileId, blockId)
+      return get().getBlockContent(block)
+    } catch (error) {
+      get().addNotification('error', String(error))
+      return ''
+    }
+  },
+
+  writeBlockContent: async (fileId: string, blockId: string, content: string) => {
+    try {
+      set({ isLoading: true, error: null })
+
+      // Get active editor ID
+      const activeEditor = get().getActiveEditor(fileId)
+      const editorId = activeEditor?.editor_id
+
+      if (!editorId) {
+        throw new Error(
+          'No active editor found. Please select an editor first.'
+        )
+      }
+
+      // Pass content directly as string (matches MarkdownWritePayload)
+      await TauriClient.block.writeBlock(fileId, blockId, content, editorId)
+      await get().loadBlocks(fileId)
+    } catch (error) {
+      get().addNotification('error', String(error))
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  getBlockContent: (block: Block) => {
+    // Extract markdown content from block.contents
+    if (typeof block.contents === 'object' && block.contents !== null) {
+      const contents = block.contents as Record<string, unknown>
+      const markdown = contents.markdown
+      if (typeof markdown === 'string') {
+        return markdown
+      }
+    }
+    return ''
+  },
+
+  // Block Link Actions
+  linkBlocks: async (
+    fileId: string,
+    fromId: string,
+    toId: string,
+    relation: string
+  ) => {
+    try {
+      set({ isLoading: true, error: null })
+
+      // Get active editor ID
+      const activeEditor = get().getActiveEditor(fileId)
+      const editorId = activeEditor?.editor_id
+
+      if (!editorId) {
+        throw new Error(
+          'No active editor found. Please select an editor first.'
+        )
+      }
+
+      await TauriClient.block.linkBlocks(fileId, fromId, toId, relation, editorId)
+      await get().loadBlocks(fileId)
+    } catch (error) {
+      get().addNotification('error', String(error))
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  unlinkBlocks: async (
+    fileId: string,
+    fromId: string,
+    toId: string,
+    relation: string
+  ) => {
+    try {
+      set({ isLoading: true, error: null })
+
+      // Get active editor ID
+      const activeEditor = get().getActiveEditor(fileId)
+      const editorId = activeEditor?.editor_id
+
+      if (!editorId) {
+        throw new Error(
+          'No active editor found. Please select an editor first.'
+        )
+      }
+
+      await TauriClient.block.unlinkBlocks(fileId, fromId, toId, relation, editorId)
+      await get().loadBlocks(fileId)
+    } catch (error) {
+      get().addNotification('error', String(error))
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  getBlockLinks: (block: Block) => {
+    // Extract links from block.children
+    const links: Array<{ relation: string; targetIds: string[] }> = []
+    if (block.children) {
+      for (const [relation, targetIds] of Object.entries(block.children)) {
+        if (targetIds && targetIds.length > 0) {
+          links.push({ relation, targetIds })
+        }
+      }
+    }
+    return links
   },
 
   // Getters
@@ -494,5 +649,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   clearError: () => {
     set({ error: null })
+  },
+
+  addNotification: (type: 'error' | 'warning' | 'info' | 'success', message: string) => {
+    const notification: Notification = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      type,
+      message,
+      timestamp: Date.now(),
+    }
+    set((state) => ({
+      notifications: [...state.notifications, notification],
+    }))
+  },
+
+  removeNotification: (id: string) => {
+    set((state) => ({
+      notifications: state.notifications.filter((n) => n.id !== id),
+    }))
+  },
+
+  clearAllNotifications: () => {
+    set({ notifications: [] })
   },
 }))

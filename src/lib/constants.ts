@@ -46,3 +46,21 @@ export function getCapabilityDescription(capId: string): string {
   const cap = AVAILABLE_CAPABILITIES.find((c) => c.id === capId)
   return cap ? cap.description : ''
 }
+
+/**
+ * Predefined relation types for block links
+ */
+export const RELATION_TYPES = [
+  { id: 'references', label: 'References', description: 'References another block' },
+  { id: 'depends_on', label: 'Depends On', description: 'Depends on another block' },
+  { id: 'contains', label: 'Contains', description: 'Contains another block' },
+  { id: 'related_to', label: 'Related To', description: 'Related to another block' },
+] as const
+
+/**
+ * Get relation label by ID
+ */
+export function getRelationLabel(relationId: string): string {
+  const relation = RELATION_TYPES.find((r) => r.id === relationId)
+  return relation ? relation.label : relationId
+}

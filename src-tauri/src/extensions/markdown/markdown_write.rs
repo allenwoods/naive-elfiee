@@ -2,19 +2,22 @@ use crate::capabilities::core::{create_event, CapResult};
 use crate::models::{Block, Command, Event};
 use capability_macros::capability;
 
+use super::MarkdownWritePayload;
+
 /// Handler for markdown.write capability.
 ///
 /// Writes markdown content to a markdown block's contents field.
 /// The content is stored under the "markdown" key in the contents HashMap.
+///
+/// # Payload
+/// Uses `MarkdownWritePayload` with a single `content` field containing the markdown string.
 #[capability(id = "markdown.write", target = "markdown")]
 fn handle_markdown_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for markdown.write")?;
-    // Extract markdown content from payload
-    let markdown_content = cmd
-        .payload
-        .get("content")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing 'content' in payload")?;
+
+    // Deserialize strongly-typed payload
+    let payload: MarkdownWritePayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Invalid payload for markdown.write: {}", e))?;
 
     // Update contents JSON object with markdown content
     let mut new_contents = if let Some(obj) = block.contents.as_object() {
@@ -22,7 +25,7 @@ fn handle_markdown_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<
     } else {
         serde_json::Map::new()
     };
-    new_contents.insert("markdown".to_string(), serde_json::json!(markdown_content));
+    new_contents.insert("markdown".to_string(), serde_json::json!(payload.content));
 
     // Create event
     let event = create_event(

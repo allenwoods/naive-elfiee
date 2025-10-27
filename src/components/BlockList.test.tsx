@@ -15,10 +15,7 @@ vi.mock('@/lib/app-store', () => ({
   useAppStore: vi.fn(),
 }))
 
-// Mock the message dialog
-vi.mock('@tauri-apps/plugin-dialog', () => ({
-  message: vi.fn(),
-}))
+// Mock the message dialog - no longer needed
 
 describe('BlockList Component', () => {
   const mockBlocks: Block[] = [
@@ -44,7 +41,10 @@ describe('BlockList Component', () => {
     deleteBlock: vi.fn(),
     selectBlock: vi.fn(),
     getSelectedBlock: vi.fn(),
+    getEditorName: vi.fn(),
+    getBlockLinks: vi.fn(),
     isLoading: false,
+    addNotification: vi.fn(),
   }
 
   beforeEach(() => {
@@ -58,6 +58,8 @@ describe('BlockList Component', () => {
       activeEditorId: null,
     })
     vi.mocked(mockStore.getSelectedBlock).mockReturnValue(null)
+    vi.mocked(mockStore.getEditorName).mockReturnValue('Test Editor')
+    vi.mocked(mockStore.getBlockLinks).mockReturnValue([])
   })
 
   test('shows message when no file is open', () => {
@@ -189,9 +191,8 @@ describe('BlockList Component', () => {
     )
   })
 
-  test('shows success message after creating block', async () => {
+  test('shows success notification after creating block', async () => {
     const user = userEvent.setup()
-    const { message } = await import('@tauri-apps/plugin-dialog')
     vi.mocked(mockStore.createBlock).mockResolvedValue(undefined)
     
     render(<BlockList />)
@@ -199,15 +200,11 @@ describe('BlockList Component', () => {
     const createButton = screen.getByRole('button', { name: /new block/i })
     await user.click(createButton)
     
-    expect(message).toHaveBeenCalledWith('Block created successfully!', {
-      title: 'Success',
-      kind: 'info',
-    })
+    expect(mockStore.addNotification).toHaveBeenCalledWith('success', 'Block created successfully!')
   })
 
-  test('shows error message when block creation fails', async () => {
+  test('shows error notification when block creation fails', async () => {
     const user = userEvent.setup()
-    const { message } = await import('@tauri-apps/plugin-dialog')
     const error = new Error('Creation failed')
     vi.mocked(mockStore.createBlock).mockRejectedValue(error)
     
@@ -216,10 +213,7 @@ describe('BlockList Component', () => {
     const createButton = screen.getByRole('button', { name: /new block/i })
     await user.click(createButton)
     
-    expect(message).toHaveBeenCalledWith('Failed to create block: Error: Creation failed', {
-      title: 'Error',
-      kind: 'error',
-    })
+    expect(mockStore.addNotification).toHaveBeenCalledWith('error', 'Failed to create block: Error: Creation failed')
   })
 
   test('disables create button when loading', () => {

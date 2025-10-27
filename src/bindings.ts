@@ -330,7 +330,31 @@ async getBlockGrants(fileId: string, blockId: string) : Promise<Result<Grant[], 
 
 export type Block = { block_id: string; name: string; block_type: string; contents: JsonValue; children: Partial<{ [key in string]: string[] }>; owner: string }
 export type Command = { cmd_id: string; editor_id: string; cap_id: string; block_id: string; payload: JsonValue; timestamp: string }
+/**
+ * Payload for core.create capability
+ * 
+ * This payload is used to create a new block with a name and type.
+ */
+export type CreateBlockPayload = { 
+/**
+ * The display name for the new block
+ */
+name: string; 
+/**
+ * The block type (e.g., "markdown", "code", "diagram")
+ */
+block_type: string }
 export type Editor = { editor_id: string; name: string }
+/**
+ * Payload for editor.create capability
+ * 
+ * This payload is used to create a new editor identity in the file.
+ */
+export type EditorCreatePayload = { 
+/**
+ * The display name for the new editor
+ */
+name: string }
 export type Event = { event_id: string; entity: string; attribute: string; value: JsonValue; timestamp: Partial<{ [key in string]: number }> }
 /**
  * Represents a capability grant in the CBAC system.
@@ -351,7 +375,82 @@ cap_id: string;
  * The target block ID, or "*" for wildcard (all blocks)
  */
 block_id: string }
+/**
+ * Payload for core.grant capability
+ * 
+ * This payload is used to grant a capability to an editor for a specific block.
+ */
+export type GrantPayload = { 
+/**
+ * The editor ID to grant the capability to
+ */
+target_editor: string; 
+/**
+ * The capability ID to grant (e.g., "markdown.write", "core.delete")
+ */
+capability: string; 
+/**
+ * The block ID to grant access to, or "*" for all blocks (wildcard)
+ */
+target_block?: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+/**
+ * Payload for core.link capability
+ * 
+ * This payload is used to create a link (relation) from one block to another.
+ */
+export type LinkBlockPayload = { 
+/**
+ * The relation type (e.g., "references", "depends_on", "contains")
+ */
+relation: string; 
+/**
+ * The target block ID to link to
+ */
+target_id: string }
+/**
+ * Payload for markdown.write capability
+ * 
+ * This payload is used to write markdown content to a markdown block.
+ * The content is stored directly as a string in the block's contents.markdown field.
+ */
+export type MarkdownWritePayload = { 
+/**
+ * The markdown content to write to the block
+ */
+content: string }
+/**
+ * Payload for core.revoke capability
+ * 
+ * This payload is used to revoke a capability from an editor for a specific block.
+ */
+export type RevokePayload = { 
+/**
+ * The editor ID to revoke the capability from
+ */
+target_editor: string; 
+/**
+ * The capability ID to revoke
+ */
+capability: string; 
+/**
+ * The block ID to revoke access from, or "*" for all blocks (wildcard)
+ */
+target_block?: string }
+/**
+ * Payload for core.unlink capability
+ * 
+ * This payload is used to remove a link (relation) from one block to another.
+ */
+export type UnlinkBlockPayload = { 
+/**
+ * The relation type (e.g., "references", "depends_on", "contains")
+ */
+relation: string; 
+/**
+ * The target block ID to unlink
+ */
+target_id: string }
 
 /** tauri-specta globals **/
 

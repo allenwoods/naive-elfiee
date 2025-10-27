@@ -1,3 +1,16 @@
+use serde::{Deserialize, Serialize};
+use specta::Type;
+
+/// Payload for markdown.write capability
+///
+/// This payload is used to write markdown content to a markdown block.
+/// The content is stored directly as a string in the block's contents.markdown field.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct MarkdownWritePayload {
+    /// The markdown content to write to the block
+    pub content: String,
+}
+
 pub mod markdown_read;
 /// Markdown extension for Elfiee.
 ///
@@ -9,11 +22,16 @@ pub mod markdown_read;
 /// - `markdown.write`: Write markdown content to a block
 /// - `markdown.read`: Read markdown content from a block
 ///
+/// ## Payload Types
+///
+/// - `MarkdownWritePayload`: Contains a single `content` field with the markdown string
+///
 /// ## Usage Example
 ///
 /// ```rust,ignore
 /// use elfiee::models::{Block, Command};
 /// use elfiee::capabilities::CapabilityRegistry;
+/// use elfiee::extensions::markdown::MarkdownWritePayload;
 ///
 /// // Create a markdown block
 /// let block = Block::new(
@@ -40,15 +58,31 @@ pub mod markdown_read;
 /// ```
 pub mod markdown_write;
 
-// Re-export the capability handlers for registration
+// Re-export the capability handlers and payload types for registration
 pub use markdown_read::*;
 pub use markdown_write::*;
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::capabilities::grants::GrantsTable;
     use crate::capabilities::CapabilityRegistry;
     use crate::models::{Block, Command};
+
+    #[test]
+    fn test_markdown_write_payload_deserialize() {
+        let json = serde_json::json!({ "content": "Hello World" });
+        let payload: MarkdownWritePayload = serde_json::from_value(json).unwrap();
+        assert_eq!(payload.content, "Hello World");
+    }
+
+    #[test]
+    fn test_markdown_write_payload_wrong_structure() {
+        // Old incorrect structure (nested object)
+        let json = serde_json::json!({ "content": { "type": "text", "data": "Hello" } });
+        let result: Result<MarkdownWritePayload, _> = serde_json::from_value(json);
+        assert!(result.is_err(), "Should reject nested content structure");
+    }
 
     #[test]
     fn test_markdown_write_capability() {
@@ -137,7 +171,8 @@ mod tests {
 
         let result = cap.handler(&cmd, Some(&block));
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "Missing 'content' in payload");
+        // Error message will be about deserialization failure
+        assert!(result.unwrap_err().contains("Invalid payload"));
     }
 
     #[test]

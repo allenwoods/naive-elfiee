@@ -14,6 +14,11 @@ import {
   type Editor,
   type Grant,
   type JsonValue,
+  type CreateBlockPayload,
+  type LinkBlockPayload,
+  type UnlinkBlockPayload,
+  type GrantPayload,
+  type RevokePayload,
 } from '@/bindings'
 
 /**
@@ -23,34 +28,18 @@ const DEFAULT_EDITOR_ID = 'default-editor'
 
 /**
  * Payload types for various operations
+ *
+ * NOTE: All payload types are now auto-generated from Rust via tauri-specta.
+ * See src/bindings.ts for:
+ * - CreateBlockPayload (from models/payloads)
+ * - LinkBlockPayload (from models/payloads)
+ * - UnlinkBlockPayload (from models/payloads)
+ * - GrantPayload (from models/payloads)
+ * - RevokePayload (from models/payloads)
+ * - MarkdownWritePayload (from extensions/markdown)
  */
-export interface CreateBlockPayload {
-  name: string
-  block_type: string
-}
-
-export interface WriteBlockPayload {
-  content: { type: 'text' | 'link'; data: string }
-}
-
-export interface LinkBlockPayload {
-  to_id: string
-}
-
 export interface UpdateMetadataPayload {
   metadata: Record<string, string>
-}
-
-export interface GrantPayload {
-  target_editor: string
-  capability: string
-  target_block?: string
-}
-
-export interface RevokePayload {
-  target_editor: string
-  capability: string
-  target_block?: string
 }
 
 /**
@@ -237,15 +226,24 @@ export class BlockOperations {
   }
 
   /**
-   * Helper: Write content to a block
+   * Helper: Write markdown content to a block
+   *
+   * Uses the strongly-typed MarkdownWritePayload which expects a direct string.
+   * This payload structure is auto-generated from Rust.
+   *
+   * @param fileId - File ID
+   * @param blockId - Block ID
+   * @param content - Markdown content as a plain string
+   * @param editorId - Editor performing the write
    */
   static async writeBlock(
     fileId: string,
     blockId: string,
-    content: { type: 'text' | 'link'; data: string },
+    content: string,
     editorId: string = DEFAULT_EDITOR_ID
   ): Promise<Event[]> {
-    const payload: WriteBlockPayload = { content }
+    // Payload structure matches MarkdownWritePayload from Rust
+    const payload = { content }
     const cmd = createCommand(
       editorId,
       'markdown.write',
@@ -274,14 +272,21 @@ export class BlockOperations {
 
   /**
    * Helper: Link two blocks
+   *
+   * @param fileId - File ID
+   * @param fromId - Source block ID
+   * @param toId - Target block ID
+   * @param relation - Relation type (e.g., "references", "depends_on", "contains")
+   * @param editorId - Editor performing the link
    */
   static async linkBlocks(
     fileId: string,
     fromId: string,
     toId: string,
+    relation: string,
     editorId: string = DEFAULT_EDITOR_ID
   ): Promise<Event[]> {
-    const payload: LinkBlockPayload = { to_id: toId }
+    const payload: LinkBlockPayload = { relation, target_id: toId }
     const cmd = createCommand(
       editorId,
       'core.link',
@@ -293,14 +298,21 @@ export class BlockOperations {
 
   /**
    * Helper: Unlink two blocks
+   *
+   * @param fileId - File ID
+   * @param fromId - Source block ID
+   * @param toId - Target block ID
+   * @param relation - Relation type (e.g., "references", "depends_on", "contains")
+   * @param editorId - Editor performing the unlink
    */
   static async unlinkBlocks(
     fileId: string,
     fromId: string,
     toId: string,
+    relation: string,
     editorId: string = DEFAULT_EDITOR_ID
   ): Promise<Event[]> {
-    const payload: LinkBlockPayload = { to_id: toId }
+    const payload: UnlinkBlockPayload = { relation, target_id: toId }
     const cmd = createCommand(
       editorId,
       'core.unlink',

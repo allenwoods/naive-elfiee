@@ -276,6 +276,53 @@ listen('state_changed', (event) => {
 - Rebuild to regenerate bindings.ts
 - DO NOT edit bindings.ts directly
 
+### Capability Payload Types (CRITICAL)
+
+**HARD RULE**: For every capability that accepts input, define a typed Rust payload struct with `#[derive(Serialize, Deserialize, Type)]`. NEVER use manual JSON parsing in handlers or manual TypeScript interfaces in frontend.
+
+**Why This Matters**:
+- Manual frontend interfaces can drift from backend expectations
+- Leads to runtime errors like "Missing 'content' in payload"
+- tauri-specta ensures compile-time consistency between frontend and backend
+- TypeScript will catch mismatches immediately during development
+
+**Correct Pattern**:
+1. Define payload struct in extension's `mod.rs` (NOT in `models/payloads.rs` unless it's a core capability)
+2. Add `#[derive(Serialize, Deserialize, Type)]`
+3. Export from extension module
+4. Use in capability handler with `serde_json::from_value(cmd.payload.clone())`
+5. Frontend automatically gets TypeScript type in `bindings.ts` after running `pnpm tauri dev`
+
+**Example**:
+```rust
+// Backend: src/extensions/markdown/mod.rs
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct MarkdownWritePayload {
+    pub content: String,  // Direct string, NOT nested object
+}
+
+// In handler
+use super::MarkdownWritePayload;
+let payload: MarkdownWritePayload = serde_json::from_value(cmd.payload.clone())
+    .map_err(|e| format!("Invalid payload: {}", e))?;
+```
+
+Frontend automatically gets:
+```typescript
+// Auto-generated in bindings.ts
+export type MarkdownWritePayload = { content: string }
+```
+
+**Payload Location Rules**:
+- **Extension-specific** payloads: Define in `src/extensions/{extension_name}/mod.rs`
+- **Core** payloads (grant, revoke, link): Define in `src/models/payloads.rs`
+
+This keeps extensions modular and self-contained.
+
+**See Documentation**:
+- `docs/extension_development.md` → "Payload 类型定义（强类型方案）" section
+- `docs/guides/FRONTEND_DEVELOPMENT.md` → "Capability Payload Types" section
+
 ### Development Commands
 
 ```bash
@@ -340,3 +387,31 @@ See `src-tauri/docs/guides/EXTENSION_DEVELOPMENT.md` for complete guide.
 **Extension Capabilities** (Markdown):
 - `markdown.write`: Write markdown content to markdown blocks
 - `markdown.read`: Read markdown content from markdown blocks
+
+## Documentation References
+
+For detailed guidance on specific topics, consult these documentation files:
+
+### Extension Development
+**`docs/extension_development.md`** - Complete guide to creating capabilities and extensions
+- How to define capabilities with the `#[capability]` macro
+- **Payload 类型定义（强类型方案）** section (CRITICAL for type safety)
+- Authorization patterns and CBAC implementation
+- Testing strategies for capabilities
+- Example: Markdown extension walkthrough
+
+### Frontend Development
+**`docs/guides/FRONTEND_DEVELOPMENT.md`** - Type-safe Tauri frontend development
+- tauri-specta workflow and bindings generation
+- **Capability Payload Types** section (CRITICAL - prevents frontend/backend mismatches)
+- Type mappings between Rust and TypeScript
+- Common pitfalls and how to avoid them
+- Best practices for using auto-generated bindings
+
+### Critical Reading
+
+**Before creating any capability**: Read the Payload Types sections in both documents above to avoid frontend-backend type mismatches that lead to runtime errors.
+
+**Before editing `src/bindings.ts`**: DON'T! Read "TypeScript Bindings Generation" section above.
+
+**Before implementing CBAC**: Read the Extension Development guide's authorization section.

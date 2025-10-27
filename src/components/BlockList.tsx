@@ -7,17 +7,19 @@
 import { useState } from 'react'
 import { useAppStore } from '@/lib/app-store'
 import { Button } from '@/components/ui/button'
-import { Plus, Trash2, Shield } from 'lucide-react'
+import { Plus, Trash2, Shield, Link } from 'lucide-react'
 import type { Block } from '@/bindings'
-import { message } from '@tauri-apps/plugin-dialog'
+// Removed message import - using app-store notifications instead
 import { PermissionManager } from './PermissionManager'
+import { LinkManager } from './LinkManager'
 
 function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
-  const { deleteBlock, selectBlock, getSelectedBlock, getEditorName } =
+  const { deleteBlock, selectBlock, getSelectedBlock, getEditorName, getBlockLinks } =
     useAppStore()
   const selectedBlock = getSelectedBlock(fileId)
   const isSelected = selectedBlock?.block_id === block.block_id
   const [showPermissions, setShowPermissions] = useState(false)
+  const [showLinks, setShowLinks] = useState(false)
 
   const handleDelete = async () => {
     await deleteBlock(fileId, block.block_id)
@@ -46,6 +48,13 @@ function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
   const ownerName = getEditorName(fileId, block.owner)
   const ownerDisplay = `${ownerName} (${block.owner})`
 
+  // Get links count
+  const blockLinks = getBlockLinks(block)
+  const linksCount = blockLinks.reduce(
+    (total, link) => total + link.targetIds.length,
+    0
+  )
+
   return (
     <>
       <div
@@ -65,14 +74,24 @@ function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
             <div className="text-muted-foreground mb-1 text-xs">
               Owner: {ownerDisplay}
             </div>
-            <div className="text-sm break-words">{displayContent()}</div>
-            {childrenCount > 0 && (
-              <div className="text-muted-foreground mt-1 text-xs">
-                Children: {childrenCount}
-              </div>
-            )}
+            <div className="text-sm wrap-break-word">{displayContent()}</div>
+            <div className="text-muted-foreground mt-1 flex gap-4 text-xs">
+              {childrenCount > 0 && <span>Children: {childrenCount}</span>}
+              {linksCount > 0 && <span>Links: {linksCount}</span>}
+            </div>
           </div>
           <div className="flex shrink-0 gap-1">
+            <Button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowLinks(true)
+              }}
+              variant="ghost"
+              size="icon"
+              title="Manage Links"
+            >
+              <Link className="h-4 w-4" />
+            </Button>
             <Button
               onClick={(e) => {
                 e.stopPropagation()
@@ -99,6 +118,14 @@ function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
         </div>
       </div>
 
+      {/* Link Manager Dialog */}
+      <LinkManager
+        fileId={fileId}
+        blockId={block.block_id}
+        isOpen={showLinks}
+        onClose={() => setShowLinks(false)}
+      />
+
       {/* Permission Manager Dialog */}
       <PermissionManager
         fileId={fileId}
@@ -111,7 +138,7 @@ function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
 }
 
 export function BlockList() {
-  const { activeFileId, getActiveFile, createBlock, isLoading } = useAppStore()
+  const { activeFileId, getActiveFile, createBlock, isLoading, addNotification } = useAppStore()
   const activeFile = getActiveFile()
 
   const handleCreateBlock = async () => {
@@ -133,16 +160,10 @@ export function BlockList() {
     try {
       await createBlock(activeFileId, blockName, 'markdown')
       console.log('[BlockList] createBlock succeeded')
-      await message('Block created successfully!', {
-        title: 'Success',
-        kind: 'info',
-      })
+      addNotification('success', 'Block created successfully!')
     } catch (error) {
       console.error('[BlockList] createBlock failed:', error)
-      await message(`Failed to create block: ${error}`, {
-        title: 'Error',
-        kind: 'error',
-      })
+      addNotification('error', `Failed to create block: ${error}`)
     }
   }
 

@@ -1,5 +1,5 @@
 use crate::capabilities::core::{create_event, CapResult};
-use crate::models::{Block, Command, Event};
+use crate::models::{Block, Command, Event, LinkBlockPayload};
 use capability_macros::capability;
 
 /// Handler for core.link capability.
@@ -8,26 +8,17 @@ use capability_macros::capability;
 #[capability(id = "core.link", target = "core/*")]
 fn handle_link(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for core.link")?;
-    // Extract relation type
-    let relation = cmd
-        .payload
-        .get("relation")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing 'relation' in payload")?;
 
-    // Extract target block ID
-    let target_id = cmd
-        .payload
-        .get("target_id")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing 'target_id' in payload")?;
+    // Strongly-typed deserialization
+    let payload: LinkBlockPayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Invalid payload for core.link: {}", e))?;
 
     // Update children HashMap
     let mut new_children = block.children.clone();
     new_children
-        .entry(relation.to_string())
+        .entry(payload.relation)
         .or_default()
-        .push(target_id.to_string());
+        .push(payload.target_id);
 
     // Create event
     let event = create_event(

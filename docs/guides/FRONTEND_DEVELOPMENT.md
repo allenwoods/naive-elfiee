@@ -148,6 +148,112 @@ import { commands } from '@/bindings';
 const result = await commands.myNewCommand('hello', 42);
 ```
 
+## Capability Payload Types
+
+### Why Payload Types Matter
+
+When creating capabilities that require input data, **always define Rust payload structs** instead of using raw JSON parsing. This ensures frontend-backend type consistency and prevents runtime errors.
+
+### Bad Practice ❌
+```rust
+// Backend: Manual JSON parsing (BAD!)
+let content = cmd.payload.get("content")
+    .and_then(|v| v.as_str())
+    .ok_or("Missing content")?;
+```
+
+```typescript
+// Frontend: Manual interface definition (can drift!)
+interface WriteBlockPayload {
+  content: { type: 'text', data: string }  // ← Wrong structure!
+}
+```
+
+**Problem**: Frontend and backend can become inconsistent, causing runtime errors like "Missing 'content' in payload".
+
+### Good Practice ✅
+
+**Backend: Define typed payload in extension module**
+```rust
+// src/extensions/markdown/mod.rs
+use serde::{Deserialize, Serialize};
+use specta::Type;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct MarkdownWritePayload {
+    pub content: String,  // Direct string, not nested object
+}
+
+// In handler (markdown_write.rs)
+use super::MarkdownWritePayload;
+
+#[capability(id = "markdown.write", target = "markdown")]
+fn handle_markdown_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    let payload: MarkdownWritePayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Invalid payload: {}", e))?;
+    // Use payload.content
+}
+```
+
+**Frontend: Import auto-generated type**
+```typescript
+import { type MarkdownWritePayload } from '@/bindings'
+
+const payload: MarkdownWritePayload = { content: "markdown text" }
+```
+
+**Benefit**: Compiler enforces consistency. Frontend TypeScript errors appear immediately if backend changes.
+
+### Workflow for Payload Types
+
+1. **Define Rust struct** with `#[derive(Type)]` in your extension's `mod.rs`
+2. **Use in capability handler** with `serde_json::from_value()`
+3. **Run** `pnpm tauri dev` to regenerate bindings
+4. **Import from** `@/bindings` in frontend
+5. **TypeScript catches** any mismatches at compile time
+
+### Common Payload Patterns
+
+**Simple data:**
+```rust
+#[derive(Serialize, Deserialize, Type)]
+pub struct SimplePayload {
+    pub value: String,
+}
+```
+
+**Optional fields:**
+```rust
+#[derive(Serialize, Deserialize, Type)]
+pub struct WithOptionals {
+    pub required: String,
+    #[serde(default)]
+    pub optional: Option<i64>,
+}
+```
+
+**Default values:**
+```rust
+fn default_wildcard() -> String { "*".to_string() }
+
+#[derive(Serialize, Deserialize, Type)]
+pub struct GrantPayload {
+    pub target_editor: String,
+    pub capability: String,
+    #[serde(default = "default_wildcard")]
+    pub target_block: String,  // Defaults to "*" if not provided
+}
+```
+
+### Where to Define Payload Types
+
+- **Extension-specific payloads**: Define in `src/extensions/{extension_name}/mod.rs`
+  - Example: `MarkdownWritePayload` in `src/extensions/markdown/mod.rs`
+- **Core payloads**: Define in `src/models/payloads.rs`
+  - Example: `GrantPayload`, `RevokePayload`, `LinkBlockPayload`
+
+This keeps extensions modular and self-contained.
+
 ## Adding New Types
 
 ### 1. Define the Type in Rust

@@ -114,6 +114,131 @@ fn handle_do_something(cmd: &Command, block: &Block) -> CapResult<Vec<Event>> {
 - `id`: 唯一的能力标识符 (格式: `extension_name.capability_name`)。
 - `target`: 该能力适用的 `Block` 类型 (使用 `"*"` 表示适用于所有类型)。
 
+### Payload 类型定义（强类型方案）
+
+**最佳实践**: 为每个 capability 定义强类型的 Payload struct，而不是直接使用 `serde_json::Value` 或手动 JSON 解析。
+
+**将 Payload 定义在扩展模块内**：每个扩展应该在自己的 `mod.rs` 中定义 payload 类型，而不是集中在 `models/payloads.rs`（那里只包含核心 capabilities 的 payloads）。
+
+**优点**：
+- ✅ 前端自动获得 TypeScript 类型（通过 tauri-specta）
+- ✅ 编译时类型检查，避免前后端不一致
+- ✅ 更好的 IDE 自动补全和文档
+- ✅ 减少运行时错误
+- ✅ 更好的模块化，扩展是自包含的
+
+**定义 Payload**：
+```rust
+// src/extensions/my_extension/mod.rs
+use serde::{Deserialize, Serialize};
+use specta::Type;
+
+/// Payload for my_extension.do_something capability
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DoSomethingPayload {
+    pub param1: String,
+    pub param2: i64,
+    #[serde(default)]  // 可选字段
+    pub optional_param: Option<String>,
+}
+
+// ... 然后在同一文件中定义 capability handlers
+pub mod my_capability;
+pub use my_capability::*;
+```
+
+**在 handler 中使用**：
+```rust
+// src/extensions/my_extension/my_capability.rs
+use super::DoSomethingPayload;  // 从父模块导入
+use crate::capabilities::core::{CapResult, create_event};
+use crate::models::{Block, Command, Event};
+use capability_macros::capability;
+
+#[capability(id = "my_extension.do_something", target = "my_block_type")]
+fn handle_do_something(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    let block = block.ok_or("Block required")?;
+
+    // 强类型反序列化
+    let payload: DoSomethingPayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Invalid payload for my_extension.do_something: {}", e))?;
+
+    // 使用强类型字段
+    let result = process(payload.param1, payload.param2);
+    // ...
+}
+```
+
+**前端自动获得类型**：
+运行 `pnpm tauri dev` 后，`src/bindings.ts` 会自动生成：
+```typescript
+// src/bindings.ts (自动生成)
+export type DoSomethingPayload = {
+  param1: string
+  param2: number
+  optional_param?: string | null
+}
+```
+
+前端使用：
+```typescript
+import { type DoSomethingPayload } from '@/bindings'
+
+const payload: DoSomethingPayload = {
+  param1: "value",
+  param2: 42
+}
+```
+
+**重要**：绝不要手动修改 `src/bindings.ts`，它会在每次运行 dev 模式时自动重新生成。
+
+### 注册 Payload 类型到 Frontend
+
+定义 payload struct 后，必须在 `src-tauri/src/lib.rs` 中注册以生成 TypeScript 类型：
+
+```rust
+// src-tauri/src/lib.rs
+let specta_builder = tauri_specta::Builder::<tauri::Wry>::new()
+    .commands(...)
+    // 为每个 payload 类型添加 .typ::<T>()
+    .typ::<extensions::my_extension::MyPayload>()  // ← 添加这一行
+    ;
+```
+
+**为什么需要手动注册？**
+
+Extension payloads 不在 Tauri command 签名中（它们在 `Command.payload: JsonValue` 内部使用），tauri-specta 无法自动发现这些类型。手动注册确保：
+- 前端获得类型安全的 TypeScript 定义
+- 编译时捕获前后端不一致
+- 文档注释也会同步到前端
+
+**注册示例**：
+
+```rust
+// src-tauri/src/lib.rs (在 #[cfg(debug_assertions)] 块中)
+let specta_builder = tauri_specta::Builder::<tauri::Wry>::new()
+    .commands(tauri_specta::collect_commands![...])
+    // Core payload types
+    .typ::<models::GrantPayload>()
+    .typ::<models::RevokePayload>()
+    .typ::<models::LinkBlockPayload>()
+    // Extension payload types - 添加新 extension 时在此注册
+    .typ::<extensions::markdown::MarkdownWritePayload>()
+    .typ::<extensions::my_extension::MyPayload>()  // 你的新类型
+    ;
+```
+
+注册后，运行 `pnpm tauri dev` 会在 `src/bindings.ts` 中生成：
+
+```typescript
+export type MyPayload = {
+  param1: string
+  param2: number
+}
+```
+
+**未来优化**：如果 extensions 增长到 10+ 个，考虑使用 procedural macro 自动注册。
+
 ### 事件创建指南
 
 `create_event` 辅助函数会自动将事件的 `attribute` 格式化为 `{editor_id}/{cap_id}`：

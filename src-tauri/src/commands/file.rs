@@ -9,7 +9,8 @@ use tauri::State;
 /// Bootstrap the editor system for a file.
 ///
 /// If no editors exist, creates a "system" editor and sets it as active.
-/// This ensures every file always has at least one editor available.
+/// If editors exist but no active editor is set, sets the first editor as active.
+/// This ensures every file always has at least one editor available and selected.
 async fn bootstrap_editors(file_id: &str, state: &AppState) -> Result<(), String> {
     // Get engine handle
     let handle = state
@@ -37,6 +38,15 @@ async fn bootstrap_editors(file_id: &str, state: &AppState) -> Result<(), String
 
             // Set as active editor
             state.set_active_editor(file_id.to_string(), system_editor_id);
+        }
+    } else {
+        // Editors exist - ensure one is set as active
+        // This handles the case of reopening a file where activeEditorId is not persisted
+        if state.get_active_editor(file_id).is_none() {
+            // Set the first editor as active (deterministic choice)
+            if let Some((first_editor_id, _)) = editors.iter().next() {
+                state.set_active_editor(file_id.to_string(), first_editor_id.clone());
+            }
         }
     }
 

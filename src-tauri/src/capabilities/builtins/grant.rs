@@ -1,5 +1,5 @@
 use crate::capabilities::core::{create_event, CapResult};
-use crate::models::{Block, Command, Event};
+use crate::models::{Block, Command, Event, GrantPayload};
 use capability_macros::capability;
 
 /// Handler for core.grant capability.
@@ -7,26 +7,9 @@ use capability_macros::capability;
 /// Grants a capability to an editor for a specific block (or wildcard).
 #[capability(id = "core.grant", target = "core/*")]
 fn handle_grant(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>> {
-    // Extract target editor
-    let target_editor = cmd
-        .payload
-        .get("target_editor")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing 'target_editor' in payload")?;
-
-    // Extract capability to grant
-    let grant_cap_id = cmd
-        .payload
-        .get("capability")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing 'capability' in payload")?;
-
-    // Extract target block (optional, defaults to wildcard)
-    let target_block = cmd
-        .payload
-        .get("target_block")
-        .and_then(|v| v.as_str())
-        .unwrap_or("*");
+    // Strongly-typed deserialization
+    let payload: GrantPayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Invalid payload for core.grant: {}", e))?;
 
     // Create grant event
     // Entity is the granter's editor_id per README.md Part 2
@@ -34,9 +17,9 @@ fn handle_grant(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>> 
         cmd.editor_id.clone(),
         "core.grant", // cap_id
         serde_json::json!({
-            "editor": target_editor,
-            "capability": grant_cap_id,
-            "block": target_block,
+            "editor": payload.target_editor,
+            "capability": payload.capability,
+            "block": payload.target_block,
         }),
         &cmd.editor_id,
         1, // TODO: Replace with actual vector clock count

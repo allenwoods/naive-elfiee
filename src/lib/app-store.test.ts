@@ -47,6 +47,7 @@ describe('AppStore', () => {
       activeFileId: null,
       isLoading: false,
       error: null,
+      notifications: [],
     })
   })
 
@@ -404,6 +405,56 @@ describe('AppStore', () => {
       
       const state = useAppStore.getState()
       expect(state.error).toBeNull()
+    })
+  })
+
+  describe('Notification System', () => {
+    test('addNotification should add notification to state', () => {
+      useAppStore.getState().addNotification('success', 'Operation completed')
+      
+      const state = useAppStore.getState()
+      expect(state.notifications).toHaveLength(1)
+      expect(state.notifications[0]).toMatchObject({
+        type: 'success',
+        message: 'Operation completed',
+      })
+      expect(state.notifications[0].id).toBeDefined()
+      expect(state.notifications[0].timestamp).toBeDefined()
+    })
+
+    test('addNotification should add multiple notifications', () => {
+      useAppStore.getState().addNotification('info', 'First message')
+      useAppStore.getState().addNotification('error', 'Second message')
+      
+      const state = useAppStore.getState()
+      expect(state.notifications).toHaveLength(2)
+      expect(state.notifications[0].type).toBe('info')
+      expect(state.notifications[1].type).toBe('error')
+    })
+
+    test('removeNotification should remove specific notification', () => {
+      useAppStore.getState().addNotification('info', 'First message')
+      useAppStore.getState().addNotification('error', 'Second message')
+      
+      const state = useAppStore.getState()
+      const firstId = state.notifications[0].id
+      
+      useAppStore.getState().removeNotification(firstId)
+      
+      const newState = useAppStore.getState()
+      expect(newState.notifications).toHaveLength(1)
+      expect(newState.notifications[0].type).toBe('error')
+    })
+
+    test('clearAllNotifications should remove all notifications', () => {
+      useAppStore.getState().addNotification('info', 'First message')
+      useAppStore.getState().addNotification('error', 'Second message')
+      useAppStore.getState().addNotification('success', 'Third message')
+      
+      useAppStore.getState().clearAllNotifications()
+      
+      const state = useAppStore.getState()
+      expect(state.notifications).toHaveLength(0)
     })
   })
 

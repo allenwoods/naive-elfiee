@@ -9,7 +9,15 @@
 
 import { useState } from 'react'
 import { useAppStore } from '@/lib/app-store'
-import type { Editor } from '@/bindings'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export function EditorSelector() {
   const {
@@ -41,8 +49,11 @@ export function EditorSelector() {
     }
   }
 
-  const handleSelectEditor = async (editor: Editor) => {
+  const handleSelectEditor = async (editorId: string) => {
     if (!activeFileId) return
+
+    const editor = editors.find((ed) => ed.editor_id === editorId)
+    if (!editor) return
 
     try {
       await setActiveEditor(activeFileId, editor.editor_id)
@@ -54,38 +65,34 @@ export function EditorSelector() {
   return (
     <div className="flex items-center gap-2">
       {/* Editor Dropdown */}
-      <div className="relative">
-        <select
-          value={activeEditor?.editor_id || ''}
-          onChange={(e) => {
-            const editor = editors.find((ed) => ed.editor_id === e.target.value)
-            if (editor) {
-              handleSelectEditor(editor)
-            }
-          }}
-          className="rounded border border-gray-300 bg-white px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        >
-          {editors.length === 0 && <option value="">No editors</option>}
+      <Select
+        value={activeEditor?.editor_id || ''}
+        onValueChange={handleSelectEditor}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="No editors" />
+        </SelectTrigger>
+        <SelectContent>
           {editors.map((editor) => (
-            <option key={editor.editor_id} value={editor.editor_id}>
+            <SelectItem key={editor.editor_id} value={editor.editor_id}>
               {editor.name}
-            </option>
+            </SelectItem>
           ))}
-        </select>
-      </div>
+        </SelectContent>
+      </Select>
 
       {/* Create New Editor */}
       {!isCreating ? (
-        <button
+        <Button
           onClick={() => setIsCreating(true)}
-          className="rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          size="sm"
           title="Create new editor"
         >
           + New Editor
-        </button>
+        </Button>
       ) : (
         <div className="flex items-center gap-2">
-          <input
+          <Input
             type="text"
             value={newEditorName}
             onChange={(e) => setNewEditorName(e.target.value)}
@@ -98,24 +105,26 @@ export function EditorSelector() {
               }
             }}
             placeholder="Editor name"
-            className="rounded border border-gray-300 px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="w-[120px]"
             autoFocus
           />
-          <button
+          <Button
             onClick={handleCreateEditor}
-            className="rounded bg-green-500 px-2 py-1 text-sm text-white hover:bg-green-600 focus:outline-none"
+            size="sm"
+            variant="default"
           >
             Create
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => {
               setIsCreating(false)
               setNewEditorName('')
             }}
-            className="rounded bg-gray-500 px-2 py-1 text-sm text-white hover:bg-gray-600 focus:outline-none"
+            size="sm"
+            variant="outline"
           >
             Cancel
-          </button>
+          </Button>
         </div>
       )}
     </div>

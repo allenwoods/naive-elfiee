@@ -1,5 +1,5 @@
 use crate::capabilities::core::{create_event, CapResult};
-use crate::models::{Block, Command, Event};
+use crate::models::{Block, Command, Event, CreateBlockPayload};
 use capability_macros::capability;
 
 /// Handler for core.create capability.
@@ -8,19 +8,9 @@ use capability_macros::capability;
 /// Note: The block parameter is None for create since the block doesn't exist yet.
 #[capability(id = "core.create", target = "core/*")]
 fn handle_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>> {
-    // Extract block name
-    let name = cmd
-        .payload
-        .get("name")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing 'name' in payload")?;
-
-    // Extract block type
-    let block_type = cmd
-        .payload
-        .get("block_type")
-        .and_then(|v| v.as_str())
-        .ok_or("Missing 'block_type' in payload")?;
+    // Strongly-typed deserialization
+    let payload: CreateBlockPayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Invalid payload for core.create: {}", e))?;
 
     // Generate new block ID
     let block_id = uuid::Uuid::new_v4().to_string();
@@ -31,8 +21,8 @@ fn handle_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>>
         block_id.clone(),
         "core.create", // cap_id
         serde_json::json!({
-            "name": name,
-            "type": block_type,
+            "name": payload.name,
+            "type": payload.block_type,
             "owner": cmd.editor_id,
             "contents": {},
             "children": {}

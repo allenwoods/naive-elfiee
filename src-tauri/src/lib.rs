@@ -22,28 +22,43 @@ pub fn run() {
     #[cfg(debug_assertions)]
     let builder = {
         let specta_builder =
-            tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
-                // File operations
-                commands::file::create_file,
-                commands::file::open_file,
-                commands::file::save_file,
-                commands::file::close_file,
-                commands::file::list_open_files,
-                // Block operations
-                commands::block::execute_command,
-                commands::block::get_block,
-                commands::block::get_all_blocks,
-                // Editor operations
-                commands::editor::create_editor,
-                commands::editor::list_editors,
-                commands::editor::get_editor,
-                commands::editor::set_active_editor,
-                commands::editor::get_active_editor,
-                // Grant operations
-                commands::editor::list_grants,
-                commands::editor::get_editor_grants,
-                commands::editor::get_block_grants,
-            ]);
+            tauri_specta::Builder::<tauri::Wry>::new()
+                .commands(tauri_specta::collect_commands![
+                    // File operations
+                    commands::file::create_file,
+                    commands::file::open_file,
+                    commands::file::save_file,
+                    commands::file::close_file,
+                    commands::file::list_open_files,
+                    // Block operations
+                    commands::block::execute_command,
+                    commands::block::get_block,
+                    commands::block::get_all_blocks,
+                    // Editor operations
+                    commands::editor::create_editor,
+                    commands::editor::list_editors,
+                    commands::editor::get_editor,
+                    commands::editor::set_active_editor,
+                    commands::editor::get_active_editor,
+                    // Grant operations
+                    commands::editor::list_grants,
+                    commands::editor::get_editor_grants,
+                    commands::editor::get_block_grants,
+                ])
+                // Explicitly export payload types for frontend type generation
+                // These types are used inside Command.payload but not in Tauri command signatures,
+                // so specta cannot automatically discover them. We must register them manually.
+                // NOTE: When adding a new extension with payload types, register them here.
+                // TODO: Consider automating this with a macro if extensions grow beyond ~10
+                // Core payload types (used by builtin capabilities)
+                .typ::<models::CreateBlockPayload>()
+                .typ::<models::LinkBlockPayload>()
+                .typ::<models::UnlinkBlockPayload>()
+                .typ::<models::GrantPayload>()
+                .typ::<models::RevokePayload>()
+                .typ::<models::EditorCreatePayload>()
+                // Extension payload types
+                .typ::<extensions::markdown::MarkdownWritePayload>();
 
         // Export TypeScript bindings on app startup
         #[cfg(debug_assertions)]
