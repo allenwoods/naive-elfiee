@@ -1,4 +1,4 @@
-use crate::models::{Command, Editor};
+use crate::models::{Command, Editor, Grant};
 use crate::state::AppState;
 use specta::specta;
 use tauri::State;
@@ -174,4 +174,110 @@ pub async fn get_active_editor(
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
     Ok(state.get_active_editor(&file_id))
+}
+
+/// List all grants for the specified file.
+///
+/// Returns all capability grants in the system as Grant objects.
+///
+/// # Arguments
+/// * `file_id` - Unique identifier of the file
+///
+/// # Returns
+/// * `Ok(Vec<Grant>)` - List of all grants
+/// * `Err(message)` - Error if file is not open
+#[tauri::command]
+#[specta]
+pub async fn list_grants(
+    file_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<Grant>, String> {
+    // Get engine handle for this file
+    let handle = state
+        .engine_manager
+        .get_engine(&file_id)
+        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
+
+    // Get all grants from engine actor
+    let grants_map = handle.get_all_grants().await;
+
+    // Convert to Grant objects
+    let mut grants = Vec::new();
+    for (editor_id, grant_list) in grants_map {
+        for (cap_id, block_id) in grant_list {
+            grants.push(Grant::new(editor_id.clone(), cap_id, block_id));
+        }
+    }
+
+    Ok(grants)
+}
+
+/// Get grants for a specific editor.
+///
+/// # Arguments
+/// * `file_id` - Unique identifier of the file
+/// * `editor_id` - Unique identifier of the editor
+///
+/// # Returns
+/// * `Ok(Vec<Grant>)` - List of grants for the editor
+/// * `Err(message)` - Error if file is not open
+#[tauri::command]
+#[specta]
+pub async fn get_editor_grants(
+    file_id: String,
+    editor_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<Grant>, String> {
+    // Get engine handle for this file
+    let handle = state
+        .engine_manager
+        .get_engine(&file_id)
+        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
+
+    // Get grants for this editor
+    let grant_list = handle.get_editor_grants(editor_id.clone()).await;
+
+    // Convert to Grant objects
+    let grants = grant_list
+        .into_iter()
+        .map(|(cap_id, block_id)| Grant::new(editor_id.clone(), cap_id, block_id))
+        .collect();
+
+    Ok(grants)
+}
+
+/// Get grants for a specific block.
+///
+/// Returns all grants that apply to this block (including wildcard grants).
+///
+/// # Arguments
+/// * `file_id` - Unique identifier of the file
+/// * `block_id` - Unique identifier of the block
+///
+/// # Returns
+/// * `Ok(Vec<Grant>)` - List of grants for the block
+/// * `Err(message)` - Error if file is not open
+#[tauri::command]
+#[specta]
+pub async fn get_block_grants(
+    file_id: String,
+    block_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<Grant>, String> {
+    // Get engine handle for this file
+    let handle = state
+        .engine_manager
+        .get_engine(&file_id)
+        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
+
+    // Get grants for this block
+    let grant_list = handle.get_block_grants(block_id).await;
+
+    // Convert to Grant objects
+    let grants = grant_list
+        .into_iter()
+        .map(|(editor_id, cap_id, block_id)| Grant::new(editor_id, cap_id, block_id))
+        .collect();
+
+    Ok(grants)
 }

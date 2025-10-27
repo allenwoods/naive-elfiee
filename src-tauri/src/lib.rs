@@ -39,6 +39,10 @@ pub fn run() {
                 commands::editor::get_editor,
                 commands::editor::set_active_editor,
                 commands::editor::get_active_editor,
+                // Grant operations
+                commands::editor::list_grants,
+                commands::editor::get_editor_grants,
+                commands::editor::get_block_grants,
             ]);
 
         // Export TypeScript bindings on app startup
@@ -72,6 +76,10 @@ pub fn run() {
         commands::editor::get_editor,
         commands::editor::set_active_editor,
         commands::editor::get_active_editor,
+        // Grant operations
+        commands::editor::list_grants,
+        commands::editor::get_editor_grants,
+        commands::editor::get_block_grants,
     ]);
 
     builder

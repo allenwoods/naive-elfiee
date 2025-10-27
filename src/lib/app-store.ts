@@ -9,7 +9,7 @@
  */
 
 import { create } from 'zustand'
-import type { Block, Editor } from '@/bindings'
+import type { Block, Editor, Grant } from '@/bindings'
 import TauriClient from './tauri-client'
 
 interface FileState {
@@ -18,6 +18,7 @@ interface FileState {
   selectedBlockId: string | null
   editors: Editor[]
   activeEditorId: string | null
+  grants: Grant[]
 }
 
 interface AppStore {
@@ -54,12 +55,29 @@ interface AppStore {
   createEditor: (fileId: string, name: string) => Promise<void>
   setActiveEditor: (fileId: string, editorId: string) => Promise<void>
 
+  // Grant Actions
+  loadGrants: (fileId: string) => Promise<void>
+  grantCapability: (
+    fileId: string,
+    targetEditor: string,
+    capability: string,
+    targetBlock?: string
+  ) => Promise<void>
+  revokeCapability: (
+    fileId: string,
+    targetEditor: string,
+    capability: string,
+    targetBlock?: string
+  ) => Promise<void>
+
   // Getters
   getActiveFile: () => FileState | null
   getBlocks: (fileId: string) => Block[]
   getSelectedBlock: (fileId: string) => Block | null
   getEditors: (fileId: string) => Editor[]
   getActiveEditor: (fileId: string) => Editor | null
+  getGrants: (fileId: string) => Grant[]
+  getEditorName: (fileId: string, editorId: string) => string
 
   // UI Actions
   setError: (error: string | null) => void
@@ -87,10 +105,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
           selectedBlockId: null,
           editors: [],
           activeEditorId: null,
+          grants: [],
         })
         set({ files, activeFileId: fileId })
         await get().loadEditors(fileId)
         await get().loadBlocks(fileId)
+        await get().loadGrants(fileId)
       }
     } catch (error) {
       set({ error: String(error) })
@@ -112,10 +132,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
           selectedBlockId: null,
           editors: [],
           activeEditorId: null,
+          grants: [],
         })
         set({ files, activeFileId: fileId })
         await get().loadEditors(fileId)
         await get().loadBlocks(fileId)
+        await get().loadGrants(fileId)
       }
     } catch (error) {
       set({ error: String(error) })
@@ -371,6 +393,98 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } finally {
       set({ isLoading: false })
     }
+  },
+
+  // Grant Actions
+  loadGrants: async (fileId: string) => {
+    try {
+      set({ isLoading: true, error: null })
+      const grants = await TauriClient.editor.listGrants(fileId)
+
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState) {
+        files.set(fileId, { ...fileState, grants })
+        set({ files })
+      }
+    } catch (error) {
+      set({ error: String(error) })
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  grantCapability: async (
+    fileId: string,
+    targetEditor: string,
+    capability: string,
+    targetBlock: string = '*'
+  ) => {
+    try {
+      set({ isLoading: true, error: null })
+
+      // Get active editor ID
+      const activeEditor = get().getActiveEditor(fileId)
+      const editorId = activeEditor?.editor_id
+
+      if (!editorId) {
+        throw new Error(
+          'No active editor found. Please select an editor first.'
+        )
+      }
+
+      await TauriClient.editor.grantCapability(
+        fileId,
+        targetEditor,
+        capability,
+        targetBlock,
+        editorId
+      )
+      await get().loadGrants(fileId)
+    } catch (error) {
+      set({ error: String(error) })
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  revokeCapability: async (
+    fileId: string,
+    targetEditor: string,
+    capability: string,
+    targetBlock: string = '*'
+  ) => {
+    try {
+      set({ isLoading: true, error: null })
+
+      // Get active editor ID
+      const activeEditor = get().getActiveEditor(fileId)
+      const editorId = activeEditor?.editor_id
+
+      if (!editorId) {
+        throw new Error(
+          'No active editor found. Please select an editor first.'
+        )
+      }
+
+      await TauriClient.editor.revokeCapability(
+        fileId,
+        targetEditor,
+        capability,
+        targetBlock,
+        editorId
+      )
+      await get().loadGrants(fileId)
+    } catch (error) {
+      set({ error: String(error) })
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  // Getters
+  getGrants: (fileId: string) => {
+    return get().files.get(fileId)?.grants || []
   },
 
   // UI Actions

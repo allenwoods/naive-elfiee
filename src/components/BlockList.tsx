@@ -4,16 +4,20 @@
  * Displays all blocks for the active file and provides basic block operations
  */
 
+import { useState } from 'react'
 import { useAppStore } from '@/lib/app-store'
 import { Button } from '@/components/ui/button'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Shield } from 'lucide-react'
 import type { Block } from '@/bindings'
 import { message } from '@tauri-apps/plugin-dialog'
+import { PermissionManager } from './PermissionManager'
 
 function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
-  const { deleteBlock, selectBlock, getSelectedBlock } = useAppStore()
+  const { deleteBlock, selectBlock, getSelectedBlock, getEditorName } =
+    useAppStore()
   const selectedBlock = getSelectedBlock(fileId)
   const isSelected = selectedBlock?.block_id === block.block_id
+  const [showPermissions, setShowPermissions] = useState(false)
 
   const handleDelete = async () => {
     await deleteBlock(fileId, block.block_id)
@@ -38,41 +42,71 @@ function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
     0
   )
 
+  // Get owner name
+  const ownerName = getEditorName(fileId, block.owner)
+  const ownerDisplay = `${ownerName} (${block.owner})`
+
   return (
-    <div
-      className={`cursor-pointer rounded-lg border p-4 transition-colors ${
-        isSelected ? 'bg-accent border-primary' : 'hover:bg-accent/50'
-      }`}
-      onClick={handleSelect}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="text-muted-foreground mb-1 text-xs">
-            {block.name || block.block_id}
-          </div>
-          <div className="text-muted-foreground mb-1 text-xs">
-            Type: {block.block_type}
-          </div>
-          <div className="text-sm break-words">{displayContent()}</div>
-          {childrenCount > 0 && (
-            <div className="text-muted-foreground mt-1 text-xs">
-              Children: {childrenCount}
+    <>
+      <div
+        className={`cursor-pointer rounded-lg border p-4 transition-colors ${
+          isSelected ? 'bg-accent border-primary' : 'hover:bg-accent/50'
+        }`}
+        onClick={handleSelect}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-muted-foreground mb-1 text-xs">
+              {block.name || block.block_id}
             </div>
-          )}
+            <div className="text-muted-foreground mb-1 text-xs">
+              Type: {block.block_type}
+            </div>
+            <div className="text-muted-foreground mb-1 text-xs">
+              Owner: {ownerDisplay}
+            </div>
+            <div className="text-sm break-words">{displayContent()}</div>
+            {childrenCount > 0 && (
+              <div className="text-muted-foreground mt-1 text-xs">
+                Children: {childrenCount}
+              </div>
+            )}
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <Button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowPermissions(true)
+              }}
+              variant="ghost"
+              size="icon"
+              title="Manage Permissions"
+            >
+              <Shield className="h-4 w-4" />
+            </Button>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDelete()
+              }}
+              variant="ghost"
+              size="icon"
+              title="Delete Block"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        <Button
-          onClick={(e) => {
-            e.stopPropagation()
-            handleDelete()
-          }}
-          variant="ghost"
-          size="icon"
-          className="shrink-0"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
       </div>
-    </div>
+
+      {/* Permission Manager Dialog */}
+      <PermissionManager
+        fileId={fileId}
+        blockId={block.block_id}
+        isOpen={showPermissions}
+        onClose={() => setShowPermissions(false)}
+      />
+    </>
   )
 }
 

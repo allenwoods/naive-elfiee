@@ -27,6 +27,20 @@ pub enum EngineMessage {
     GetAllEditors {
         response: oneshot::Sender<HashMap<String, Editor>>,
     },
+    /// Get all grants as a map: editor_id -> Vec<(cap_id, block_id)>
+    GetAllGrants {
+        response: oneshot::Sender<HashMap<String, Vec<(String, String)>>>,
+    },
+    /// Get grants for a specific editor
+    GetEditorGrants {
+        editor_id: String,
+        response: oneshot::Sender<Vec<(String, String)>>,
+    },
+    /// Get grants for a specific block
+    GetBlockGrants {
+        block_id: String,
+        response: oneshot::Sender<Vec<(String, String, String)>>,
+    },
     /// Shutdown the actor
     Shutdown,
 }
@@ -102,6 +116,41 @@ impl ElfileEngineActor {
                 EngineMessage::GetAllEditors { response } => {
                     let editors = self.state.editors.clone();
                     let _ = response.send(editors);
+                }
+                EngineMessage::GetAllGrants { response } => {
+                    let grants = self.state.grants.as_map().clone();
+                    let _ = response.send(grants);
+                }
+                EngineMessage::GetEditorGrants {
+                    editor_id,
+                    response,
+                } => {
+                    let grants = self
+                        .state
+                        .grants
+                        .get_grants(&editor_id)
+                        .cloned()
+                        .unwrap_or_default();
+                    let _ = response.send(grants);
+                }
+                EngineMessage::GetBlockGrants {
+                    block_id,
+                    response,
+                } => {
+                    // Get all grants and filter those that apply to this block
+                    let mut block_grants = Vec::new();
+                    for (editor_id, grants) in self.state.grants.as_map() {
+                        for (cap_id, target_block) in grants {
+                            if target_block == &block_id || target_block == "*" {
+                                block_grants.push((
+                                    editor_id.clone(),
+                                    cap_id.clone(),
+                                    target_block.clone(),
+                                ));
+                            }
+                        }
+                    }
+                    let _ = response.send(block_grants);
                 }
                 EngineMessage::Shutdown => {
                     break;
@@ -258,6 +307,60 @@ impl EngineHandle {
             .is_err()
         {
             return HashMap::new();
+        }
+
+        rx.await.unwrap_or_default()
+    }
+
+    /// Get all grants.
+    ///
+    /// Returns a map of editor_id -> Vec<(cap_id, block_id)>
+    pub async fn get_all_grants(&self) -> HashMap<String, Vec<(String, String)>> {
+        let (tx, rx) = oneshot::channel();
+        if self
+            .sender
+            .send(EngineMessage::GetAllGrants { response: tx })
+            .is_err()
+        {
+            return HashMap::new();
+        }
+
+        rx.await.unwrap_or_default()
+    }
+
+    /// Get grants for a specific editor.
+    ///
+    /// Returns Vec<(cap_id, block_id)> for the given editor.
+    pub async fn get_editor_grants(&self, editor_id: String) -> Vec<(String, String)> {
+        let (tx, rx) = oneshot::channel();
+        if self
+            .sender
+            .send(EngineMessage::GetEditorGrants {
+                editor_id,
+                response: tx,
+            })
+            .is_err()
+        {
+            return Vec::new();
+        }
+
+        rx.await.unwrap_or_default()
+    }
+
+    /// Get grants for a specific block.
+    ///
+    /// Returns Vec<(editor_id, cap_id, block_id)> for all grants that apply to this block.
+    pub async fn get_block_grants(&self, block_id: String) -> Vec<(String, String, String)> {
+        let (tx, rx) = oneshot::channel();
+        if self
+            .sender
+            .send(EngineMessage::GetBlockGrants {
+                block_id,
+                response: tx,
+            })
+            .is_err()
+        {
+            return Vec::new();
         }
 
         rx.await.unwrap_or_default()
