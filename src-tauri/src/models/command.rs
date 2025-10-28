@@ -1,0 +1,30 @@
+use serde::{Deserialize, Serialize};
+use specta::Type;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct Command {
+    pub cmd_id: String,
+    pub editor_id: String,
+    pub cap_id: String,
+    pub block_id: String,
+    pub payload: serde_json::Value,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+impl Command {
+    pub fn new(
+        editor_id: String,
+        cap_id: String,
+        block_id: String,
+        payload: serde_json::Value,
+    ) -> Self {
+        Self {
+            cmd_id: uuid::Uuid::new_v4().to_string(),
+            editor_id,
+            cap_id,
+            block_id,
+            payload,
+            timestamp: chrono::Utc::now(),
+        }
+    }
+}
