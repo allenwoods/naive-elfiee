@@ -133,6 +133,20 @@ export class FileOperations {
       throw new Error(result.error)
     }
   }
+
+  /**
+   * Get all events for a specific file
+   * @param fileId - Unique identifier of the file
+   * @returns Array of all events for the file
+   */
+  static async getAllEvents(fileId: string): Promise<Event[]> {
+    const result = await commands.getAllEvents(fileId)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
 }
 
 /**

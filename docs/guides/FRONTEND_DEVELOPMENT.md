@@ -250,9 +250,75 @@ pub struct GrantPayload {
 - **Extension-specific payloads**: Define in `src/extensions/{extension_name}/mod.rs`
   - Example: `MarkdownWritePayload` in `src/extensions/markdown/mod.rs`
 - **Core payloads**: Define in `src/models/payloads.rs`
-  - Example: `GrantPayload`, `RevokePayload`, `LinkBlockPayload`
+  - Example: `GrantPayload`, `RevokePayload`, `LinkBlockPayload`, `CreateBlockPayload`, `UnlinkBlockPayload`, `EditorCreatePayload`
 
 This keeps extensions modular and self-contained.
+
+### Current Payload Types in System
+
+**Core Payloads** (in `src/models/payloads.rs`):
+
+1. **CreateBlockPayload** - For `core.create` capability
+   ```rust
+   pub struct CreateBlockPayload {
+       pub name: String,
+       pub block_type: String,
+   }
+   ```
+
+2. **LinkBlockPayload** - For `core.link` capability
+   ```rust
+   pub struct LinkBlockPayload {
+       pub relation: String,      // e.g., "references", "depends_on", "contains"
+       pub target_id: String,
+   }
+   ```
+
+3. **UnlinkBlockPayload** - For `core.unlink` capability
+   ```rust
+   pub struct UnlinkBlockPayload {
+       pub relation: String,
+       pub target_id: String,
+   }
+   ```
+
+4. **GrantPayload** - For `core.grant` capability
+   ```rust
+   pub struct GrantPayload {
+       pub target_editor: String,
+       pub capability: String,
+       #[serde(default = "default_wildcard")]
+       pub target_block: String,  // Defaults to "*"
+   }
+   ```
+
+5. **RevokePayload** - For `core.revoke` capability
+   ```rust
+   pub struct RevokePayload {
+       pub target_editor: String,
+       pub capability: String,
+       #[serde(default = "default_wildcard")]
+       pub target_block: String,
+   }
+   ```
+
+6. **EditorCreatePayload** - For `editor.create` capability
+   ```rust
+   pub struct EditorCreatePayload {
+       pub name: String,
+   }
+   ```
+
+**Extension Payloads**:
+
+1. **MarkdownWritePayload** (in `src/extensions/markdown/mod.rs`) - For `markdown.write` capability
+   ```rust
+   pub struct MarkdownWritePayload {
+       pub content: String,
+   }
+   ```
+
+**Note**: `core.delete` capability requires no payload (empty JSON object).
 
 ## Adding New Types
 

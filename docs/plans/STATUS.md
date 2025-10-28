@@ -1,8 +1,8 @@
 # Implementation Status - Elfiee MVP
 
-**Last Updated**: 2025-10-24
-**Current Phase**: Part 6 - Tauri App Interface (Complete)
-**Overall Progress**: 100% (6 of 6 parts complete)
+**Last Updated**: 2025-10-28
+**Current Phase**: Post-MVP Enhancements (Strongly-Typed Payload System)
+**Overall Progress**: 100% (6 of 6 parts complete + payload type safety)
 
 ## Summary
 
@@ -14,7 +14,7 @@ All six parts of the Elfiee MVP are complete:
 - ✅ Actor-based engine with async persistence and multi-file support
 - ✅ Tauri App Interface with React frontend and official plugins
 
-Backend fully functional with 51 passing tests. Frontend UI complete with Tailwind CSS and Shadcn components.
+Backend fully functional with 60 passing tests (includes strongly-typed payload validation). Frontend UI complete with Tailwind CSS, Shadcn components, and Tauri Specta v2 for automatic TypeScript binding generation.
 
 ## Completed Parts
 
@@ -501,6 +501,88 @@ Frontend:
 
 ---
 
+### Post-MVP Enhancement: Strongly-Typed Payload System ✅
+
+**Completed**: 2025-10-28
+
+#### What Was Built
+
+**Payload Type Definitions** (`src-tauri/src/models/payloads.rs`):
+
+All capability payloads now use strongly-typed structs instead of manual JSON parsing:
+
+1. **CreateBlockPayload** - For `core.create`
+   - `name: String`
+   - `block_type: String`
+
+2. **LinkBlockPayload** - For `core.link`
+   - `relation: String` (e.g., "references", "depends_on")
+   - `target_id: String`
+
+3. **UnlinkBlockPayload** - For `core.unlink`
+   - `relation: String`
+   - `target_id: String`
+
+4. **GrantPayload** - For `core.grant`
+   - `target_editor: String`
+   - `capability: String`
+   - `target_block: String` (defaults to "*")
+
+5. **RevokePayload** - For `core.revoke`
+   - `target_editor: String`
+   - `capability: String`
+   - `target_block: String` (defaults to "*")
+
+6. **EditorCreatePayload** - For `editor.create`
+   - `name: String`
+
+**Updated Capability Handlers**:
+- All 6 builtin capability handlers migrated from manual JSON parsing to `serde_json::from_value<PayloadType>()`
+- Markdown extension already used `MarkdownWritePayload` (updated in Part 4)
+
+**Tauri Specta Integration** (`src-tauri/src/lib.rs`):
+- Registered all payload types via `.typ::<T>()` method
+- Auto-generates TypeScript types in `src/bindings.ts`
+- Frontend imports types directly from bindings
+
+**Frontend Updates**:
+- `src/lib/tauri-client.ts` - Updated `linkBlocks()` and `unlinkBlocks()` to accept `relation` parameter
+- `src/lib/app-store.ts` - Updated all calls to pass `relation`
+- Removed manual payload type definitions, imported from bindings instead
+
+#### Benefits
+
+- ✅ **Compile-time Type Safety**: TypeScript compiler catches payload structure mismatches
+- ✅ **No Runtime Errors**: Eliminated "Missing X in payload" errors
+- ✅ **Single Source of Truth**: Rust types automatically generate TypeScript types
+- ✅ **Better DX**: Auto-completion and type hints in IDE
+- ✅ **Refactoring Safety**: Renaming fields updates both frontend and backend
+
+#### Testing
+
+**Test Coverage**: 60 tests passing (9 new payload tests)
+
+New tests:
+- `test_create_block_payload`
+- `test_link_block_payload`
+- `test_unlink_block_payload`
+- `test_grant_payload_with_wildcard_default`
+- `test_grant_payload_with_specific_block`
+- `test_revoke_payload`
+- `test_editor_create_payload`
+- `test_markdown_write_payload_deserialize`
+- `test_markdown_write_payload_wrong_structure`
+
+**Test Command**: `cargo test` (60 passed, 0 failed)
+
+#### Documentation
+
+- Updated `docs/guides/FRONTEND_DEVELOPMENT.md` with comprehensive payload type guide
+- Added "Current Payload Types in System" section listing all 7 payload types
+- Documented best practices for defining and using payload types
+
+---
+
 ## Current Architecture
 
 ### Directory Structure
@@ -513,6 +595,8 @@ src-tauri/src/
 │   ├── capability.rs     ✅ Capability metadata
 │   ├── command.rs        ✅ Command structure
 │   ├── event.rs          ✅ Event with vector clock
+│   ├── grant.rs          ✅ Grant model for CBAC
+│   ├── payloads.rs       ✅ Strongly-typed payload structs
 │   └── mod.rs            ✅ Module exports
 ├── engine/
 │   ├── event_store.rs    ✅ SQLite EAVT store (sqlx)
@@ -567,19 +651,24 @@ src/
 └── index.css             ✅ Tailwind CSS with Shadcn theme
 
 docs/
-├── guides/
-│   └── EXTENSION_DEVELOPMENT.md  ✅ Extension dev guide
-└── plans/
+├── concepts/              ✅ Core concept docs
+│   ├── ARCHITECTURE_OVERVIEW.md  ✅ High-level architecture
+│   └── ENGINE_CONCEPTS.md        ✅ Engine design philosophy
+├── guides/                ✅ Development guides
+│   ├── EXTENSION_DEVELOPMENT.md  ✅ Extension dev guide
+│   └── FRONTEND_DEVELOPMENT.md   ✅ Frontend dev guide with Tauri Specta
+└── plans/                 ✅ Development planning docs
     ├── part1-core-models.md
     ├── part2-event-structure.md
     ├── part3-elf-file-format.md
     ├── part4-extension-interface.md
     ├── part5-elfile-engine.md
     ├── part5-completion-summary.md    ✅ Part 5 summary
+    ├── part6-tauri-app.md
     ├── engine-architecture.md         ✅ Architecture guide
     ├── part7-content-schema-proposal.md  ✅ Future design
     ├── IMPLEMENTATION_PLAN.md
-    └── STATUS.md
+    └── STATUS.md                      ✅ This file
 ```
 
 ### Dependencies
@@ -600,6 +689,11 @@ dashmap = "5.5"
 zip = "0.6"
 tempfile = "3.8"
 capability-macros = { path = "capability-macros" }
+specta = { version = "=2.0.0-rc.22", features = ["serde_json", "chrono"] }
+tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
+
+[dev-dependencies]
+specta-typescript = "0.0.9"
 ```
 
 **Frontend (package.json)**:
@@ -630,13 +724,14 @@ capability-macros = { path = "capability-macros" }
 
 ### Test Statistics
 
-- **Total Tests**: 51
-- **Passing**: 51 (100%)
+- **Total Tests**: 60
+- **Passing**: 60 (100%)
 - **Failing**: 0
-- **Coverage**: Core functionality for Parts 1-5
+- **Coverage**: Core functionality for Parts 1-6 + Payload Types
   - 6 GrantsTable tests
   - 19 Capability/Registry tests
-  - 9 Markdown extension tests
+  - 9 Markdown extension tests (includes payload validation)
+  - 7 Payload type tests (new)
   - 7 Actor tests
   - 7 Manager tests
   - 4 StateProjector tests
@@ -667,6 +762,10 @@ capability-macros = { path = "capability-macros" }
 18. ✅ **State Management**: Zustand store with multi-file support
 19. ✅ **Official Plugins**: Using @tauri-apps/plugin-dialog for file pickers
 20. ✅ **Desktop Support**: Configured for Linux, macOS, and Windows
+21. ✅ **Tauri Specta v2**: Auto-generated TypeScript bindings from Rust types
+22. ✅ **Strongly-Typed Payloads**: All capability payloads use typed structs
+23. ✅ **Type Safety**: Compile-time checking eliminates runtime payload errors
+24. ✅ **Single Source of Truth**: Rust types automatically sync to TypeScript
 
 ---
 
@@ -681,6 +780,7 @@ All six parts of the Elfiee MVP have been implemented:
 - CBAC system with capability registry
 - Actor-based engine with multi-file support
 - Tauri commands for all operations
+- Strongly-typed payload system with auto-generated TypeScript bindings
 
 ### ✅ Frontend (React + TypeScript)
 - Tauri client with typed wrappers
@@ -735,14 +835,16 @@ bef4e49 - update constitution
 
 - All implementations follow "simplest thing that works" philosophy
 - No premature optimization (deferred: snapshots, advanced conflict resolution)
-- TDD workflow strictly followed for backend (51 tests passing)
+- TDD workflow strictly followed for backend (60 tests passing)
 - Test coverage prioritizes core functionality over edge cases
-- TypeScript types maintained in sync with Rust models
+- TypeScript types automatically generated from Rust via Tauri Specta v2
 - Actor model provides clean concurrency without locks
 - Event sourcing ensures full audit trail and reproducibility
 - sqlx enables true async operations with thread-safe connection pooling
 - Official Tauri plugins used instead of reimplementing basic functionality
 - Desktop-only focus (Linux, macOS, Windows) - no mobile support
+- Strongly-typed payloads eliminate entire class of runtime errors
+- Single source of truth: Rust types automatically sync to TypeScript
 
 ## Next Steps (Post-MVP)
 
@@ -766,7 +868,8 @@ The MVP is complete. Potential future enhancements:
 
 ---
 
-**Status**: MVP Complete ✅
-**Backend Tests**: 51 passing
-**Frontend**: TypeScript compilation passing
-**Risk level**: Low - all core functionality implemented and tested
+**Status**: MVP Complete + Post-MVP Enhancements ✅
+**Backend Tests**: 60 passing (100% success rate)
+**Frontend**: TypeScript compilation passing with auto-generated types
+**Type Safety**: Strongly-typed payloads eliminate runtime errors
+**Risk level**: Low - all core functionality implemented, tested, and type-safe

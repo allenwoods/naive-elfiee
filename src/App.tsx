@@ -7,13 +7,20 @@
  * - UI state management via Zustand
  */
 
+import { useState } from 'react'
 import { Toolbar } from '@/components/Toolbar'
 import { BlockList } from '@/components/BlockList'
 import { BlockEditor } from '@/components/BlockEditor'
+import { EventViewer } from '@/components/EventViewer'
+import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as SonnerToaster } from '@/components/ui/sonner'
 
+type TabType = 'editor' | 'events'
+
 function App() {
+  const [activeTab, setActiveTab] = useState<TabType>('editor')
+
   return (
     <div className="bg-background text-foreground flex h-screen flex-col">
       <Toolbar />
@@ -24,9 +31,30 @@ function App() {
           <BlockList />
         </div>
 
-        {/* Right side: Block Editor */}
-        <div className="w-2/3">
-          <BlockEditor />
+        {/* Right side: Tabbed Content */}
+        <div className="w-2/3 flex flex-col">
+          {/* Tab Navigation */}
+          <div className="border-b flex">
+            <Button
+              variant={activeTab === 'editor' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('editor')}
+              className="rounded-none"
+            >
+              Editor
+            </Button>
+            <Button
+              variant={activeTab === 'events' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('events')}
+              className="rounded-none"
+            >
+              Events
+            </Button>
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1">
+            {activeTab === 'editor' ? <BlockEditor /> : <EventViewer />}
+          </div>
         </div>
       </div>
       <SonnerToaster />

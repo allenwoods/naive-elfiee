@@ -9,7 +9,7 @@
  */
 
 import { create } from 'zustand'
-import type { Block, Editor, Grant } from '@/bindings'
+import type { Block, Editor, Grant, Event } from '@/bindings'
 import TauriClient from './tauri-client'
 
 interface FileState {
@@ -19,6 +19,7 @@ interface FileState {
   editors: Editor[]
   activeEditorId: string | null
   grants: Grant[]
+  events: Event[]
 }
 
 interface Notification {
@@ -78,6 +79,9 @@ interface AppStore {
     targetBlock?: string
   ) => Promise<void>
 
+  // Event Actions
+  loadEvents: (fileId: string) => Promise<void>
+
   // Block Content Actions
   readBlockContent: (fileId: string, blockId: string) => Promise<string>
   writeBlockContent: (
@@ -109,6 +113,7 @@ interface AppStore {
   getEditors: (fileId: string) => Editor[]
   getActiveEditor: (fileId: string) => Editor | null
   getGrants: (fileId: string) => Grant[]
+  getEvents: (fileId: string) => Event[]
   getEditorName: (fileId: string, editorId: string) => string
 
   // UI Actions
@@ -142,11 +147,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
           editors: [],
           activeEditorId: null,
           grants: [],
+          events: [],
         })
         set({ files, activeFileId: fileId })
         await get().loadEditors(fileId)
         await get().loadBlocks(fileId)
         await get().loadGrants(fileId)
+        await get().loadEvents(fileId)
       }
     } catch (error) {
       get().addNotification('error', String(error))
@@ -169,11 +176,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
           editors: [],
           activeEditorId: null,
           grants: [],
+          events: [],
         })
         set({ files, activeFileId: fileId })
         await get().loadEditors(fileId)
         await get().loadBlocks(fileId)
         await get().loadGrants(fileId)
+        await get().loadEvents(fileId)
       }
     } catch (error) {
       get().addNotification('error', String(error))
@@ -518,6 +527,25 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  // Event Actions
+  loadEvents: async (fileId: string) => {
+    try {
+      set({ isLoading: true, error: null })
+      const events = await TauriClient.file.getAllEvents(fileId)
+
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState) {
+        files.set(fileId, { ...fileState, events })
+        set({ files })
+      }
+    } catch (error) {
+      get().addNotification('error', String(error))
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
   // Block Content Actions
   readBlockContent: async (fileId: string, blockId: string) => {
     try {
@@ -640,6 +668,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // Getters
   getGrants: (fileId: string) => {
     return get().files.get(fileId)?.grants || []
+  },
+
+  getEvents: (fileId: string) => {
+    return get().files.get(fileId)?.events || []
   },
 
   // UI Actions

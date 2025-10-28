@@ -98,6 +98,24 @@ async listOpenFiles() : Promise<Result<string[], string>> {
 }
 },
 /**
+ * Get all events for a specific file.
+ * 
+ * # Arguments
+ * * `file_id` - Unique identifier of the file
+ * 
+ * # Returns
+ * * `Ok(Vec<Event>)` - List of all events for the file
+ * * `Err(message)` - Error description if retrieval fails
+ */
+async getAllEvents(fileId: string) : Promise<Result<Event[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_all_events", { fileId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Execute a command on a block in the specified file.
  * 
  * This is the primary way to modify blocks. Commands are processed by the engine actor,

@@ -216,3 +216,24 @@ pub async fn list_open_files(state: State<'_, AppState>) -> Result<Vec<String>, 
 
     Ok(file_ids)
 }
+
+/// Get all events for a specific file.
+///
+/// # Arguments
+/// * `file_id` - Unique identifier of the file
+///
+/// # Returns
+/// * `Ok(Vec<Event>)` - List of all events for the file
+/// * `Err(message)` - Error description if retrieval fails
+#[tauri::command]
+#[specta]
+pub async fn get_all_events(file_id: String, state: State<'_, AppState>) -> Result<Vec<crate::models::Event>, String> {
+    // Get engine handle
+    let handle = state
+        .engine_manager
+        .get_engine(&file_id)
+        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
+
+    // Get all events from the engine
+    handle.get_all_events().await
+}

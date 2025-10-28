@@ -41,6 +41,10 @@ pub enum EngineMessage {
         block_id: String,
         response: oneshot::Sender<Vec<(String, String, String)>>,
     },
+    /// Get all events
+    GetAllEvents {
+        response: oneshot::Sender<Result<Vec<Event>, String>>,
+    },
     /// Shutdown the actor
     Shutdown,
 }
@@ -120,6 +124,12 @@ impl ElfileEngineActor {
                 EngineMessage::GetAllGrants { response } => {
                     let grants = self.state.grants.as_map().clone();
                     let _ = response.send(grants);
+                }
+                EngineMessage::GetAllEvents { response } => {
+                    let events = EventStore::get_all_events(&self.event_pool)
+                        .await
+                        .map_err(|e| format!("Failed to get events: {}", e));
+                    let _ = response.send(events);
                 }
                 EngineMessage::GetEditorGrants {
                     editor_id,
@@ -364,6 +374,22 @@ impl EngineHandle {
         }
 
         rx.await.unwrap_or_default()
+    }
+
+    /// Get all events.
+    ///
+    /// Returns all events from the event store for this file.
+    pub async fn get_all_events(&self) -> Result<Vec<Event>, String> {
+        let (tx, rx) = oneshot::channel();
+        if self
+            .sender
+            .send(EngineMessage::GetAllEvents { response: tx })
+            .is_err()
+        {
+            return Err("Engine actor has shut down".to_string());
+        }
+
+        rx.await.map_err(|_| "Engine actor did not respond".to_string())?
     }
 
     /// Shutdown the engine actor.

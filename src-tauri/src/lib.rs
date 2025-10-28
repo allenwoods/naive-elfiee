@@ -30,6 +30,7 @@ pub fn run() {
                     commands::file::save_file,
                     commands::file::close_file,
                     commands::file::list_open_files,
+                    commands::file::get_all_events,
                     // Block operations
                     commands::block::execute_command,
                     commands::block::get_block,
@@ -81,6 +82,7 @@ pub fn run() {
         commands::file::save_file,
         commands::file::close_file,
         commands::file::list_open_files,
+        commands::file::get_all_events,
         // Block operations
         commands::block::execute_command,
         commands::block::get_block,
