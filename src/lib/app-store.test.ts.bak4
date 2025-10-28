@@ -9,43 +9,38 @@ import { useAppStore } from './app-store'
 import { createMockBlock, createMockEditor, TEST_FILE_ID, TEST_BLOCK_ID, TEST_EDITOR_ID } from '@/test/setup'
 import * as dialog from '@tauri-apps/plugin-dialog'
 
-// Mock TauriClient with factory function
-vi.mock('./tauri-client', () => {
-  return {
-    TauriClient: {
-      file: {
-        createFile: vi.fn(),
-        openFile: vi.fn(),
-        saveFile: vi.fn(),
-        closeFile: vi.fn(),
-      },
-      block: {
-        getAllBlocks: vi.fn(),
-        createBlock: vi.fn(),
-        writeBlock: vi.fn(),
-        deleteBlock: vi.fn(),
-      },
-      editor: {
-        listEditors: vi.fn(),
-        createEditor: vi.fn(),
-        setActiveEditor: vi.fn(),
-        getActiveEditor: vi.fn(),
-      },
-    },
-  }
-})
+// Hoist mock functions so they can be accessed in tests
+const mockTauriClient = vi.hoisted(() => ({
+  file: {
+    createFile: vi.fn(),
+    openFile: vi.fn(),
+    saveFile: vi.fn(),
+    closeFile: vi.fn(),
+  },
+  block: {
+    getAllBlocks: vi.fn(),
+    createBlock: vi.fn(),
+    writeBlock: vi.fn(),
+    deleteBlock: vi.fn(),
+  },
+  editor: {
+    listEditors: vi.fn(),
+    createEditor: vi.fn(),
+    setActiveEditor: vi.fn(),
+    getActiveEditor: vi.fn(),
+  },
+}))
+
+// Mock TauriClient
+vi.mock('./tauri-client', () => ({
+  TauriClient: mockTauriClient,
+}))
 
 // Mock dialog plugin
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   save: vi.fn(),
   open: vi.fn(),
 }))
-
-// Import the mocked TauriClient
-import { TauriClient } from './tauri-client'
-
-// Create reference to mocked client for test assertions
-const mockTauriClient = TauriClient
 
 describe('AppStore', () => {
   beforeEach(() => {
@@ -153,7 +148,7 @@ describe('AppStore', () => {
       
       await useAppStore.getState().saveFile(TEST_FILE_ID)
       
-      expect(mockTauriClient.file.saveFile).toHaveBeenCalledWith(TEST_FILE_ID)
+      expect(TauriClient.file.saveFile).toHaveBeenCalledWith(TEST_FILE_ID)
     })
 
     test('setActiveFile should update activeFileId', () => {
@@ -197,7 +192,7 @@ describe('AppStore', () => {
       
       await useAppStore.getState().createBlock(TEST_FILE_ID, 'New Block', 'markdown')
       
-      expect(mockTauriClient.block.createBlock).toHaveBeenCalledWith(
+      expect(TauriClient.block.createBlock).toHaveBeenCalledWith(
         TEST_FILE_ID,
         'New Block',
         'markdown',
@@ -213,7 +208,7 @@ describe('AppStore', () => {
       
       await useAppStore.getState().updateBlock(TEST_FILE_ID, TEST_BLOCK_ID, content)
       
-      expect(mockTauriClient.block.writeBlock).toHaveBeenCalledWith(
+      expect(TauriClient.block.writeBlock).toHaveBeenCalledWith(
         TEST_FILE_ID,
         TEST_BLOCK_ID,
         content,
@@ -228,7 +223,7 @@ describe('AppStore', () => {
       
       await useAppStore.getState().deleteBlock(TEST_FILE_ID, TEST_BLOCK_ID)
       
-      expect(mockTauriClient.block.deleteBlock).toHaveBeenCalledWith(
+      expect(TauriClient.block.deleteBlock).toHaveBeenCalledWith(
         TEST_FILE_ID,
         TEST_BLOCK_ID,
         expect.any(String) // editor ID
@@ -284,7 +279,7 @@ describe('AppStore', () => {
       
       await useAppStore.getState().createEditor(TEST_FILE_ID, 'New Editor')
       
-      expect(mockTauriClient.editor.createEditor).toHaveBeenCalledWith(TEST_FILE_ID, 'New Editor')
+      expect(TauriClient.editor.createEditor).toHaveBeenCalledWith(TEST_FILE_ID, 'New Editor')
     })
 
     test('setActiveEditor should update activeEditorId', async () => {

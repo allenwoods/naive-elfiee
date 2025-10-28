@@ -9,43 +9,38 @@ import { useAppStore } from './app-store'
 import { createMockBlock, createMockEditor, TEST_FILE_ID, TEST_BLOCK_ID, TEST_EDITOR_ID } from '@/test/setup'
 import * as dialog from '@tauri-apps/plugin-dialog'
 
-// Mock TauriClient with factory function
-vi.mock('./tauri-client', () => {
-  return {
-    TauriClient: {
-      file: {
-        createFile: vi.fn(),
-        openFile: vi.fn(),
-        saveFile: vi.fn(),
-        closeFile: vi.fn(),
-      },
-      block: {
-        getAllBlocks: vi.fn(),
-        createBlock: vi.fn(),
-        writeBlock: vi.fn(),
-        deleteBlock: vi.fn(),
-      },
-      editor: {
-        listEditors: vi.fn(),
-        createEditor: vi.fn(),
-        setActiveEditor: vi.fn(),
-        getActiveEditor: vi.fn(),
-      },
-    },
-  }
-})
+// Hoist mock functions so they can be accessed in tests
+const mockTauriClient = vi.hoisted(() => ({
+  file: {
+    createFile: vi.fn(),
+    openFile: vi.fn(),
+    saveFile: vi.fn(),
+    closeFile: vi.fn(),
+  },
+  block: {
+    getAllBlocks: vi.fn(),
+    createBlock: vi.fn(),
+    writeBlock: vi.fn(),
+    deleteBlock: vi.fn(),
+  },
+  editor: {
+    listEditors: vi.fn(),
+    createEditor: vi.fn(),
+    setActiveEditor: vi.fn(),
+    getActiveEditor: vi.fn(),
+  },
+}))
+
+// Mock TauriClient
+vi.mock('./tauri-client', () => ({
+  TauriClient: mockTauriClient,
+}))
 
 // Mock dialog plugin
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   save: vi.fn(),
   open: vi.fn(),
 }))
-
-// Import the mocked TauriClient
-import { TauriClient } from './tauri-client'
-
-// Create reference to mocked client for test assertions
-const mockTauriClient = TauriClient
 
 describe('AppStore', () => {
   beforeEach(() => {
@@ -79,9 +74,9 @@ describe('AppStore', () => {
       
       // Mock dialog to return a file path
       vi.mocked(dialog.save).mockResolvedValue('/test/path.elf')
-      mockTauriClient.file.createFile.mockResolvedValue(mockFileId)
-      mockTauriClient.editor.listEditors.mockResolvedValue([])
-      mockTauriClient.block.getAllBlocks.mockResolvedValue([])
+      vi.mocked(TauriClient.file.createFile).mockResolvedValue(mockFileId)
+      vi.mocked(TauriClient.editor.listEditors).mockResolvedValue([])
+      vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue([])
       
       await useAppStore.getState().createFile()
       
@@ -102,7 +97,7 @@ describe('AppStore', () => {
       
       // Mock dialog to return a file path
       vi.mocked(dialog.save).mockResolvedValue('/test/path.elf')
-      mockTauriClient.file.createFile.mockRejectedValue(new Error(errorMessage))
+      vi.mocked(TauriClient.file.createFile).mockRejectedValue(new Error(errorMessage))
       
       await useAppStore.getState().createFile()
       
@@ -115,9 +110,9 @@ describe('AppStore', () => {
       
       // Mock dialog to return a file path
       vi.mocked(dialog.open).mockResolvedValue('/test/path.elf')
-      mockTauriClient.file.openFile.mockResolvedValue(mockFileId)
-      mockTauriClient.editor.listEditors.mockResolvedValue([])
-      mockTauriClient.block.getAllBlocks.mockResolvedValue([])
+      vi.mocked(TauriClient.file.openFile).mockResolvedValue(mockFileId)
+      vi.mocked(TauriClient.editor.listEditors).mockResolvedValue([])
+      vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue([])
       
       await useAppStore.getState().openFile()
       
@@ -131,14 +126,14 @@ describe('AppStore', () => {
       // First create a file
       const mockFileId = 'test-file-1'
       vi.mocked(dialog.save).mockResolvedValue('/test/path.elf')
-      mockTauriClient.file.createFile.mockResolvedValue(mockFileId)
-      mockTauriClient.editor.listEditors.mockResolvedValue([])
-      mockTauriClient.block.getAllBlocks.mockResolvedValue([])
+      vi.mocked(TauriClient.file.createFile).mockResolvedValue(mockFileId)
+      vi.mocked(TauriClient.editor.listEditors).mockResolvedValue([])
+      vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue([])
       
       await useAppStore.getState().createFile()
       
       // Then close it
-      mockTauriClient.file.closeFile.mockResolvedValue(undefined)
+      vi.mocked(TauriClient.file.closeFile).mockResolvedValue(undefined)
       
       await useAppStore.getState().closeFile(mockFileId)
       
@@ -149,11 +144,11 @@ describe('AppStore', () => {
 
     test('saveFile should call TauriClient.saveFile', async () => {
       
-      mockTauriClient.file.saveFile.mockResolvedValue(undefined)
+      vi.mocked(TauriClient.file.saveFile).mockResolvedValue(undefined)
       
       await useAppStore.getState().saveFile(TEST_FILE_ID)
       
-      expect(mockTauriClient.file.saveFile).toHaveBeenCalledWith(TEST_FILE_ID)
+      expect(TauriClient.file.saveFile).toHaveBeenCalledWith(TEST_FILE_ID)
     })
 
     test('setActiveFile should update activeFileId', () => {
@@ -170,9 +165,9 @@ describe('AppStore', () => {
       const mockBlocks = [createMockBlock(), createMockBlock({ block_id: 'block-2' })]
       
       vi.mocked(dialog.save).mockResolvedValue('/test/path.elf')
-      mockTauriClient.file.createFile.mockResolvedValue(TEST_FILE_ID)
-      mockTauriClient.editor.listEditors.mockResolvedValue([])
-      mockTauriClient.block.getAllBlocks.mockResolvedValue(mockBlocks)
+      vi.mocked(TauriClient.file.createFile).mockResolvedValue(TEST_FILE_ID)
+      vi.mocked(TauriClient.editor.listEditors).mockResolvedValue([])
+      vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue(mockBlocks)
       
       await useAppStore.getState().createFile()
     })
@@ -180,7 +175,7 @@ describe('AppStore', () => {
     test('loadBlocks should load blocks for file', async () => {
       const mockBlocks = [createMockBlock(), createMockBlock({ block_id: 'block-2' })]
       
-      mockTauriClient.block.getAllBlocks.mockResolvedValue(mockBlocks)
+      vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue(mockBlocks)
       
       await useAppStore.getState().loadBlocks(TEST_FILE_ID)
       
@@ -192,12 +187,12 @@ describe('AppStore', () => {
     test('createBlock should create new block', async () => {
       const mockEvents = [{ event_id: 'event-1', entity: 'block-1', attribute: 'editor/core.create', value: {}, timestamp: {} }]
       
-      mockTauriClient.block.createBlock.mockResolvedValue(mockEvents)
-      mockTauriClient.block.getAllBlocks.mockResolvedValue([createMockBlock()])
+      vi.mocked(TauriClient.block.createBlock).mockResolvedValue(mockEvents)
+      vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue([createMockBlock()])
       
       await useAppStore.getState().createBlock(TEST_FILE_ID, 'New Block', 'markdown')
       
-      expect(mockTauriClient.block.createBlock).toHaveBeenCalledWith(
+      expect(TauriClient.block.createBlock).toHaveBeenCalledWith(
         TEST_FILE_ID,
         'New Block',
         'markdown',
@@ -208,12 +203,12 @@ describe('AppStore', () => {
     test('updateBlock should update block content', async () => {
       const content = { type: 'text' as const, data: 'Updated content' }
       
-      mockTauriClient.block.writeBlock.mockResolvedValue([])
-      mockTauriClient.block.getAllBlocks.mockResolvedValue([createMockBlock()])
+      vi.mocked(TauriClient.block.writeBlock).mockResolvedValue([])
+      vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue([createMockBlock()])
       
       await useAppStore.getState().updateBlock(TEST_FILE_ID, TEST_BLOCK_ID, content)
       
-      expect(mockTauriClient.block.writeBlock).toHaveBeenCalledWith(
+      expect(TauriClient.block.writeBlock).toHaveBeenCalledWith(
         TEST_FILE_ID,
         TEST_BLOCK_ID,
         content,
@@ -223,12 +218,12 @@ describe('AppStore', () => {
 
     test('deleteBlock should delete block', async () => {
       
-      mockTauriClient.block.deleteBlock.mockResolvedValue([])
-      mockTauriClient.block.getAllBlocks.mockResolvedValue([])
+      vi.mocked(TauriClient.block.deleteBlock).mockResolvedValue([])
+      vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue([])
       
       await useAppStore.getState().deleteBlock(TEST_FILE_ID, TEST_BLOCK_ID)
       
-      expect(mockTauriClient.block.deleteBlock).toHaveBeenCalledWith(
+      expect(TauriClient.block.deleteBlock).toHaveBeenCalledWith(
         TEST_FILE_ID,
         TEST_BLOCK_ID,
         expect.any(String) // editor ID
@@ -257,9 +252,9 @@ describe('AppStore', () => {
       // Setup a file
       
       vi.mocked(dialog.save).mockResolvedValue('/test/path.elf')
-      mockTauriClient.file.createFile.mockResolvedValue(TEST_FILE_ID)
-      mockTauriClient.editor.listEditors.mockResolvedValue([])
-      mockTauriClient.block.getAllBlocks.mockResolvedValue([])
+      vi.mocked(TauriClient.file.createFile).mockResolvedValue(TEST_FILE_ID)
+      vi.mocked(TauriClient.editor.listEditors).mockResolvedValue([])
+      vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue([])
       
       await useAppStore.getState().createFile()
     })
@@ -267,7 +262,7 @@ describe('AppStore', () => {
     test('loadEditors should load editors for file', async () => {
       const mockEditors = [createMockEditor(), createMockEditor({ editor_id: 'editor-2' })]
       
-      mockTauriClient.editor.listEditors.mockResolvedValue(mockEditors)
+      vi.mocked(TauriClient.editor.listEditors).mockResolvedValue(mockEditors)
       
       await useAppStore.getState().loadEditors(TEST_FILE_ID)
       
@@ -279,17 +274,17 @@ describe('AppStore', () => {
     test('createEditor should create new editor', async () => {
       const mockEditor = createMockEditor({ name: 'New Editor' })
       
-      mockTauriClient.editor.createEditor.mockResolvedValue(mockEditor)
-      mockTauriClient.editor.listEditors.mockResolvedValue([mockEditor])
+      vi.mocked(TauriClient.editor.createEditor).mockResolvedValue(mockEditor)
+      vi.mocked(TauriClient.editor.listEditors).mockResolvedValue([mockEditor])
       
       await useAppStore.getState().createEditor(TEST_FILE_ID, 'New Editor')
       
-      expect(mockTauriClient.editor.createEditor).toHaveBeenCalledWith(TEST_FILE_ID, 'New Editor')
+      expect(TauriClient.editor.createEditor).toHaveBeenCalledWith(TEST_FILE_ID, 'New Editor')
     })
 
     test('setActiveEditor should update activeEditorId', async () => {
       
-      mockTauriClient.editor.setActiveEditor.mockResolvedValue(undefined)
+      vi.mocked(TauriClient.editor.setActiveEditor).mockResolvedValue(undefined)
       
       await useAppStore.getState().setActiveEditor(TEST_FILE_ID, TEST_EDITOR_ID)
       
@@ -306,9 +301,9 @@ describe('AppStore', () => {
       const mockEditors = [createMockEditor(), createMockEditor({ editor_id: 'editor-2' })]
       
       vi.mocked(dialog.save).mockResolvedValue('/test/path.elf')
-      mockTauriClient.file.createFile.mockResolvedValue(TEST_FILE_ID)
-      mockTauriClient.editor.listEditors.mockResolvedValue(mockEditors)
-      mockTauriClient.block.getAllBlocks.mockResolvedValue(mockBlocks)
+      vi.mocked(TauriClient.file.createFile).mockResolvedValue(TEST_FILE_ID)
+      vi.mocked(TauriClient.editor.listEditors).mockResolvedValue(mockEditors)
+      vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue(mockBlocks)
       
       await useAppStore.getState().createFile()
       
@@ -454,11 +449,11 @@ describe('AppStore', () => {
       vi.mocked(dialog.save).mockResolvedValue('/test/path.elf')
       
       // Mock a slow operation
-      mockTauriClient.file.createFile.mockImplementation(
+      vi.mocked(TauriClient.file.createFile).mockImplementation(
         () => new Promise(resolve => setTimeout(() => resolve(TEST_FILE_ID), 100))
       )
-      mockTauriClient.editor.listEditors.mockResolvedValue([])
-      mockTauriClient.block.getAllBlocks.mockResolvedValue([])
+      vi.mocked(TauriClient.editor.listEditors).mockResolvedValue([])
+      vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue([])
       
       const createFilePromise = useAppStore.getState().createFile()
       
