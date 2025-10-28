@@ -14,7 +14,7 @@ fn handle_delete(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         "core.delete", // cap_id
         serde_json::json!({ "deleted": true }),
         &cmd.editor_id,
-        1, // TODO: Replace with actual vector clock count
+        1, // Placeholder - engine actor updates with correct count (actor.rs:227)
     );
 
     Ok(vec![event])
