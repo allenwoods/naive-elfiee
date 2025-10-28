@@ -33,7 +33,7 @@ fn handle_markdown_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<
         "markdown.write", // cap_id
         serde_json::json!({ "contents": new_contents }),
         &cmd.editor_id,
-        1, // TODO: Replace with actual vector clock count
+        1, // Placeholder - engine actor updates with correct count (actor.rs:227)
     );
 
     Ok(vec![event])

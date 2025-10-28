@@ -28,7 +28,7 @@ fn handle_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>>
             "children": {}
         }),
         &cmd.editor_id,
-        1, // TODO: Replace with actual vector clock count from state
+        1, // Placeholder - engine actor updates with correct count (actor.rs:227)
     );
 
     Ok(vec![event])

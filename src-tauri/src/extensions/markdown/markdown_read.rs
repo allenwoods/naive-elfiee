@@ -27,7 +27,7 @@ fn handle_markdown_read(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<E
             "content": markdown_content
         }),
         &cmd.editor_id,
-        1, // TODO: Replace with actual vector clock count
+        1, // Placeholder - engine actor updates with correct count (actor.rs:227)
     );
 
     Ok(vec![event])

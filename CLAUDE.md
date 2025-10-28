@@ -320,7 +320,7 @@ export type MarkdownWritePayload = { content: string }
 This keeps extensions modular and self-contained.
 
 **See Documentation**:
-- `docs/extension_development.md` → "Payload 类型定义（强类型方案）" section
+- `docs/guides/EXTENSION_DEVELOPMENT.md` → Payload type definitions section
 - `docs/guides/FRONTEND_DEVELOPMENT.md` → "Capability Payload Types" section
 
 ### Development Commands
@@ -374,7 +374,7 @@ cd src-tauri && cargo clippy
 3. Register in `CapabilityRegistry::register_extensions()`
 4. Add comprehensive tests including authorization checks
 
-See `src-tauri/docs/guides/EXTENSION_DEVELOPMENT.md` for complete guide.
+See `docs/guides/EXTENSION_DEVELOPMENT.md` for complete guide.
 
 **Built-in Capabilities**:
 - `core.create`: Create new blocks with full initial state
@@ -388,30 +388,42 @@ See `src-tauri/docs/guides/EXTENSION_DEVELOPMENT.md` for complete guide.
 - `markdown.write`: Write markdown content to markdown blocks
 - `markdown.read`: Read markdown content from markdown blocks
 
-## Documentation References
+## Documentation Structure
 
-For detailed guidance on specific topics, consult these documentation files:
+All project documentation is organized in the `docs/` directory. Start with `docs/README.md` for a complete documentation index and recommended reading order.
 
-### Extension Development
-**`docs/extension_development.md`** - Complete guide to creating capabilities and extensions
-- How to define capabilities with the `#[capability]` macro
-- **Payload 类型定义（强类型方案）** section (CRITICAL for type safety)
-- Authorization patterns and CBAC implementation
-- Testing strategies for capabilities
-- Example: Markdown extension walkthrough
+### Core Concepts (`docs/concepts/`)
+Foundational architecture and design philosophy:
+- **`ARCHITECTURE_OVERVIEW.md`** - Three core principles, entities, command flow, file format
+- **`ENGINE_CONCEPTS.md`** - Actor model rationale, engine components, event sourcing
 
-### Frontend Development
-**`docs/guides/FRONTEND_DEVELOPMENT.md`** - Type-safe Tauri frontend development
-- tauri-specta workflow and bindings generation
-- **Capability Payload Types** section (CRITICAL - prevents frontend/backend mismatches)
-- Type mappings between Rust and TypeScript
-- Common pitfalls and how to avoid them
-- Best practices for using auto-generated bindings
+### Development Guides (`docs/guides/`)
+Practical guides for working with the codebase:
+- **`EXTENSION_DEVELOPMENT.md`** - Creating custom capabilities and block types
+  - Defining capabilities with `#[capability]` macro
+  - Payload type definitions (CRITICAL for type safety)
+  - Authorization patterns and CBAC implementation
+  - Complete example: Markdown extension
+- **`FRONTEND_DEVELOPMENT.md`** - Type-safe Tauri frontend development
+  - Tauri Specta v2 workflow and auto-generated bindings
+  - **Capability Payload Types** section (CRITICAL - prevents frontend/backend mismatches)
+  - Type mappings between Rust and TypeScript
+  - Common pitfalls and best practices
+
+### Implementation Planning (`docs/plans/`)
+Project status and implementation roadmap:
+- **`STATUS.md`** - Current implementation status (100% MVP + enhancements)
+- **`IMPLEMENTATION_PLAN.md`** - Six-part MVP roadmap with completion status
+- **`engine-architecture.md`** - Detailed engine design decisions
+- **`part1-6.md`** - Detailed guides for each implementation part
 
 ### Critical Reading
 
-**Before creating any capability**: Read the Payload Types sections in both documents above to avoid frontend-backend type mismatches that lead to runtime errors.
+**Before creating any capability**: Read `docs/guides/EXTENSION_DEVELOPMENT.md` (Payload Types section) and `docs/guides/FRONTEND_DEVELOPMENT.md` (Capability Payload Types section) to avoid frontend-backend type mismatches.
 
-**Before editing `src/bindings.ts`**: DON'T! Read "TypeScript Bindings Generation" section above.
+**Before editing `src/bindings.ts`**: DON'T! Read "TypeScript Bindings Generation" section above. This file is auto-generated.
 
-**Before implementing CBAC**: Read the Extension Development guide's authorization section.
+**Before implementing CBAC**: Read `docs/guides/EXTENSION_DEVELOPMENT.md` authorization section.
+
+**For new contributors**: Start with `docs/README.md` for complete documentation map and recommended reading order.
+- 不要在main/dev分支上进行修改，总是创建一个新的PR并合并到dev上

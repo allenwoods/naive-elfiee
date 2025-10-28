@@ -22,7 +22,7 @@ fn handle_revoke(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>>
             "block": payload.target_block,
         }),
         &cmd.editor_id,
-        1, // TODO: Replace with actual vector clock count
+        1, // Placeholder - engine actor updates with correct count (actor.rs:227)
     );
 
     Ok(vec![event])
