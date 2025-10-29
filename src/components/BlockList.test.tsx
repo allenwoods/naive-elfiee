@@ -196,7 +196,7 @@ describe('BlockList Component', () => {
     
     expect(mockStore.createBlock).toHaveBeenCalledWith(
       'test-file-1',
-      expect.stringMatching(/Block \d{4}\/\d{1,2}\/\d{1,2} \d{1,2}:\d{2}:\d{2}/),
+      expect.stringMatching(/Block \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/),
       'markdown'
     )
   })
