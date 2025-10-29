@@ -49,11 +49,5 @@ jobs:
             patchelf \
             libssl-dev
 
-      - name: Run backend tests
-        run: make test-backend
-
-      - name: Run frontend tests
-        run: make test-frontend
-
       - name: Run all tests
         run: make test
