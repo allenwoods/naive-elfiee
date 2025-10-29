@@ -8,7 +8,12 @@
 import { describe, expect, test, beforeEach, vi } from 'vitest'
 import { useAppStore } from './app-store'
 import { setupCommandMocks, setupCommandError } from '@/test/mock-tauri-invoke'
-import { createMockBlock, createMockEditor, createMockEvent, TEST_FILE_ID } from '@/test/setup'
+import {
+  createMockBlock,
+  createMockEditor,
+  createMockEvent,
+  TEST_FILE_ID,
+} from '@/test/setup'
 import type { Block, Editor, Event, Grant } from '@/bindings'
 
 describe('AppStore - File Operations', () => {
@@ -34,7 +39,7 @@ describe('AppStore - File Operations', () => {
         listEditors: mockEditors,
         getAllBlocks: mockBlocks,
         listGrants: mockGrants,
-        getAllEvents: mockEvents
+        getAllEvents: mockEvents,
       })
 
       const store = useAppStore.getState()
@@ -79,7 +84,9 @@ describe('AppStore - File Operations', () => {
       expect(updatedStore.files.size).toBe(0)
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: Failed to create file')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: Failed to create file'
+      )
     })
   })
 
@@ -101,7 +108,7 @@ describe('AppStore - File Operations', () => {
         listEditors: mockEditors,
         getAllBlocks: mockBlocks,
         listGrants: mockGrants,
-        getAllEvents: mockEvents
+        getAllEvents: mockEvents,
       })
 
       const store = useAppStore.getState()
@@ -145,7 +152,9 @@ describe('AppStore - File Operations', () => {
       expect(updatedStore.files.size).toBe(0)
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: Failed to open file')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: Failed to open file'
+      )
     })
   })
 
@@ -163,7 +172,7 @@ describe('AppStore - File Operations', () => {
         editors: [createMockEditor()],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
       store.files.set(otherFileId, {
         fileId: otherFileId,
@@ -172,13 +181,13 @@ describe('AppStore - File Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
       store.activeFileId = fileId
 
       // Mock backend command
       setupCommandMocks({
-        closeFile: null
+        closeFile: null,
       })
 
       await store.closeFile(fileId)
@@ -202,13 +211,13 @@ describe('AppStore - File Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
       store.activeFileId = fileId
 
       // Mock backend command
       setupCommandMocks({
-        closeFile: null
+        closeFile: null,
       })
 
       await store.closeFile(fileId)
@@ -230,7 +239,7 @@ describe('AppStore - File Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
       store.activeFileId = fileId
 
@@ -243,7 +252,9 @@ describe('AppStore - File Operations', () => {
       expect(updatedStore.files.has(fileId)).toBe(true) // File should still exist
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: Failed to close file')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: Failed to close file'
+      )
     })
   })
 
@@ -260,12 +271,12 @@ describe('AppStore - File Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend command
       setupCommandMocks({
-        saveFile: null
+        saveFile: null,
       })
 
       await store.saveFile(fileId)
@@ -287,7 +298,7 @@ describe('AppStore - File Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend error
@@ -298,7 +309,9 @@ describe('AppStore - File Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: Failed to save file')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: Failed to save file'
+      )
     })
   })
 
@@ -315,7 +328,7 @@ describe('AppStore - File Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       store.setActiveFile(fileId)

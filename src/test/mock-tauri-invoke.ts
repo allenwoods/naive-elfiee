@@ -68,7 +68,7 @@ function toSnakeCase(str: string): string {
  */
 export function setupCommandMock<K extends keyof typeof MockResponses>(
   commandName: K,
-  response: ReturnType<typeof MockResponses[K]>,
+  response: ReturnType<(typeof MockResponses)[K]>,
   options?: { throwOnUnmocked?: boolean }
 ) {
   const snakeCaseCmd = toSnakeCase(commandName)
@@ -108,7 +108,7 @@ export function setupCommandMock<K extends keyof typeof MockResponses>(
  */
 export function setupCommandMocks(
   mocks: Partial<{
-    [K in keyof typeof MockResponses]: ReturnType<typeof MockResponses[K]>
+    [K in keyof typeof MockResponses]: ReturnType<(typeof MockResponses)[K]>
   }>,
   options?: { throwOnUnmocked?: boolean }
 ) {
@@ -154,4 +154,3 @@ export function setupCommandError(
     return Promise.resolve(null)
   })
 }
-

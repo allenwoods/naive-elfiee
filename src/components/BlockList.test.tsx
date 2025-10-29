@@ -23,19 +23,19 @@ describe('BlockList Component', () => {
       block_id: 'block-1',
       name: 'Block 1',
       block_type: 'markdown',
-      contents: 'Test content' as any  // String contents for testing
+      contents: 'Test content' as any, // String contents for testing
     }),
     createMockBlock({
       block_id: 'block-2',
       name: 'Block 2',
       block_type: 'code',
-      contents: { type: 'text', data: 'console.log("hello")' }
+      contents: { type: 'text', data: 'console.log("hello")' },
     }),
     createMockBlock({
       block_id: 'block-3',
       name: 'Block 3',
       block_type: 'diagram',
-      children: { 'child': ['child-1', 'child-2'] }
+      children: { child: ['child-1', 'child-2'] },
     }),
   ]
 
@@ -77,17 +77,21 @@ describe('BlockList Component', () => {
       activeFileId: null,
     })
     vi.mocked(mockStore.getActiveFile).mockReturnValue(null)
-    
+
     render(<BlockList />)
-    
-    expect(screen.getByText('No file opened. Create or open a file to get started.')).toBeInTheDocument()
+
+    expect(
+      screen.getByText('No file opened. Create or open a file to get started.')
+    ).toBeInTheDocument()
   })
 
   test('renders blocks header and create button', () => {
     render(<BlockList />)
-    
+
     expect(screen.getByText('Blocks')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /new block/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /new block/i })
+    ).toBeInTheDocument()
   })
 
   test('shows empty state when no blocks exist', () => {
@@ -98,15 +102,17 @@ describe('BlockList Component', () => {
       editors: [],
       activeEditorId: null,
     })
-    
+
     render(<BlockList />)
-    
-    expect(screen.getByText('No blocks yet. Create your first block!')).toBeInTheDocument()
+
+    expect(
+      screen.getByText('No blocks yet. Create your first block!')
+    ).toBeInTheDocument()
   })
 
   test('renders all blocks in the list', () => {
     render(<BlockList />)
-    
+
     expect(screen.getByText('Block 1')).toBeInTheDocument()
     expect(screen.getByText('Block 2')).toBeInTheDocument()
     expect(screen.getByText('Block 3')).toBeInTheDocument()
@@ -114,11 +120,11 @@ describe('BlockList Component', () => {
 
   test('displays block information correctly', () => {
     render(<BlockList />)
-    
+
     // Check block names
     expect(screen.getByText('Block 1')).toBeInTheDocument()
     expect(screen.getByText('Block 2')).toBeInTheDocument()
-    
+
     // Check block types
     expect(screen.getByText('Type: markdown')).toBeInTheDocument()
     expect(screen.getByText('Type: code')).toBeInTheDocument()
@@ -127,17 +133,19 @@ describe('BlockList Component', () => {
 
   test('displays block contents correctly', () => {
     render(<BlockList />)
-    
+
     // String contents
     expect(screen.getByText('Test content')).toBeInTheDocument()
-    
+
     // Object contents (JSON stringified)
-    expect(screen.getByText('{"type":"text","data":"console.log(\\"hello\\")"}')).toBeInTheDocument()
+    expect(
+      screen.getByText('{"type":"text","data":"console.log(\\"hello\\")"}')
+    ).toBeInTheDocument()
   })
 
   test('shows children count when block has children', () => {
     render(<BlockList />)
-    
+
     expect(screen.getByText('Children: 2')).toBeInTheDocument()
   })
 
@@ -154,33 +162,33 @@ describe('BlockList Component', () => {
   test('calls selectBlock when block is clicked', async () => {
     const user = userEvent.setup()
     render(<BlockList />)
-    
+
     const blockElement = screen.getByText('Block 1').closest('div')
     await user.click(blockElement!)
-    
+
     expect(mockStore.selectBlock).toHaveBeenCalledWith('test-file-1', 'block-1')
   })
 
   test('calls deleteBlock when delete button is clicked', async () => {
     const user = userEvent.setup()
     render(<BlockList />)
-    
+
     const deleteButtons = screen.getAllByRole('button', { name: /delete/i })
     await user.click(deleteButtons[0])
-    
+
     expect(mockStore.deleteBlock).toHaveBeenCalledWith('test-file-1', 'block-1')
   })
 
   test('prevents event propagation when delete button is clicked', async () => {
     const user = userEvent.setup()
     render(<BlockList />)
-    
+
     const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0]
     const blockElement = deleteButton.closest('div')!
-    
+
     // Click delete button
     await user.click(deleteButton)
-    
+
     // selectBlock should not be called because event propagation was stopped
     expect(mockStore.selectBlock).not.toHaveBeenCalled()
   })
@@ -188,12 +196,12 @@ describe('BlockList Component', () => {
   test('creates new block when create button is clicked', async () => {
     const user = userEvent.setup()
     vi.mocked(mockStore.createBlock).mockResolvedValue(undefined)
-    
+
     render(<BlockList />)
-    
+
     const createButton = screen.getByRole('button', { name: /new block/i })
     await user.click(createButton)
-    
+
     expect(mockStore.createBlock).toHaveBeenCalledWith(
       'test-file-1',
       expect.stringMatching(/Block \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/),
@@ -204,26 +212,32 @@ describe('BlockList Component', () => {
   test('shows success notification after creating block', async () => {
     const user = userEvent.setup()
     vi.mocked(mockStore.createBlock).mockResolvedValue(undefined)
-    
+
     render(<BlockList />)
-    
+
     const createButton = screen.getByRole('button', { name: /new block/i })
     await user.click(createButton)
-    
-    expect(mockStore.addNotification).toHaveBeenCalledWith('success', 'Block created successfully!')
+
+    expect(mockStore.addNotification).toHaveBeenCalledWith(
+      'success',
+      'Block created successfully!'
+    )
   })
 
   test('shows error notification when block creation fails', async () => {
     const user = userEvent.setup()
     const error = new Error('Creation failed')
     vi.mocked(mockStore.createBlock).mockRejectedValue(error)
-    
+
     render(<BlockList />)
-    
+
     const createButton = screen.getByRole('button', { name: /new block/i })
     await user.click(createButton)
-    
-    expect(mockStore.addNotification).toHaveBeenCalledWith('error', 'Failed to create block: Error: Creation failed')
+
+    expect(mockStore.addNotification).toHaveBeenCalledWith(
+      'error',
+      'Failed to create block: Error: Creation failed'
+    )
   })
 
   test('disables create button when loading', () => {
@@ -231,9 +245,9 @@ describe('BlockList Component', () => {
       ...mockStore,
       isLoading: true,
     })
-    
+
     render(<BlockList />)
-    
+
     const createButton = screen.getByRole('button', { name: /new block/i })
     expect(createButton).toBeDisabled()
   })
@@ -245,18 +259,32 @@ describe('BlockList Component', () => {
       activeFileId: null,
     })
     vi.mocked(mockStore.getActiveFile).mockReturnValue(null)
-    
+
     render(<BlockList />)
-    
+
     // Should show the "no file" message instead of create button
-    expect(screen.queryByRole('button', { name: /new block/i })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /new block/i })
+    ).not.toBeInTheDocument()
   })
 
   test('handles empty block contents gracefully', () => {
     const blocksWithEmptyContents = [
-      createMockBlock({ block_id: 'empty-1', name: 'Empty String Block', contents: '' as any }),
-      createMockBlock({ block_id: 'empty-2', name: 'Null Block', contents: null as any }),
-      createMockBlock({ block_id: 'empty-3', name: 'Empty Object Block', contents: {} as any }),
+      createMockBlock({
+        block_id: 'empty-1',
+        name: 'Empty String Block',
+        contents: '' as any,
+      }),
+      createMockBlock({
+        block_id: 'empty-2',
+        name: 'Null Block',
+        contents: null as any,
+      }),
+      createMockBlock({
+        block_id: 'empty-3',
+        name: 'Empty Object Block',
+        contents: {} as any,
+      }),
     ]
 
     vi.mocked(mockStore.getActiveFile).mockReturnValue({
@@ -284,12 +312,12 @@ describe('BlockList Component', () => {
     const blockWithComplexChildren = createMockBlock({
       block_id: 'complex-block',
       children: {
-        'parent': ['child-1', 'child-2'],
-        'sibling': ['child-3'],
-        'uncle': []
-      }
+        parent: ['child-1', 'child-2'],
+        sibling: ['child-3'],
+        uncle: [],
+      },
     })
-    
+
     vi.mocked(mockStore.getActiveFile).mockReturnValue({
       fileId: 'test-file-1',
       blocks: [blockWithComplexChildren],
@@ -297,9 +325,9 @@ describe('BlockList Component', () => {
       editors: [],
       activeEditorId: null,
     })
-    
+
     render(<BlockList />)
-    
+
     // Should show total children count (3)
     expect(screen.getByText('Children: 3')).toBeInTheDocument()
   })
@@ -308,17 +336,24 @@ describe('BlockList Component', () => {
     const user = userEvent.setup()
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.mocked(mockStore.createBlock).mockResolvedValue(undefined)
-    
+
     render(<BlockList />)
-    
+
     const createButton = screen.getByRole('button', { name: /new block/i })
     await user.click(createButton)
-    
-    expect(consoleSpy).toHaveBeenCalledWith('[BlockList] handleCreateBlock called')
-    expect(consoleSpy).toHaveBeenCalledWith('[BlockList] activeFileId:', 'test-file-1')
-    expect(consoleSpy).toHaveBeenCalledWith('[BlockList] Calling createBlock...')
+
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[BlockList] handleCreateBlock called'
+    )
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[BlockList] activeFileId:',
+      'test-file-1'
+    )
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '[BlockList] Calling createBlock...'
+    )
     expect(consoleSpy).toHaveBeenCalledWith('[BlockList] createBlock succeeded')
-    
+
     consoleSpy.mockRestore()
   })
 })

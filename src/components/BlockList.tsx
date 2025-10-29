@@ -15,8 +15,13 @@ import { LinkManager } from './LinkManager'
 import { formatTimestamp } from '@/lib/utils'
 
 function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
-  const { deleteBlock, selectBlock, getSelectedBlock, getEditorName, getBlockLinks } =
-    useAppStore()
+  const {
+    deleteBlock,
+    selectBlock,
+    getSelectedBlock,
+    getEditorName,
+    getBlockLinks,
+  } = useAppStore()
   const selectedBlock = getSelectedBlock(fileId)
   const isSelected = selectedBlock?.block_id === block.block_id
   const [showPermissions, setShowPermissions] = useState(false)
@@ -139,7 +144,13 @@ function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
 }
 
 export function BlockList() {
-  const { activeFileId, getActiveFile, createBlock, isLoading, addNotification } = useAppStore()
+  const {
+    activeFileId,
+    getActiveFile,
+    createBlock,
+    isLoading,
+    addNotification,
+  } = useAppStore()
   const activeFile = getActiveFile()
 
   const handleCreateBlock = async () => {

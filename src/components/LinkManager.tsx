@@ -24,13 +24,8 @@ export function LinkManager({
   isOpen,
   onClose,
 }: LinkManagerProps) {
-  const {
-    getBlocks,
-    getBlockLinks,
-    linkBlocks,
-    unlinkBlocks,
-    isLoading,
-  } = useAppStore()
+  const { getBlocks, getBlockLinks, linkBlocks, unlinkBlocks, isLoading } =
+    useAppStore()
 
   const [selectedRelation, setSelectedRelation] = useState('')
   const [selectedTargetBlock, setSelectedTargetBlock] = useState('')
@@ -77,7 +72,8 @@ export function LinkManager({
 
         {/* Block Info */}
         <div className="text-muted-foreground mb-4 text-sm">
-          Block: <span className="font-medium">{currentBlock?.name || blockId}</span>
+          Block:{' '}
+          <span className="font-medium">{currentBlock?.name || blockId}</span>
         </div>
 
         {/* Current Links */}
@@ -89,7 +85,9 @@ export function LinkManager({
             <div className="space-y-2">
               {blockLinks.map(({ relation, targetIds }) =>
                 targetIds.map((targetId) => {
-                  const targetBlock = allBlocks.find((b) => b.block_id === targetId)
+                  const targetBlock = allBlocks.find(
+                    (b) => b.block_id === targetId
+                  )
                   return (
                     <div
                       key={`${relation}-${targetId}`}

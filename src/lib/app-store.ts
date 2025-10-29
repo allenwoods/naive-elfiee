@@ -112,7 +112,9 @@ interface AppStore {
     toId: string,
     relation: string
   ) => Promise<void>
-  getBlockLinks: (block: Block) => Array<{ relation: string; targetIds: string[] }>
+  getBlockLinks: (
+    block: Block
+  ) => Array<{ relation: string; targetIds: string[] }>
 
   // Getters
   getActiveFile: () => FileState | null
@@ -127,7 +129,10 @@ interface AppStore {
   // UI Actions
   setError: (error: string | null) => void
   clearError: () => void
-  addNotification: (type: 'error' | 'warning' | 'info' | 'success', message: string) => void
+  addNotification: (
+    type: 'error' | 'warning' | 'info' | 'success',
+    message: string
+  ) => void
   removeNotification: (id: string) => void
   clearAllNotifications: () => void
 }
@@ -323,7 +328,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
         )
       }
 
-      await TauriClient.block.writeBlock(fileId, blockId, content.data, editorId)
+      await TauriClient.block.writeBlock(
+        fileId,
+        blockId,
+        content.data,
+        editorId
+      )
       await get().loadBlocks(fileId)
     } catch (error) {
       get().addNotification('error', String(error))
@@ -583,7 +593,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  writeBlockContent: async (fileId: string, blockId: string, content: string) => {
+  writeBlockContent: async (
+    fileId: string,
+    blockId: string,
+    content: string
+  ) => {
     try {
       set({ isLoading: true, error: null })
 
@@ -639,7 +653,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
         )
       }
 
-      await TauriClient.block.linkBlocks(fileId, fromId, toId, relation, editorId)
+      await TauriClient.block.linkBlocks(
+        fileId,
+        fromId,
+        toId,
+        relation,
+        editorId
+      )
       await get().loadBlocks(fileId)
     } catch (error) {
       get().addNotification('error', String(error))
@@ -667,7 +687,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
         )
       }
 
-      await TauriClient.block.unlinkBlocks(fileId, fromId, toId, relation, editorId)
+      await TauriClient.block.unlinkBlocks(
+        fileId,
+        fromId,
+        toId,
+        relation,
+        editorId
+      )
       await get().loadBlocks(fileId)
     } catch (error) {
       get().addNotification('error', String(error))
@@ -707,7 +733,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ error: null })
   },
 
-  addNotification: (type: 'error' | 'warning' | 'info' | 'success', message: string) => {
+  addNotification: (
+    type: 'error' | 'warning' | 'info' | 'success',
+    message: string
+  ) => {
     const notification: Notification = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       type,

@@ -1,6 +1,6 @@
 /**
  * Utils Tests
- * 
+ *
  * Tests for utility functions
  */
 
@@ -35,8 +35,12 @@ describe('cn utility function', () => {
   })
 
   test('handles object-style conditional classes', () => {
-    expect(cn('base', { 'conditional-true': true, 'conditional-false': false })).toBe('base conditional-true')
-    expect(cn('base', { 'conditional-true': true, 'conditional-false': true })).toBe('base conditional-true conditional-false')
+    expect(
+      cn('base', { 'conditional-true': true, 'conditional-false': false })
+    ).toBe('base conditional-true')
+    expect(
+      cn('base', { 'conditional-true': true, 'conditional-false': true })
+    ).toBe('base conditional-true conditional-false')
   })
 
   test('handles arrays of classes', () => {
@@ -45,7 +49,15 @@ describe('cn utility function', () => {
   })
 
   test('handles mixed input types', () => {
-    expect(cn('base', 'class1', { 'conditional': true }, ['array1', 'array2'], false && 'false-class')).toBe('base class1 conditional array1 array2')
+    expect(
+      cn(
+        'base',
+        'class1',
+        { conditional: true },
+        ['array1', 'array2'],
+        false && 'false-class'
+      )
+    ).toBe('base class1 conditional array1 array2')
   })
 
   test('handles duplicate classes (basic implementation)', () => {
@@ -62,11 +74,21 @@ describe('cn utility function', () => {
   test('handles complex real-world scenarios', () => {
     const baseClasses = 'px-4 py-2 rounded'
     const variantClasses = 'bg-blue-500 text-white'
-    const conditionalClasses = { 'hover:bg-blue-600': true, 'disabled:opacity-50': false }
+    const conditionalClasses = {
+      'hover:bg-blue-600': true,
+      'disabled:opacity-50': false,
+    }
     const sizeClasses = 'text-sm'
-    
-    const result = cn(baseClasses, variantClasses, conditionalClasses, sizeClasses)
-    expect(result).toBe('px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm')
+
+    const result = cn(
+      baseClasses,
+      variantClasses,
+      conditionalClasses,
+      sizeClasses
+    )
+    expect(result).toBe(
+      'px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600 text-sm'
+    )
   })
 
   test('handles Tailwind CSS class conflicts (basic implementation)', () => {
@@ -97,7 +119,12 @@ describe('cn utility function', () => {
 
   test('handles deeply nested arrays and objects (basic implementation)', () => {
     // The basic implementation flattens nested objects
-    expect(cn('base', [['nested1', 'nested2']], { 'obj1': true, 'obj2': { 'nested': true } })).toBe('base nested1 nested2 obj1 obj2')
+    expect(
+      cn('base', [['nested1', 'nested2']], {
+        obj1: true,
+        obj2: { nested: true },
+      })
+    ).toBe('base nested1 nested2 obj1 obj2')
   })
 
   test('preserves order of classes', () => {
@@ -106,7 +133,9 @@ describe('cn utility function', () => {
   })
 
   test('handles special characters in class names', () => {
-    expect(cn('class-with-dashes', 'class_with_underscores', 'class.with.dots')).toBe('class-with-dashes class_with_underscores class.with.dots')
+    expect(
+      cn('class-with-dashes', 'class_with_underscores', 'class.with.dots')
+    ).toBe('class-with-dashes class_with_underscores class.with.dots')
   })
 })
 
@@ -141,9 +170,15 @@ describe('formatTimestamp utility function', () => {
     const noon = new Date('2025-10-29T12:00:00.000Z')
     const afternoon = new Date('2025-10-29T23:59:59.000Z')
 
-    expect(formatTimestamp(midnight)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
-    expect(formatTimestamp(noon)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
-    expect(formatTimestamp(afternoon)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+    expect(formatTimestamp(midnight)).toMatch(
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+    )
+    expect(formatTimestamp(noon)).toMatch(
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+    )
+    expect(formatTimestamp(afternoon)).toMatch(
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
+    )
   })
 
   test('produces consistent format regardless of locale', () => {

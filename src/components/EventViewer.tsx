@@ -70,7 +70,9 @@ export function EventViewer() {
           <div className="flex h-full items-center justify-center">
             <div className="text-muted-foreground text-center">
               <p className="text-lg font-medium">No events found</p>
-              <p className="text-sm">Events will appear here when you perform actions</p>
+              <p className="text-sm">
+                Events will appear here when you perform actions
+              </p>
             </div>
           </div>
         ) : (

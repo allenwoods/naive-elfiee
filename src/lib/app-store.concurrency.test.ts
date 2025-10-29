@@ -8,7 +8,13 @@
 import { describe, expect, test, beforeEach, vi } from 'vitest'
 import { useAppStore } from './app-store'
 import { setupCommandMocks } from '@/test/mock-tauri-invoke'
-import { createMockBlock, createMockEditor, createMockEvent, TEST_FILE_ID, TEST_EDITOR_ID } from '@/test/setup'
+import {
+  createMockBlock,
+  createMockEditor,
+  createMockEvent,
+  TEST_FILE_ID,
+  TEST_EDITOR_ID,
+} from '@/test/setup'
 import type { Block, Editor, Event } from '@/bindings'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -32,7 +38,7 @@ describe('AppStore - Concurrency Tests', () => {
         editors: [mockEditor],
         activeEditorId: TEST_EDITOR_ID,
         grants: [],
-        events: []
+        events: [],
       })
 
       let getAllBlocksCallCount = 0
@@ -47,7 +53,7 @@ describe('AppStore - Concurrency Tests', () => {
           return Array.from({ length: getAllBlocksCallCount }, (_, i) =>
             createMockBlock({
               block_id: `block-${i + 1}`,
-              name: `Block ${i + 1}`
+              name: `Block ${i + 1}`,
             })
           )
         }
@@ -89,12 +95,12 @@ describe('AppStore - Concurrency Tests', () => {
         editors: [mockEditor],
         activeEditorId: TEST_EDITOR_ID,
         grants: [],
-        events: []
+        events: [],
       })
 
       setupCommandMocks({
         executeCommand: mockEvents,
-        getAllBlocks: [] // After deletion, no blocks remain
+        getAllBlocks: [], // After deletion, no blocks remain
       })
 
       // Simulate: User selects block, then immediately deletes it
@@ -126,19 +132,19 @@ describe('AppStore - Concurrency Tests', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Simulate different response times
       const blocks1 = [createMockBlock({ block_id: 'old-block-1' })]
       const blocks2 = [
         createMockBlock({ block_id: 'new-block-1' }),
-        createMockBlock({ block_id: 'new-block-2' })
+        createMockBlock({ block_id: 'new-block-2' }),
       ]
       const blocks3 = [
         createMockBlock({ block_id: 'newest-block-1' }),
         createMockBlock({ block_id: 'newest-block-2' }),
-        createMockBlock({ block_id: 'newest-block-3' })
+        createMockBlock({ block_id: 'newest-block-3' }),
       ]
 
       let callCount = 0
@@ -148,17 +154,17 @@ describe('AppStore - Concurrency Tests', () => {
 
           // First call: slow (200ms) - returns old data
           if (callCount === 1) {
-            await new Promise(resolve => setTimeout(resolve, 200))
+            await new Promise((resolve) => setTimeout(resolve, 200))
             return blocks1
           }
           // Second call: medium (100ms) - returns newer data
           if (callCount === 2) {
-            await new Promise(resolve => setTimeout(resolve, 100))
+            await new Promise((resolve) => setTimeout(resolve, 100))
             return blocks2
           }
           // Third call: fast (50ms) - returns NEWEST data
           if (callCount === 3) {
-            await new Promise(resolve => setTimeout(resolve, 50))
+            await new Promise((resolve) => setTimeout(resolve, 50))
             return blocks3
           }
         }
@@ -198,7 +204,7 @@ describe('AppStore - Concurrency Tests', () => {
         editors: [mockEditor],
         activeEditorId: TEST_EDITOR_ID,
         grants: [],
-        events: []
+        events: [],
       })
 
       let callCount = 0
@@ -222,7 +228,7 @@ describe('AppStore - Concurrency Tests', () => {
           // Return blocks based on successful creations (1st and 3rd)
           return [
             createMockBlock({ block_id: 'block-1' }),
-            createMockBlock({ block_id: 'block-3' })
+            createMockBlock({ block_id: 'block-3' }),
           ]
         }
         return null
@@ -245,7 +251,7 @@ describe('AppStore - Concurrency Tests', () => {
 
       // Verify error notification was added for the failure
       const notifications = finalStore.notifications
-      expect(notifications.some(n => n.type === 'error')).toBe(true)
+      expect(notifications.some((n) => n.type === 'error')).toBe(true)
     })
   })
 
@@ -263,7 +269,11 @@ describe('AppStore - Concurrency Tests', () => {
         if (cmd === 'list_editors') {
           return [mockEditor]
         }
-        if (cmd === 'get_all_blocks' || cmd === 'list_grants' || cmd === 'get_all_events') {
+        if (
+          cmd === 'get_all_blocks' ||
+          cmd === 'list_grants' ||
+          cmd === 'get_all_events'
+        ) {
           return []
         }
         return null

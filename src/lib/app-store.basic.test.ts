@@ -7,14 +7,20 @@
 
 import { describe, expect, test } from 'vitest'
 import { useAppStore } from './app-store'
-import { createMockBlock, createMockEditor, TEST_FILE_ID, TEST_BLOCK_ID, TEST_EDITOR_ID } from '@/test/setup'
+import {
+  createMockBlock,
+  createMockEditor,
+  TEST_FILE_ID,
+  TEST_BLOCK_ID,
+  TEST_EDITOR_ID,
+} from '@/test/setup'
 import type { Block } from '@/bindings'
 
 describe('AppStore - Basic State & Getters', () => {
   describe('Initial State', () => {
     test('should have correct initial state', () => {
       const store = useAppStore.getState()
-      
+
       expect(store.files).toBeInstanceOf(Map)
       expect(store.files.size).toBe(0)
       expect(store.activeFileId).toBeNull()
@@ -33,7 +39,7 @@ describe('AppStore - Basic State & Getters', () => {
     test('getActiveFile should return correct file when active', () => {
       const store = useAppStore.getState()
       const fileId = TEST_FILE_ID
-      
+
       // Set up file state
       store.files.set(fileId, {
         fileId,
@@ -42,7 +48,7 @@ describe('AppStore - Basic State & Getters', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
       store.activeFileId = fileId
 
@@ -60,8 +66,11 @@ describe('AppStore - Basic State & Getters', () => {
     test('getBlocks should return correct blocks for existing file', () => {
       const store = useAppStore.getState()
       const fileId = TEST_FILE_ID
-      const mockBlocks = [createMockBlock(), createMockBlock({ block_id: 'block-2' })]
-      
+      const mockBlocks = [
+        createMockBlock(),
+        createMockBlock({ block_id: 'block-2' }),
+      ]
+
       store.files.set(fileId, {
         fileId,
         blocks: mockBlocks,
@@ -69,7 +78,7 @@ describe('AppStore - Basic State & Getters', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       const blocks = store.getBlocks(fileId)
@@ -79,7 +88,7 @@ describe('AppStore - Basic State & Getters', () => {
     test('getSelectedBlock should return null when no block selected', () => {
       const store = useAppStore.getState()
       const fileId = TEST_FILE_ID
-      
+
       store.files.set(fileId, {
         fileId,
         blocks: [createMockBlock()],
@@ -87,7 +96,7 @@ describe('AppStore - Basic State & Getters', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       const selectedBlock = store.getSelectedBlock(fileId)
@@ -99,7 +108,7 @@ describe('AppStore - Basic State & Getters', () => {
       const fileId = TEST_FILE_ID
       const blockId = TEST_BLOCK_ID
       const mockBlock = createMockBlock({ block_id: blockId })
-      
+
       store.files.set(fileId, {
         fileId,
         blocks: [mockBlock],
@@ -107,7 +116,7 @@ describe('AppStore - Basic State & Getters', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       const selectedBlock = store.getSelectedBlock(fileId)
@@ -123,8 +132,11 @@ describe('AppStore - Basic State & Getters', () => {
     test('getEditors should return correct editors for existing file', () => {
       const store = useAppStore.getState()
       const fileId = TEST_FILE_ID
-      const mockEditors = [createMockEditor(), createMockEditor({ editor_id: 'editor-2', name: 'Editor 2' })]
-      
+      const mockEditors = [
+        createMockEditor(),
+        createMockEditor({ editor_id: 'editor-2', name: 'Editor 2' }),
+      ]
+
       store.files.set(fileId, {
         fileId,
         blocks: [],
@@ -132,7 +144,7 @@ describe('AppStore - Basic State & Getters', () => {
         editors: mockEditors,
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       const editors = store.getEditors(fileId)
@@ -142,7 +154,7 @@ describe('AppStore - Basic State & Getters', () => {
     test('getActiveEditor should return null when no active editor', () => {
       const store = useAppStore.getState()
       const fileId = TEST_FILE_ID
-      
+
       store.files.set(fileId, {
         fileId,
         blocks: [],
@@ -150,7 +162,7 @@ describe('AppStore - Basic State & Getters', () => {
         editors: [createMockEditor()],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       const activeEditor = store.getActiveEditor(fileId)
@@ -162,7 +174,7 @@ describe('AppStore - Basic State & Getters', () => {
       const fileId = TEST_FILE_ID
       const editorId = TEST_EDITOR_ID
       const mockEditor = createMockEditor({ editor_id: editorId })
-      
+
       store.files.set(fileId, {
         fileId,
         blocks: [],
@@ -170,7 +182,7 @@ describe('AppStore - Basic State & Getters', () => {
         editors: [mockEditor],
         activeEditorId: editorId,
         grants: [],
-        events: []
+        events: [],
       })
 
       const activeEditor = store.getActiveEditor(fileId)
@@ -182,8 +194,11 @@ describe('AppStore - Basic State & Getters', () => {
       const fileId = TEST_FILE_ID
       const editorId = TEST_EDITOR_ID
       const editorName = 'Test Editor'
-      const mockEditor = createMockEditor({ editor_id: editorId, name: editorName })
-      
+      const mockEditor = createMockEditor({
+        editor_id: editorId,
+        name: editorName,
+      })
+
       store.files.set(fileId, {
         fileId,
         blocks: [],
@@ -191,7 +206,7 @@ describe('AppStore - Basic State & Getters', () => {
         editors: [mockEditor],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       const name = store.getEditorName(fileId, editorId)
@@ -202,7 +217,7 @@ describe('AppStore - Basic State & Getters', () => {
       const store = useAppStore.getState()
       const fileId = TEST_FILE_ID
       const editorId = 'unknown-editor'
-      
+
       store.files.set(fileId, {
         fileId,
         blocks: [],
@@ -210,7 +225,7 @@ describe('AppStore - Basic State & Getters', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       const name = store.getEditorName(fileId, editorId)
@@ -227,7 +242,7 @@ describe('AppStore - Basic State & Getters', () => {
         block_type: 'markdown',
         contents: { markdown: '# Hello World' },
         children: {},
-        owner: TEST_EDITOR_ID
+        owner: TEST_EDITOR_ID,
       }
 
       const content = store.getBlockContent(block)
@@ -242,7 +257,7 @@ describe('AppStore - Basic State & Getters', () => {
         block_type: 'markdown',
         contents: {},
         children: {},
-        owner: TEST_EDITOR_ID
+        owner: TEST_EDITOR_ID,
       }
 
       const content = store.getBlockContent(block)
@@ -257,7 +272,7 @@ describe('AppStore - Basic State & Getters', () => {
         block_type: 'markdown',
         contents: 'invalid-content' as any,
         children: {},
-        owner: TEST_EDITOR_ID
+        owner: TEST_EDITOR_ID,
       }
 
       const content = store.getBlockContent(block)
@@ -272,17 +287,17 @@ describe('AppStore - Basic State & Getters', () => {
         block_type: 'markdown',
         contents: {},
         children: {
-          'references': ['block-2', 'block-3'],
-          'depends_on': ['block-4'],
-          'empty_relation': []
+          references: ['block-2', 'block-3'],
+          depends_on: ['block-4'],
+          empty_relation: [],
         },
-        owner: TEST_EDITOR_ID
+        owner: TEST_EDITOR_ID,
       }
 
       const links = store.getBlockLinks(block)
       expect(links).toEqual([
         { relation: 'references', targetIds: ['block-2', 'block-3'] },
-        { relation: 'depends_on', targetIds: ['block-4'] }
+        { relation: 'depends_on', targetIds: ['block-4'] },
       ])
     })
 
@@ -294,7 +309,7 @@ describe('AppStore - Basic State & Getters', () => {
         block_type: 'markdown',
         contents: {},
         children: {},
-        owner: TEST_EDITOR_ID
+        owner: TEST_EDITOR_ID,
       }
 
       const links = store.getBlockLinks(block)
@@ -309,7 +324,7 @@ describe('AppStore - Basic State & Getters', () => {
         block_type: 'markdown',
         contents: {},
         children: null as any,
-        owner: TEST_EDITOR_ID
+        owner: TEST_EDITOR_ID,
       }
 
       const links = store.getBlockLinks(block)
@@ -320,7 +335,7 @@ describe('AppStore - Basic State & Getters', () => {
   describe('Notification System', () => {
     test('addNotification should add notification correctly', () => {
       const store = useAppStore.getState()
-      
+
       store.addNotification('error', 'Test error message')
       store.addNotification('success', 'Test success message')
 
@@ -335,19 +350,21 @@ describe('AppStore - Basic State & Getters', () => {
 
     test('addNotification should generate unique IDs', () => {
       const store = useAppStore.getState()
-      
+
       store.addNotification('info', 'Message 1')
       store.addNotification('info', 'Message 2')
 
       // Get updated state after notifications are added
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(2)
-      expect(updatedStore.notifications[0].id).not.toBe(updatedStore.notifications[1].id)
+      expect(updatedStore.notifications[0].id).not.toBe(
+        updatedStore.notifications[1].id
+      )
     })
 
     test('removeNotification should remove specific notification', () => {
       const store = useAppStore.getState()
-      
+
       store.addNotification('error', 'Error 1')
       store.addNotification('warning', 'Warning 1')
       store.addNotification('info', 'Info 1')
@@ -355,18 +372,22 @@ describe('AppStore - Basic State & Getters', () => {
       // Get updated state after notifications are added
       const stateAfterAdd = useAppStore.getState()
       const notificationToRemove = stateAfterAdd.notifications[1]
-      
+
       store.removeNotification(notificationToRemove.id)
 
       // Get updated state after removal
       const stateAfterRemove = useAppStore.getState()
       expect(stateAfterRemove.notifications).toHaveLength(2)
-      expect(stateAfterRemove.notifications.find(n => n.id === notificationToRemove.id)).toBeUndefined()
+      expect(
+        stateAfterRemove.notifications.find(
+          (n) => n.id === notificationToRemove.id
+        )
+      ).toBeUndefined()
     })
 
     test('clearAllNotifications should remove all notifications', () => {
       const store = useAppStore.getState()
-      
+
       store.addNotification('error', 'Error 1')
       store.addNotification('warning', 'Warning 1')
       store.addNotification('info', 'Info 1')
@@ -375,9 +396,9 @@ describe('AppStore - Basic State & Getters', () => {
       // Get updated state after notifications are added
       const stateAfterAdd = useAppStore.getState()
       expect(stateAfterAdd.notifications).toHaveLength(4)
-      
+
       store.clearAllNotifications()
-      
+
       // Get updated state after clearing
       const stateAfterClear = useAppStore.getState()
       expect(stateAfterClear.notifications).toHaveLength(0)
@@ -385,17 +406,17 @@ describe('AppStore - Basic State & Getters', () => {
 
     test('setError and clearError should manage error state', () => {
       const store = useAppStore.getState()
-      
+
       expect(store.error).toBeNull()
-      
+
       store.setError('Test error')
-      
+
       // Get updated state after setting error
       const stateAfterSet = useAppStore.getState()
       expect(stateAfterSet.error).toBe('Test error')
-      
+
       store.clearError()
-      
+
       // Get updated state after clearing error
       const stateAfterClear = useAppStore.getState()
       expect(stateAfterClear.error).toBeNull()

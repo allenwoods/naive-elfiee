@@ -94,7 +94,8 @@ export function BlockEditor() {
         {/* Block metadata */}
         <div className="text-muted-foreground space-y-1 text-xs">
           <div>
-            Type: <span className="font-medium">{selectedBlock.block_type}</span>
+            Type:{' '}
+            <span className="font-medium">{selectedBlock.block_type}</span>
           </div>
           <div>
             Owner:{' '}

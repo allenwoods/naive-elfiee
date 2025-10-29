@@ -8,7 +8,14 @@
 import { describe, expect, test, beforeEach, vi } from 'vitest'
 import { useAppStore } from './app-store'
 import { setupCommandMocks, setupCommandError } from '@/test/mock-tauri-invoke'
-import { createMockBlock, createMockEditor, createMockEvent, TEST_FILE_ID, TEST_BLOCK_ID, TEST_EDITOR_ID } from '@/test/setup'
+import {
+  createMockBlock,
+  createMockEditor,
+  createMockEvent,
+  TEST_FILE_ID,
+  TEST_BLOCK_ID,
+  TEST_EDITOR_ID,
+} from '@/test/setup'
 import type { Block, Editor, Event } from '@/bindings'
 
 describe('AppStore - Block Operations', () => {
@@ -21,7 +28,7 @@ describe('AppStore - Block Operations', () => {
       const fileId = TEST_FILE_ID
       const mockBlocks: Block[] = [
         createMockBlock({ block_id: 'block-1', name: 'Block 1' }),
-        createMockBlock({ block_id: 'block-2', name: 'Block 2' })
+        createMockBlock({ block_id: 'block-2', name: 'Block 2' }),
       ]
 
       // Set up initial state
@@ -33,12 +40,12 @@ describe('AppStore - Block Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend command
       setupCommandMocks({
-        getAllBlocks: mockBlocks
+        getAllBlocks: mockBlocks,
       })
 
       await store.loadBlocks(fileId)
@@ -61,7 +68,7 @@ describe('AppStore - Block Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend error
@@ -72,7 +79,9 @@ describe('AppStore - Block Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: Failed to load blocks')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: Failed to load blocks'
+      )
     })
   })
 
@@ -83,7 +92,12 @@ describe('AppStore - Block Operations', () => {
       const editorId = TEST_EDITOR_ID
       const blockName = 'Test Block'
       const blockType = 'markdown'
-      const mockEvents: Event[] = [createMockEvent({ entity: blockId, attribute: `${editorId}/core.create` })]
+      const mockEvents: Event[] = [
+        createMockEvent({
+          entity: blockId,
+          attribute: `${editorId}/core.create`,
+        }),
+      ]
 
       // Set up initial state with active editor
       const store = useAppStore.getState()
@@ -94,13 +108,19 @@ describe('AppStore - Block Operations', () => {
         editors: [createMockEditor({ editor_id: editorId })],
         activeEditorId: editorId,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend commands
       setupCommandMocks({
         executeCommand: mockEvents,
-        getAllBlocks: [createMockBlock({ block_id: blockId, name: blockName, block_type: blockType })]
+        getAllBlocks: [
+          createMockBlock({
+            block_id: blockId,
+            name: blockName,
+            block_type: blockType,
+          }),
+        ],
       })
 
       await store.createBlock(fileId, blockName, blockType)
@@ -109,7 +129,9 @@ describe('AppStore - Block Operations', () => {
       expect(updatedStore.files.get(fileId)?.blocks).toHaveLength(1)
       expect(updatedStore.files.get(fileId)?.blocks[0].block_id).toBe(blockId)
       expect(updatedStore.files.get(fileId)?.blocks[0].name).toBe(blockName)
-      expect(updatedStore.files.get(fileId)?.blocks[0].block_type).toBe(blockType)
+      expect(updatedStore.files.get(fileId)?.blocks[0].block_type).toBe(
+        blockType
+      )
       expect(updatedStore.isLoading).toBe(false)
       expect(updatedStore.error).toBeNull()
     })
@@ -126,17 +148,19 @@ describe('AppStore - Block Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       await store.createBlock(fileId, 'Test Block')
 
       const updatedStore = useAppStore.getState()
       // Error should be added as notification, not in error field
-      expect(updatedStore.notifications.some(n =>
-        n.type === 'error' &&
-        n.message.includes('No active editor found')
-      )).toBe(true)
+      expect(
+        updatedStore.notifications.some(
+          (n) =>
+            n.type === 'error' && n.message.includes('No active editor found')
+        )
+      ).toBe(true)
       expect(updatedStore.files.get(fileId)?.blocks).toHaveLength(0)
     })
 
@@ -153,7 +177,7 @@ describe('AppStore - Block Operations', () => {
         editors: [createMockEditor({ editor_id: editorId })],
         activeEditorId: editorId,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend error
@@ -163,10 +187,12 @@ describe('AppStore - Block Operations', () => {
 
       const updatedStore = useAppStore.getState()
       // Error should be added as notification, not in error field
-      expect(updatedStore.notifications.some(n =>
-        n.type === 'error' &&
-        n.message.includes('Failed to create block')
-      )).toBe(true)
+      expect(
+        updatedStore.notifications.some(
+          (n) =>
+            n.type === 'error' && n.message.includes('Failed to create block')
+        )
+      ).toBe(true)
       expect(updatedStore.files.get(fileId)?.blocks).toHaveLength(0)
     })
   })
@@ -187,19 +213,31 @@ describe('AppStore - Block Operations', () => {
         editors: [createMockEditor({ editor_id: editorId })],
         activeEditorId: editorId,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend commands
       setupCommandMocks({
-        executeCommand: [createMockEvent({ entity: blockId, attribute: `${editorId}/markdown.write` })],
-        getAllBlocks: [createMockBlock({ block_id: blockId, contents: { markdown: content.data } })]
+        executeCommand: [
+          createMockEvent({
+            entity: blockId,
+            attribute: `${editorId}/markdown.write`,
+          }),
+        ],
+        getAllBlocks: [
+          createMockBlock({
+            block_id: blockId,
+            contents: { markdown: content.data },
+          }),
+        ],
       })
 
       await store.updateBlock(fileId, blockId, content)
 
       const updatedStore = useAppStore.getState()
-      expect(updatedStore.files.get(fileId)?.blocks[0].contents).toEqual({ markdown: content.data })
+      expect(updatedStore.files.get(fileId)?.blocks[0].contents).toEqual({
+        markdown: content.data,
+      })
       expect(updatedStore.isLoading).toBe(false)
       expect(updatedStore.error).toBeNull()
     })
@@ -217,15 +255,20 @@ describe('AppStore - Block Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
-      await store.updateBlock(fileId, blockId, { type: 'text', data: 'Content' })
+      await store.updateBlock(fileId, blockId, {
+        type: 'text',
+        data: 'Content',
+      })
 
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: No active editor found. Please select an editor first.')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: No active editor found. Please select an editor first.'
+      )
     })
   })
 
@@ -245,19 +288,31 @@ describe('AppStore - Block Operations', () => {
         editors: [createMockEditor({ editor_id: editorId })],
         activeEditorId: editorId,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend commands
       setupCommandMocks({
-        executeCommand: [createMockEvent({ entity: blockId, attribute: `${editorId}/markdown.write` })],
-        getAllBlocks: [createMockBlock({ block_id: blockId, contents: { markdown: content } })]
+        executeCommand: [
+          createMockEvent({
+            entity: blockId,
+            attribute: `${editorId}/markdown.write`,
+          }),
+        ],
+        getAllBlocks: [
+          createMockBlock({
+            block_id: blockId,
+            contents: { markdown: content },
+          }),
+        ],
       })
 
       await store.writeBlockContent(fileId, blockId, content)
 
       const updatedStore = useAppStore.getState()
-      expect(updatedStore.files.get(fileId)?.blocks[0].contents).toEqual({ markdown: content })
+      expect(updatedStore.files.get(fileId)?.blocks[0].contents).toEqual({
+        markdown: content,
+      })
       expect(updatedStore.isLoading).toBe(false)
       expect(updatedStore.error).toBeNull()
     })
@@ -275,7 +330,7 @@ describe('AppStore - Block Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       await store.writeBlockContent(fileId, blockId, 'Content')
@@ -283,7 +338,9 @@ describe('AppStore - Block Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: No active editor found. Please select an editor first.')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: No active editor found. Please select an editor first.'
+      )
     })
   })
 
@@ -302,13 +359,18 @@ describe('AppStore - Block Operations', () => {
         editors: [createMockEditor({ editor_id: editorId })],
         activeEditorId: editorId,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend commands
       setupCommandMocks({
-        executeCommand: [createMockEvent({ entity: blockId, attribute: `${editorId}/core.delete` })],
-        getAllBlocks: [] // Block deleted, no blocks remaining
+        executeCommand: [
+          createMockEvent({
+            entity: blockId,
+            attribute: `${editorId}/core.delete`,
+          }),
+        ],
+        getAllBlocks: [], // Block deleted, no blocks remaining
       })
 
       await store.deleteBlock(fileId, blockId)
@@ -332,7 +394,7 @@ describe('AppStore - Block Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       await store.deleteBlock(fileId, blockId)
@@ -340,7 +402,9 @@ describe('AppStore - Block Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: No active editor found. Please select an editor first.')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: No active editor found. Please select an editor first.'
+      )
     })
   })
 
@@ -358,7 +422,7 @@ describe('AppStore - Block Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       store.selectBlock(fileId, blockId)
@@ -380,7 +444,7 @@ describe('AppStore - Block Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       store.selectBlock(fileId, null)
@@ -398,10 +462,10 @@ describe('AppStore - Block Operations', () => {
 
       // Mock backend command
       setupCommandMocks({
-        getBlock: createMockBlock({ 
-          block_id: blockId, 
-          contents: { markdown: content } 
-        })
+        getBlock: createMockBlock({
+          block_id: blockId,
+          contents: { markdown: content },
+        }),
       })
 
       const store = useAppStore.getState()
@@ -424,7 +488,9 @@ describe('AppStore - Block Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: Failed to read block')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: Failed to read block'
+      )
     })
   })
 
@@ -442,31 +508,38 @@ describe('AppStore - Block Operations', () => {
         fileId,
         blocks: [
           createMockBlock({ block_id: fromId }),
-          createMockBlock({ block_id: toId })
+          createMockBlock({ block_id: toId }),
         ],
         selectedBlockId: null,
         editors: [createMockEditor({ editor_id: editorId })],
         activeEditorId: editorId,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend commands
       setupCommandMocks({
-        executeCommand: [createMockEvent({ entity: fromId, attribute: `${editorId}/core.link` })],
-        getAllBlocks: [
-          createMockBlock({ 
-            block_id: fromId, 
-            children: { [relation]: [toId] } 
+        executeCommand: [
+          createMockEvent({
+            entity: fromId,
+            attribute: `${editorId}/core.link`,
           }),
-          createMockBlock({ block_id: toId })
-        ]
+        ],
+        getAllBlocks: [
+          createMockBlock({
+            block_id: fromId,
+            children: { [relation]: [toId] },
+          }),
+          createMockBlock({ block_id: toId }),
+        ],
       })
 
       await store.linkBlocks(fileId, fromId, toId, relation)
 
       const updatedStore = useAppStore.getState()
-      const fromBlock = updatedStore.files.get(fileId)?.blocks.find(b => b.block_id === fromId)
+      const fromBlock = updatedStore.files
+        .get(fileId)
+        ?.blocks.find((b) => b.block_id === fromId)
       expect(fromBlock?.children?.[relation]).toContain(toId)
       expect(updatedStore.isLoading).toBe(false)
       expect(updatedStore.error).toBeNull()
@@ -484,13 +557,13 @@ describe('AppStore - Block Operations', () => {
         fileId,
         blocks: [
           createMockBlock({ block_id: fromId }),
-          createMockBlock({ block_id: toId })
+          createMockBlock({ block_id: toId }),
         ],
         selectedBlockId: null,
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       await store.linkBlocks(fileId, fromId, toId, relation)
@@ -498,7 +571,9 @@ describe('AppStore - Block Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: No active editor found. Please select an editor first.')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: No active editor found. Please select an editor first.'
+      )
     })
   })
 
@@ -515,35 +590,42 @@ describe('AppStore - Block Operations', () => {
       store.files.set(fileId, {
         fileId,
         blocks: [
-          createMockBlock({ 
-            block_id: fromId, 
-            children: { [relation]: [toId] } 
+          createMockBlock({
+            block_id: fromId,
+            children: { [relation]: [toId] },
           }),
-          createMockBlock({ block_id: toId })
+          createMockBlock({ block_id: toId }),
         ],
         selectedBlockId: null,
         editors: [createMockEditor({ editor_id: editorId })],
         activeEditorId: editorId,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend commands
       setupCommandMocks({
-        executeCommand: [createMockEvent({ entity: fromId, attribute: `${editorId}/core.unlink` })],
-        getAllBlocks: [
-          createMockBlock({ 
-            block_id: fromId, 
-            children: {} // Link removed
+        executeCommand: [
+          createMockEvent({
+            entity: fromId,
+            attribute: `${editorId}/core.unlink`,
           }),
-          createMockBlock({ block_id: toId })
-        ]
+        ],
+        getAllBlocks: [
+          createMockBlock({
+            block_id: fromId,
+            children: {}, // Link removed
+          }),
+          createMockBlock({ block_id: toId }),
+        ],
       })
 
       await store.unlinkBlocks(fileId, fromId, toId, relation)
 
       const updatedStore = useAppStore.getState()
-      const fromBlock = updatedStore.files.get(fileId)?.blocks.find(b => b.block_id === fromId)
+      const fromBlock = updatedStore.files
+        .get(fileId)
+        ?.blocks.find((b) => b.block_id === fromId)
       expect(fromBlock?.children?.[relation] || []).not.toContain(toId)
       expect(updatedStore.isLoading).toBe(false)
       expect(updatedStore.error).toBeNull()
@@ -560,17 +642,17 @@ describe('AppStore - Block Operations', () => {
       store.files.set(fileId, {
         fileId,
         blocks: [
-          createMockBlock({ 
-            block_id: fromId, 
-            children: { [relation]: [toId] } 
+          createMockBlock({
+            block_id: fromId,
+            children: { [relation]: [toId] },
           }),
-          createMockBlock({ block_id: toId })
+          createMockBlock({ block_id: toId }),
         ],
         selectedBlockId: null,
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       await store.unlinkBlocks(fileId, fromId, toId, relation)
@@ -578,7 +660,9 @@ describe('AppStore - Block Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: No active editor found. Please select an editor first.')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: No active editor found. Please select an editor first.'
+      )
     })
   })
 })

@@ -32,9 +32,9 @@ function App() {
         </div>
 
         {/* Right side: Tabbed Content */}
-        <div className="w-2/3 flex flex-col">
+        <div className="flex w-2/3 flex-col">
           {/* Tab Navigation */}
-          <div className="border-b flex">
+          <div className="flex border-b">
             <Button
               variant={activeTab === 'editor' ? 'default' : 'ghost'}
               onClick={() => setActiveTab('editor')}

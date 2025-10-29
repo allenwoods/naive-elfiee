@@ -1,5 +1,5 @@
 use crate::capabilities::core::{create_event, CapResult};
-use crate::models::{Block, Command, Event, EditorCreatePayload};
+use crate::models::{Block, Command, EditorCreatePayload, Event};
 use capability_macros::capability;
 
 /// Handler for editor.create capability.

@@ -8,7 +8,13 @@
 import { describe, expect, test, beforeEach, vi } from 'vitest'
 import { useAppStore } from './app-store'
 import { setupCommandMocks, setupCommandError } from '@/test/mock-tauri-invoke'
-import { createMockEditor, createMockEvent, createMockGrant, TEST_FILE_ID, TEST_EDITOR_ID } from '@/test/setup'
+import {
+  createMockEditor,
+  createMockEvent,
+  createMockGrant,
+  TEST_FILE_ID,
+  TEST_EDITOR_ID,
+} from '@/test/setup'
 import type { Editor, Event, Grant } from '@/bindings'
 
 describe('AppStore - Editor Operations', () => {
@@ -21,7 +27,7 @@ describe('AppStore - Editor Operations', () => {
       const fileId = TEST_FILE_ID
       const mockEditors: Editor[] = [
         createMockEditor({ editor_id: 'editor-1', name: 'Editor 1' }),
-        createMockEditor({ editor_id: 'editor-2', name: 'Editor 2' })
+        createMockEditor({ editor_id: 'editor-2', name: 'Editor 2' }),
       ]
       const activeEditorId = 'editor-1'
 
@@ -34,20 +40,22 @@ describe('AppStore - Editor Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend commands
       setupCommandMocks({
         listEditors: mockEditors,
-        getActiveEditor: activeEditorId
+        getActiveEditor: activeEditorId,
       })
 
       await store.loadEditors(fileId)
 
       const updatedStore = useAppStore.getState()
       expect(updatedStore.files.get(fileId)?.editors).toEqual(mockEditors)
-      expect(updatedStore.files.get(fileId)?.activeEditorId).toBe(activeEditorId)
+      expect(updatedStore.files.get(fileId)?.activeEditorId).toBe(
+        activeEditorId
+      )
       expect(updatedStore.isLoading).toBe(false)
       expect(updatedStore.error).toBeNull()
     })
@@ -64,7 +72,7 @@ describe('AppStore - Editor Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend error
@@ -75,7 +83,9 @@ describe('AppStore - Editor Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: Failed to load editors')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: Failed to load editors'
+      )
     })
   })
 
@@ -94,13 +104,13 @@ describe('AppStore - Editor Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend command
       setupCommandMocks({
         createEditor: mockEditor,
-        listEditors: [mockEditor]
+        listEditors: [mockEditor],
       })
 
       await store.createEditor(fileId, editorName)
@@ -124,7 +134,7 @@ describe('AppStore - Editor Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend error
@@ -135,7 +145,9 @@ describe('AppStore - Editor Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: Failed to create editor')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: Failed to create editor'
+      )
     })
   })
 
@@ -153,12 +165,12 @@ describe('AppStore - Editor Operations', () => {
         editors: [createMockEditor({ editor_id: editorId })],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend command
       setupCommandMocks({
-        setActiveEditor: null
+        setActiveEditor: null,
       })
 
       await store.setActiveEditor(fileId, editorId)
@@ -182,7 +194,7 @@ describe('AppStore - Editor Operations', () => {
         editors: [createMockEditor({ editor_id: editorId })],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend error
@@ -193,7 +205,9 @@ describe('AppStore - Editor Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: Failed to set active editor')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: Failed to set active editor'
+      )
     })
   })
 
@@ -201,16 +215,16 @@ describe('AppStore - Editor Operations', () => {
     test('should load grants successfully', async () => {
       const fileId = TEST_FILE_ID
       const mockGrants: Grant[] = [
-        createMockGrant({ 
-          editor_id: 'editor-1', 
-          capability: 'markdown.write', 
-          block_id: 'block-1' 
+        createMockGrant({
+          editor_id: 'editor-1',
+          capability: 'markdown.write',
+          block_id: 'block-1',
         }),
-        createMockGrant({ 
-          editor_id: 'editor-2', 
-          capability: 'core.read', 
-          block_id: '*' 
-        })
+        createMockGrant({
+          editor_id: 'editor-2',
+          capability: 'core.read',
+          block_id: '*',
+        }),
       ]
 
       // Set up initial state
@@ -222,12 +236,12 @@ describe('AppStore - Editor Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend command
       setupCommandMocks({
-        listGrants: mockGrants
+        listGrants: mockGrants,
       })
 
       await store.loadGrants(fileId)
@@ -250,7 +264,7 @@ describe('AppStore - Editor Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend error
@@ -261,7 +275,9 @@ describe('AppStore - Editor Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: Failed to load grants')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: Failed to load grants'
+      )
     })
   })
 
@@ -272,10 +288,12 @@ describe('AppStore - Editor Operations', () => {
       const capability = 'markdown.write'
       const targetBlock = 'block-1'
       const editorId = TEST_EDITOR_ID
-      const mockEvents: Event[] = [createMockEvent({ 
-        entity: targetBlock, 
-        attribute: `${editorId}/core.grant` 
-      })]
+      const mockEvents: Event[] = [
+        createMockEvent({
+          entity: targetBlock,
+          attribute: `${editorId}/core.grant`,
+        }),
+      ]
 
       // Set up initial state with active editor
       const store = useAppStore.getState()
@@ -286,26 +304,34 @@ describe('AppStore - Editor Operations', () => {
         editors: [createMockEditor({ editor_id: editorId })],
         activeEditorId: editorId,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend commands
       setupCommandMocks({
         executeCommand: mockEvents,
-        listGrants: [createMockGrant({ 
-          editor_id: targetEditor, 
-          capability, 
-          block_id: targetBlock 
-        })]
+        listGrants: [
+          createMockGrant({
+            editor_id: targetEditor,
+            capability,
+            block_id: targetBlock,
+          }),
+        ],
       })
 
       await store.grantCapability(fileId, targetEditor, capability, targetBlock)
 
       const updatedStore = useAppStore.getState()
       expect(updatedStore.files.get(fileId)?.grants).toHaveLength(1)
-      expect(updatedStore.files.get(fileId)?.grants[0].editor_id).toBe(targetEditor)
-      expect(updatedStore.files.get(fileId)?.grants[0].capability).toBe(capability)
-      expect(updatedStore.files.get(fileId)?.grants[0].block_id).toBe(targetBlock)
+      expect(updatedStore.files.get(fileId)?.grants[0].editor_id).toBe(
+        targetEditor
+      )
+      expect(updatedStore.files.get(fileId)?.grants[0].capability).toBe(
+        capability
+      )
+      expect(updatedStore.files.get(fileId)?.grants[0].block_id).toBe(
+        targetBlock
+      )
       expect(updatedStore.isLoading).toBe(false)
       expect(updatedStore.error).toBeNull()
     })
@@ -324,7 +350,7 @@ describe('AppStore - Editor Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       await store.grantCapability(fileId, targetEditor, capability)
@@ -332,7 +358,9 @@ describe('AppStore - Editor Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: No active editor found. Please select an editor first.')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: No active editor found. Please select an editor first.'
+      )
     })
   })
 
@@ -343,10 +371,12 @@ describe('AppStore - Editor Operations', () => {
       const capability = 'markdown.write'
       const targetBlock = 'block-1'
       const editorId = TEST_EDITOR_ID
-      const mockEvents: Event[] = [createMockEvent({ 
-        entity: targetBlock, 
-        attribute: `${editorId}/core.revoke` 
-      })]
+      const mockEvents: Event[] = [
+        createMockEvent({
+          entity: targetBlock,
+          attribute: `${editorId}/core.revoke`,
+        }),
+      ]
 
       // Set up initial state with active editor
       const store = useAppStore.getState()
@@ -357,16 +387,21 @@ describe('AppStore - Editor Operations', () => {
         editors: [createMockEditor({ editor_id: editorId })],
         activeEditorId: editorId,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend commands
       setupCommandMocks({
         executeCommand: mockEvents,
-        listGrants: [] // Grant revoked, no grants remaining
+        listGrants: [], // Grant revoked, no grants remaining
       })
 
-      await store.revokeCapability(fileId, targetEditor, capability, targetBlock)
+      await store.revokeCapability(
+        fileId,
+        targetEditor,
+        capability,
+        targetBlock
+      )
 
       const updatedStore = useAppStore.getState()
       expect(updatedStore.files.get(fileId)?.grants).toHaveLength(0)
@@ -388,7 +423,7 @@ describe('AppStore - Editor Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       await store.revokeCapability(fileId, targetEditor, capability)
@@ -396,7 +431,9 @@ describe('AppStore - Editor Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: No active editor found. Please select an editor first.')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: No active editor found. Please select an editor first.'
+      )
     })
   })
 
@@ -404,16 +441,16 @@ describe('AppStore - Editor Operations', () => {
     test('should load events successfully', async () => {
       const fileId = TEST_FILE_ID
       const mockEvents: Event[] = [
-        createMockEvent({ 
-          event_id: 'event-1', 
-          entity: 'block-1', 
-          attribute: 'editor-1/core.create' 
+        createMockEvent({
+          event_id: 'event-1',
+          entity: 'block-1',
+          attribute: 'editor-1/core.create',
         }),
-        createMockEvent({ 
-          event_id: 'event-2', 
-          entity: 'block-1', 
-          attribute: 'editor-1/markdown.write' 
-        })
+        createMockEvent({
+          event_id: 'event-2',
+          entity: 'block-1',
+          attribute: 'editor-1/markdown.write',
+        }),
       ]
 
       // Set up initial state
@@ -425,12 +462,12 @@ describe('AppStore - Editor Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend command
       setupCommandMocks({
-        getAllEvents: mockEvents
+        getAllEvents: mockEvents,
       })
 
       await store.loadEvents(fileId)
@@ -453,7 +490,7 @@ describe('AppStore - Editor Operations', () => {
         editors: [],
         activeEditorId: null,
         grants: [],
-        events: []
+        events: [],
       })
 
       // Mock backend error
@@ -464,7 +501,9 @@ describe('AppStore - Editor Operations', () => {
       const updatedStore = useAppStore.getState()
       expect(updatedStore.notifications).toHaveLength(1)
       expect(updatedStore.notifications[0].type).toBe('error')
-      expect(updatedStore.notifications[0].message).toBe('Error: Failed to load events')
+      expect(updatedStore.notifications[0].message).toBe(
+        'Error: Failed to load events'
+      )
     })
   })
 })
