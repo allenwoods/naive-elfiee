@@ -132,7 +132,11 @@ describe('AppStore - Block Operations', () => {
       await store.createBlock(fileId, 'Test Block')
 
       const updatedStore = useAppStore.getState()
-      expect(updatedStore.error).toBe('Error: No active editor found. Please select an editor first.')
+      // Error should be added as notification, not in error field
+      expect(updatedStore.notifications.some(n =>
+        n.type === 'error' &&
+        n.message.includes('No active editor found')
+      )).toBe(true)
       expect(updatedStore.files.get(fileId)?.blocks).toHaveLength(0)
     })
 
@@ -158,7 +162,11 @@ describe('AppStore - Block Operations', () => {
       await store.createBlock(fileId, 'Test Block')
 
       const updatedStore = useAppStore.getState()
-      expect(updatedStore.error).toBe('Error: Failed to create block')
+      // Error should be added as notification, not in error field
+      expect(updatedStore.notifications.some(n =>
+        n.type === 'error' &&
+        n.message.includes('Failed to create block')
+      )).toBe(true)
       expect(updatedStore.files.get(fileId)?.blocks).toHaveLength(0)
     })
   })
