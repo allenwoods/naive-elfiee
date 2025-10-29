@@ -39,15 +39,30 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Cache Linux dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt
+            /var/lib/apt/lists
+          key: ${{ runner.os }}-apt-tauri-deps-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-tauri-deps-
+
       - name: Install Linux dependencies for Tauri v2
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libssl-dev
+          # 检查包是否已安装，避免重复安装
+          if ! dpkg -l | grep -q libwebkit2gtk-4.1-dev; then
+            sudo apt-get update
+            sudo apt-get install -y \
+              libwebkit2gtk-4.1-dev \
+              libappindicator3-dev \
+              librsvg2-dev \
+              patchelf \
+              libssl-dev
+          else
+            echo "Tauri dependencies already installed, skipping..."
+          fi
 
       - name: Run all tests
         run: make test
