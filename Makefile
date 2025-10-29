@@ -19,7 +19,8 @@ test-backend:
 # 前端测试
 test-frontend:
 	@echo "⚛️ 运行前端测试..."
-	pnpm test
+	pnpm test:ci
+
 
 # 运行所有测试
 test: test-backend test-frontend

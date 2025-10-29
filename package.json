@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest",
+    "test:ci": "vitest run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",

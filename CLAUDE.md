@@ -419,11 +419,12 @@ Project status and implementation roadmap:
 
 ### Critical Reading
 
-**Before creating any capability**: Read `docs/guides/EXTENSION_DEVELOPMENT.md` (Payload Types section) and `docs/guides/FRONTEND_DEVELOPMENT.md` (Capability Payload Types section) to avoid frontend-backend type mismatches.
+**Before creating any extension (block_type & capability)**: Read `docs/guides/EXTENSION_DEVELOPMENT.md` (Payload Types section) and `docs/guides/FRONTEND_DEVELOPMENT.md` (Capability Payload Types section) to avoid frontend-backend type mismatches.
 
 **Before editing `src/bindings.ts`**: DON'T! Read "TypeScript Bindings Generation" section above. This file is auto-generated.
 
 **Before implementing CBAC**: Read `docs/guides/EXTENSION_DEVELOPMENT.md` authorization section.
 
-**For new contributors**: Start with `docs/README.md` for complete documentation map and recommended reading order.
-- 不要在main/dev分支上进行修改，总是创建一个新的PR并合并到dev上
+**For contributors**: 
+- Start with `docs/README.md` for complete documentation map and recommended reading order.
+- Do not make modifications directly on main/dev branches, always create a new branch and open a PR to merge to dev

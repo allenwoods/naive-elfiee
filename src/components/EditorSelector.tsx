@@ -108,11 +108,7 @@ export function EditorSelector() {
             className="w-[120px]"
             autoFocus
           />
-          <Button
-            onClick={handleCreateEditor}
-            size="sm"
-            variant="default"
-          >
+          <Button onClick={handleCreateEditor} size="sm" variant="default">
             Create
           </Button>
           <Button

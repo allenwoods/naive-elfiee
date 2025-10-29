@@ -443,32 +443,274 @@ tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 
 ## Testing
 
-### Unit Tests
-Test backend logic independently:
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
+### Test Architecture
 
-    #[tokio::test]
-    async fn test_my_command() {
-        // Test Rust logic
-    }
-}
+Elfiee 使用 Vitest 进行单元测试和集成测试。测试系统通过 mock Tauri 的 `invoke` 函数来模拟后端响应，无需实际启动 Tauri 应用。
+
+### Mock System Overview
+
+测试系统位于 `src/test/` 目录：
+
+- **setup.ts**: 配置 Vitest 环境，mock `@tauri-apps/api/core` 的 `invoke` 函数
+- **mock-tauri-invoke.ts**: 提供类型安全的 mock 工具函数
+
+关键特性：
+- 直接 mock 底层 `invoke` 函数，无需创建独立的 MockTauriClient
+- 基于 `bindings.ts` 的类型，确保 mock 数据与后端一致
+- 自动处理 snake_case/camelCase 转换
+
+### Writing Tests for App Store
+
+测试 Zustand store 时，使用 `setupCommandMocks` 来模拟后端响应：
+
+```typescript
+import { describe, expect, test, beforeEach, vi } from 'vitest'
+import { useAppStore } from './app-store'
+import { setupCommandMocks, setupCommandError } from '@/test/mock-tauri-invoke'
+import { createMockBlock, TEST_FILE_ID } from '@/test/setup'
+
+describe('AppStore - Block Operations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  test('should load blocks successfully', async () => {
+    const fileId = TEST_FILE_ID
+    const mockBlocks = [createMockBlock({ block_id: 'block-1' })]
+
+    // Setup initial state
+    const store = useAppStore.getState()
+    store.files.set(fileId, {
+      fileId,
+      blocks: [],
+      selectedBlockId: null,
+      editors: [],
+      activeEditorId: null,
+      grants: [],
+      events: []
+    })
+
+    // Mock backend commands
+    setupCommandMocks({
+      getAllBlocks: mockBlocks
+    })
+
+    await store.loadBlocks(fileId)
+
+    const updatedStore = useAppStore.getState()
+    expect(updatedStore.files.get(fileId)?.blocks).toEqual(mockBlocks)
+  })
+
+  test('should handle backend errors', async () => {
+    const fileId = TEST_FILE_ID
+    const store = useAppStore.getState()
+    
+    // Mock backend error
+    setupCommandError('getAllBlocks', 'Failed to load blocks')
+
+    await store.loadBlocks(fileId)
+
+    const updatedStore = useAppStore.getState()
+    expect(updatedStore.notifications[0].type).toBe('error')
+  })
+})
 ```
 
-### Integration Tests
-Test with generated bindings:
-```typescript
-import { commands } from '@/bindings';
-import { describe, it, expect } from 'vitest';
+### Writing Tests for TauriClient
 
-describe('Block Operations', () => {
-  it('should create and retrieve block', async () => {
-    const result = await commands.createFile('/tmp/test.elf');
-    expect(result.status).toBe('ok');
-  });
-});
+测试 TauriClient wrapper 时，使用 `setupCommandMock` 或 spy 方法：
+
+```typescript
+import { describe, expect, test, vi } from 'vitest'
+import { TauriClient } from './tauri-client'
+import { setupCommandMock, setupCommandError } from '@/test/mock-tauri-invoke'
+import { createMockBlock, TEST_FILE_ID, TEST_BLOCK_ID, TEST_EDITOR_ID } from '@/test/setup'
+
+describe('TauriClient - Block Operations', () => {
+  test('getAllBlocks should return blocks array', async () => {
+    const mockBlocks = [createMockBlock(), createMockBlock({ block_id: 'block-2' })]
+    setupCommandMock('getAllBlocks', mockBlocks)
+
+    const result = await TauriClient.block.getAllBlocks(TEST_FILE_ID)
+
+    expect(result).toEqual(mockBlocks)
+  })
+
+  test('createBlock should execute command with correct payload', async () => {
+    const mockEvents = [createMockEvent()]
+    const executeCommandSpy = vi.spyOn(TauriClient.block, 'executeCommand')
+    executeCommandSpy.mockResolvedValue(mockEvents)
+
+    await TauriClient.block.createBlock(
+      TEST_FILE_ID,
+      TEST_BLOCK_ID,
+      'Test Block',
+      'markdown',
+      TEST_EDITOR_ID
+    )
+
+    expect(executeCommandSpy).toHaveBeenCalledWith(
+      TEST_FILE_ID,
+      expect.objectContaining({
+        editor_id: TEST_EDITOR_ID,
+        cap_id: 'core.create',
+        block_id: TEST_BLOCK_ID,
+        payload: expect.objectContaining({
+          name: 'Test Block',
+          block_type: 'markdown',
+        }),
+      })
+    )
+  })
+})
+```
+
+### Writing Tests for React Components
+
+测试 React 组件时，mock useAppStore hook：
+
+```typescript
+import { describe, expect, test, vi, beforeEach } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { BlockList } from './BlockList'
+import { useAppStore } from '@/lib/app-store'
+import { createMockBlock } from '@/test/setup'
+
+// Mock the app store
+vi.mock('@/lib/app-store', () => ({
+  useAppStore: vi.fn(),
+}))
+
+describe('BlockList Component', () => {
+  const mockStore = {
+    activeFileId: 'test-file-1',
+    getBlocks: vi.fn(),
+    createBlock: vi.fn(),
+    deleteBlock: vi.fn(),
+    selectBlock: vi.fn(),
+    isLoading: false,
+    addNotification: vi.fn(),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(useAppStore).mockReturnValue(mockStore)
+  })
+
+  test('renders blocks correctly', () => {
+    const mockBlocks = [createMockBlock({ name: 'Test Block' })]
+    vi.mocked(mockStore.getBlocks).mockReturnValue(mockBlocks)
+    
+    render(<BlockList />)
+    
+    expect(screen.getByText('Test Block')).toBeInTheDocument()
+  })
+
+  test('creates block when button clicked', async () => {
+    const user = userEvent.setup()
+    vi.mocked(mockStore.createBlock).mockResolvedValue(undefined)
+    
+    render(<BlockList />)
+    
+    const createButton = screen.getByRole('button', { name: /new block/i })
+    await user.click(createButton)
+    
+    expect(mockStore.createBlock).toHaveBeenCalled()
+  })
+})
+```
+
+### Mock Helper Functions
+
+**setupCommandMocks** - Mock multiple commands at once:
+```typescript
+setupCommandMocks({
+  createFile: 'file-123',
+  getAllBlocks: [block1, block2],
+  listEditors: [editor1],
+})
+```
+
+**setupCommandMock** - Mock single command:
+```typescript
+setupCommandMock('createFile', 'file-123')
+```
+
+**setupCommandError** - Mock command error:
+```typescript
+setupCommandError('createFile', 'Failed to create file')
+```
+
+**Mock Data Helpers** (from `src/test/setup.ts`):
+```typescript
+import { 
+  createMockBlock, 
+  createMockEditor, 
+  createMockEvent, 
+  createMockGrant,
+  TEST_FILE_ID,
+  TEST_BLOCK_ID,
+  TEST_EDITOR_ID 
+} from '@/test/setup'
+
+const block = createMockBlock({ name: 'Custom Name' })
+const editor = createMockEditor({ editor_id: 'custom-id' })
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+pnpm test
+
+# Run tests in watch mode
+pnpm test:watch
+
+# Run tests with coverage
+pnpm test:coverage
+
+# Run specific test file
+pnpm test src/lib/app-store.test.ts
+```
+
+### Test File Organization
+
+```
+src/
+├── lib/
+│   ├── app-store.ts
+│   ├── app-store.basic.test.ts       # State & getters tests
+│   ├── app-store.block-ops.test.ts   # Block operations tests
+│   ├── app-store.editor-ops.test.ts  # Editor operations tests
+│   ├── app-store.file-ops.test.ts    # File operations tests
+│   ├── tauri-client.ts
+│   └── tauri-client.test.ts          # TauriClient wrapper tests
+├── components/
+│   ├── BlockList.tsx
+│   ├── BlockList.test.tsx            # Component tests
+│   └── ...
+└── test/
+    ├── setup.ts                       # Vitest setup & global mocks
+    └── mock-tauri-invoke.ts           # Type-safe mock utilities
+```
+
+### Best Practices
+
+DO:
+- Use `setupCommandMocks` for mocking backend responses
+- Use mock helper functions from `@/test/setup`
+- Clear mocks in `beforeEach` with `vi.clearAllMocks()`
+- Test both success and error cases
+- Use `createMock*` helpers for consistent test data
+- Mock `useAppStore` when testing components
+
+DON'T:
+- Create manual MockTauriClient classes
+- Define mock data inline (use helpers)
+- Forget to mock dialog functions (`@tauri-apps/plugin-dialog`)
+- Skip error case testing
+- Test implementation details (test behavior, not internals)
 ```
 
 ## Resources

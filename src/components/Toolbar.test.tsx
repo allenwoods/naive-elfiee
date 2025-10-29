@@ -15,7 +15,9 @@ vi.mock('@/lib/app-store', () => ({
 
 // Mock the EditorSelector component
 vi.mock('./EditorSelector', () => ({
-  EditorSelector: () => <div data-testid="editor-selector">Editor Selector</div>,
+  EditorSelector: () => (
+    <div data-testid="editor-selector">Editor Selector</div>
+  ),
 }))
 
 describe('Toolbar Component', () => {
@@ -35,7 +37,7 @@ describe('Toolbar Component', () => {
 
   test('renders all file operation buttons', () => {
     render(<Toolbar />)
-    
+
     expect(screen.getByRole('button', { name: /new/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /open/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument()
@@ -44,12 +46,12 @@ describe('Toolbar Component', () => {
 
   test('buttons are not disabled when not loading and no active file', () => {
     render(<Toolbar />)
-    
+
     const newButton = screen.getByRole('button', { name: /new/i })
     const openButton = screen.getByRole('button', { name: /open/i })
     const saveButton = screen.getByRole('button', { name: /save/i })
     const closeButton = screen.getByRole('button', { name: /close/i })
-    
+
     expect(newButton).not.toBeDisabled()
     expect(openButton).not.toBeDisabled()
     expect(saveButton).toBeDisabled() // Save should be disabled when no active file
@@ -61,11 +63,11 @@ describe('Toolbar Component', () => {
       ...mockStore,
       isLoading: true,
     })
-    
+
     render(<Toolbar />)
-    
+
     const buttons = screen.getAllByRole('button')
-    buttons.forEach(button => {
+    buttons.forEach((button) => {
       expect(button).toBeDisabled()
     })
   })
@@ -75,12 +77,12 @@ describe('Toolbar Component', () => {
       ...mockStore,
       activeFileId: 'test-file-1',
     })
-    
+
     render(<Toolbar />)
-    
+
     const saveButton = screen.getByRole('button', { name: /save/i })
     const closeButton = screen.getByRole('button', { name: /close/i })
-    
+
     expect(saveButton).not.toBeDisabled()
     expect(closeButton).not.toBeDisabled()
   })
@@ -88,20 +90,20 @@ describe('Toolbar Component', () => {
   test('calls createFile when New button is clicked', async () => {
     const user = userEvent.setup()
     render(<Toolbar />)
-    
+
     const newButton = screen.getByRole('button', { name: /new/i })
     await user.click(newButton)
-    
+
     expect(mockStore.createFile).toHaveBeenCalledTimes(1)
   })
 
   test('calls openFile when Open button is clicked', async () => {
     const user = userEvent.setup()
     render(<Toolbar />)
-    
+
     const openButton = screen.getByRole('button', { name: /open/i })
     await user.click(openButton)
-    
+
     expect(mockStore.openFile).toHaveBeenCalledTimes(1)
   })
 
@@ -111,12 +113,12 @@ describe('Toolbar Component', () => {
       ...mockStore,
       activeFileId: 'test-file-1',
     })
-    
+
     render(<Toolbar />)
-    
+
     const saveButton = screen.getByRole('button', { name: /save/i })
     await user.click(saveButton)
-    
+
     expect(mockStore.saveFile).toHaveBeenCalledWith('test-file-1')
   })
 
@@ -126,12 +128,12 @@ describe('Toolbar Component', () => {
       ...mockStore,
       activeFileId: 'test-file-1',
     })
-    
+
     render(<Toolbar />)
-    
+
     const closeButton = screen.getByRole('button', { name: /close/i })
     await user.click(closeButton)
-    
+
     expect(mockStore.closeFile).toHaveBeenCalledWith('test-file-1')
   })
 
@@ -140,15 +142,15 @@ describe('Toolbar Component', () => {
       ...mockStore,
       activeFileId: 'test-file-1',
     })
-    
+
     render(<Toolbar />)
-    
+
     expect(screen.getByTestId('editor-selector')).toBeInTheDocument()
   })
 
   test('does not show EditorSelector when no active file', () => {
     render(<Toolbar />)
-    
+
     expect(screen.queryByTestId('editor-selector')).not.toBeInTheDocument()
   })
 
@@ -157,23 +159,25 @@ describe('Toolbar Component', () => {
       ...mockStore,
       activeFileId: 'test-file-1',
     })
-    
+
     render(<Toolbar />)
-    
+
     expect(screen.getByText('File: test-file-1')).toBeInTheDocument()
   })
 
   test('does not display file ID when no file is open', () => {
     render(<Toolbar />)
-    
+
     expect(screen.queryByText(/File:/)).not.toBeInTheDocument()
   })
 
   test('renders icons correctly', () => {
     render(<Toolbar />)
-    
+
     // Check that icons are present (they should be SVG elements)
-    const icons = screen.getAllByRole('button').map(button => button.querySelector('svg'))
+    const icons = screen
+      .getAllByRole('button')
+      .map((button) => button.querySelector('svg'))
     expect(icons.filter(Boolean)).toHaveLength(4) // New, Open, Save, Close icons
   })
 })

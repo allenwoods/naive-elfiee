@@ -143,10 +143,7 @@ impl ElfileEngineActor {
                         .unwrap_or_default();
                     let _ = response.send(grants);
                 }
-                EngineMessage::GetBlockGrants {
-                    block_id,
-                    response,
-                } => {
+                EngineMessage::GetBlockGrants { block_id, response } => {
                     // Get all grants and filter those that apply to this block
                     let mut block_grants = Vec::new();
                     for (editor_id, grants) in self.state.grants.as_map() {
@@ -389,7 +386,8 @@ impl EngineHandle {
             return Err("Engine actor has shut down".to_string());
         }
 
-        rx.await.map_err(|_| "Engine actor did not respond".to_string())?
+        rx.await
+            .map_err(|_| "Engine actor did not respond".to_string())?
     }
 
     /// Shutdown the engine actor.

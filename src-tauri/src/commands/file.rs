@@ -227,7 +227,10 @@ pub async fn list_open_files(state: State<'_, AppState>) -> Result<Vec<String>, 
 /// * `Err(message)` - Error description if retrieval fails
 #[tauri::command]
 #[specta]
-pub async fn get_all_events(file_id: String, state: State<'_, AppState>) -> Result<Vec<crate::models::Event>, String> {
+pub async fn get_all_events(
+    file_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::models::Event>, String> {
     // Get engine handle
     let handle = state
         .engine_manager

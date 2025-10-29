@@ -12,6 +12,14 @@ import { create } from 'zustand'
 import type { Block, Editor, Grant, Event } from '@/bindings'
 import TauriClient from './tauri-client'
 
+// Concurrency control: Request version tracking for loadBlocks
+// Only the most recent request updates the state
+let loadBlocksRequestId = 0
+
+// Concurrency control: Loading operation counter
+// Tracks number of in-flight async operations
+let loadingOperations = 0
+
 interface FileState {
   fileId: string
   blocks: Block[]
@@ -104,7 +112,9 @@ interface AppStore {
     toId: string,
     relation: string
   ) => Promise<void>
-  getBlockLinks: (block: Block) => Array<{ relation: string; targetIds: string[] }>
+  getBlockLinks: (
+    block: Block
+  ) => Array<{ relation: string; targetIds: string[] }>
 
   // Getters
   getActiveFile: () => FileState | null
@@ -119,7 +129,10 @@ interface AppStore {
   // UI Actions
   setError: (error: string | null) => void
   clearError: () => void
-  addNotification: (type: 'error' | 'warning' | 'info' | 'success', message: string) => void
+  addNotification: (
+    type: 'error' | 'warning' | 'info' | 'success',
+    message: string
+  ) => void
   removeNotification: (id: string) => void
   clearAllNotifications: () => void
 }
@@ -231,15 +244,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   // Block Actions
   loadBlocks: async (fileId: string) => {
+    // Generate new request ID to track this specific request
+    const currentRequestId = ++loadBlocksRequestId
+
     try {
       set({ isLoading: true, error: null })
       const blocks = await TauriClient.block.getAllBlocks(fileId)
 
-      const files = new Map(get().files)
-      const fileState = files.get(fileId)
-      if (fileState) {
-        files.set(fileId, { ...fileState, blocks })
-        set({ files })
+      // ✅ Only update state if this is still the most recent request
+      // Prevents slow requests from overwriting newer data
+      if (currentRequestId === loadBlocksRequestId) {
+        const files = new Map(get().files)
+        const fileState = files.get(fileId)
+        if (fileState) {
+          files.set(fileId, { ...fileState, blocks })
+          set({ files })
+        }
       }
     } catch (error) {
       get().addNotification('error', String(error))
@@ -284,7 +304,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       console.log('[AppStore] Blocks loaded')
     } catch (error) {
       console.error('[AppStore] createBlock error:', error)
-      set({ error: String(error) })
+      get().addNotification('error', String(error))
     } finally {
       set({ isLoading: false })
     }
@@ -308,7 +328,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
         )
       }
 
-      await TauriClient.block.writeBlock(fileId, blockId, content.data, editorId)
+      await TauriClient.block.writeBlock(
+        fileId,
+        blockId,
+        content.data,
+        editorId
+      )
       await get().loadBlocks(fileId)
     } catch (error) {
       get().addNotification('error', String(error))
@@ -332,6 +357,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
 
       await TauriClient.block.deleteBlock(fileId, blockId, editorId)
+
+      // ✅ Clear selectedBlockId if deleting the currently selected block
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState && fileState.selectedBlockId === blockId) {
+        files.set(fileId, { ...fileState, selectedBlockId: null })
+        set({ files })
+      }
+
       await get().loadBlocks(fileId)
     } catch (error) {
       get().addNotification('error', String(error))
@@ -559,7 +593,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  writeBlockContent: async (fileId: string, blockId: string, content: string) => {
+  writeBlockContent: async (
+    fileId: string,
+    blockId: string,
+    content: string
+  ) => {
     try {
       set({ isLoading: true, error: null })
 
@@ -615,7 +653,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
         )
       }
 
-      await TauriClient.block.linkBlocks(fileId, fromId, toId, relation, editorId)
+      await TauriClient.block.linkBlocks(
+        fileId,
+        fromId,
+        toId,
+        relation,
+        editorId
+      )
       await get().loadBlocks(fileId)
     } catch (error) {
       get().addNotification('error', String(error))
@@ -643,7 +687,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
         )
       }
 
-      await TauriClient.block.unlinkBlocks(fileId, fromId, toId, relation, editorId)
+      await TauriClient.block.unlinkBlocks(
+        fileId,
+        fromId,
+        toId,
+        relation,
+        editorId
+      )
       await get().loadBlocks(fileId)
     } catch (error) {
       get().addNotification('error', String(error))
@@ -683,7 +733,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ error: null })
   },
 
-  addNotification: (type: 'error' | 'warning' | 'info' | 'success', message: string) => {
+  addNotification: (
+    type: 'error' | 'warning' | 'info' | 'success',
+    message: string
+  ) => {
     const notification: Notification = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       type,
