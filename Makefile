@@ -16,10 +16,10 @@ test-backend:
 	@echo "🦀 运行 Rust 测试..."
 	cd src-tauri && cargo test
 
-# 前端测试, 使用--run 避免不退出测试一直监控文件变更
+# 前端测试
 test-frontend:
 	@echo "⚛️ 运行前端测试..."
-	pnpm test --run
+	pnpm test:ci
 
 
 # 运行所有测试
