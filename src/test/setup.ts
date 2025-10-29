@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, vi } from 'vitest'
 import { clearMocks } from '@tauri-apps/api/mocks'
-import { randomFillSync } from 'crypto'
+import { randomFillSync } from 'node:crypto'
 import '@testing-library/jest-dom'
 import { useAppStore } from '@/lib/app-store'
-import type { Block, Editor, Event } from '@/bindings'
+import type { Block, Editor, Event, Grant } from '@/bindings'
 
 // Create mock invoke function using vi.hoisted to allow use in vi.mock
 // Note: We don't export this - instead, import 'invoke' from '@tauri-apps/api/core' in tests
@@ -87,6 +87,13 @@ export const createMockEvent = (overrides: Partial<Event> = {}): Event => ({
   attribute: 'test-editor-1/core.create',
   value: { name: 'Test Block' },
   timestamp: { 'test-editor-1': 1 },
+  ...overrides,
+})
+
+export const createMockGrant = (overrides: Partial<Grant> = {}): Grant => ({
+  editor_id: 'test-editor-1',
+  cap_id: 'markdown.write',
+  block_id: 'test-block-1',
   ...overrides,
 })
 
