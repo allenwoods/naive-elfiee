@@ -36,7 +36,7 @@ describe('AppStore - Block Operations', () => {
         events: []
       })
 
-      // Mock TauriClient command
+      // Mock backend command
       setupCommandMocks({
         getAllBlocks: mockBlocks
       })
@@ -97,7 +97,7 @@ describe('AppStore - Block Operations', () => {
         events: []
       })
 
-      // Mock TauriClient commands
+      // Mock backend commands
       setupCommandMocks({
         executeCommand: mockEvents,
         getAllBlocks: [createMockBlock({ block_id: blockId, name: blockName, block_type: blockType })]
@@ -182,7 +182,7 @@ describe('AppStore - Block Operations', () => {
         events: []
       })
 
-      // Mock TauriClient commands
+      // Mock backend commands
       setupCommandMocks({
         executeCommand: [createMockEvent({ entity: blockId, attribute: `${editorId}/markdown.write` })],
         getAllBlocks: [createMockBlock({ block_id: blockId, contents: { markdown: content.data } })]
@@ -240,7 +240,7 @@ describe('AppStore - Block Operations', () => {
         events: []
       })
 
-      // Mock TauriClient commands
+      // Mock backend commands
       setupCommandMocks({
         executeCommand: [createMockEvent({ entity: blockId, attribute: `${editorId}/markdown.write` })],
         getAllBlocks: [createMockBlock({ block_id: blockId, contents: { markdown: content } })]
@@ -297,7 +297,7 @@ describe('AppStore - Block Operations', () => {
         events: []
       })
 
-      // Mock TauriClient commands
+      // Mock backend commands
       setupCommandMocks({
         executeCommand: [createMockEvent({ entity: blockId, attribute: `${editorId}/core.delete` })],
         getAllBlocks: [] // Block deleted, no blocks remaining
@@ -388,7 +388,7 @@ describe('AppStore - Block Operations', () => {
       const blockId = TEST_BLOCK_ID
       const content = '# Hello World'
 
-      // Mock TauriClient command
+      // Mock backend command
       setupCommandMocks({
         getBlock: createMockBlock({ 
           block_id: blockId, 
@@ -443,7 +443,7 @@ describe('AppStore - Block Operations', () => {
         events: []
       })
 
-      // Mock TauriClient commands
+      // Mock backend commands
       setupCommandMocks({
         executeCommand: [createMockEvent({ entity: fromId, attribute: `${editorId}/core.link` })],
         getAllBlocks: [
@@ -520,7 +520,7 @@ describe('AppStore - Block Operations', () => {
         events: []
       })
 
-      // Mock TauriClient commands
+      // Mock backend commands
       setupCommandMocks({
         executeCommand: [createMockEvent({ entity: fromId, attribute: `${editorId}/core.unlink` })],
         getAllBlocks: [

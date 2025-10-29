@@ -419,7 +419,7 @@ Project status and implementation roadmap:
 
 ### Critical Reading
 
-**Before creating any capability**: Read `docs/guides/EXTENSION_DEVELOPMENT.md` (Payload Types section) and `docs/guides/FRONTEND_DEVELOPMENT.md` (Capability Payload Types section) to avoid frontend-backend type mismatches.
+**Before creating any extension (block_type & capability)**: Read `docs/guides/EXTENSION_DEVELOPMENT.md` (Payload Types section) and `docs/guides/FRONTEND_DEVELOPMENT.md` (Capability Payload Types section) to avoid frontend-backend type mismatches.
 
 **Before editing `src/bindings.ts`**: DON'T! Read "TypeScript Bindings Generation" section above. This file is auto-generated.
 

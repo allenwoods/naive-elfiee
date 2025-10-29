@@ -37,7 +37,7 @@ describe('AppStore - Editor Operations', () => {
         events: []
       })
 
-      // Mock TauriClient commands
+      // Mock backend commands
       setupCommandMocks({
         listEditors: mockEditors,
         getActiveEditor: activeEditorId
@@ -97,7 +97,7 @@ describe('AppStore - Editor Operations', () => {
         events: []
       })
 
-      // Mock TauriClient command
+      // Mock backend command
       setupCommandMocks({
         createEditor: mockEditor,
         listEditors: [mockEditor]
@@ -156,7 +156,7 @@ describe('AppStore - Editor Operations', () => {
         events: []
       })
 
-      // Mock TauriClient command
+      // Mock backend command
       setupCommandMocks({
         setActiveEditor: null
       })
@@ -225,7 +225,7 @@ describe('AppStore - Editor Operations', () => {
         events: []
       })
 
-      // Mock TauriClient command
+      // Mock backend command
       setupCommandMocks({
         listGrants: mockGrants
       })
@@ -289,7 +289,7 @@ describe('AppStore - Editor Operations', () => {
         events: []
       })
 
-      // Mock TauriClient commands
+      // Mock backend commands
       setupCommandMocks({
         executeCommand: mockEvents,
         listGrants: [createMockGrant({ 
@@ -360,7 +360,7 @@ describe('AppStore - Editor Operations', () => {
         events: []
       })
 
-      // Mock TauriClient commands
+      // Mock backend commands
       setupCommandMocks({
         executeCommand: mockEvents,
         listGrants: [] // Grant revoked, no grants remaining
@@ -428,7 +428,7 @@ describe('AppStore - Editor Operations', () => {
         events: []
       })
 
-      // Mock TauriClient command
+      // Mock backend command
       setupCommandMocks({
         getAllEvents: mockEvents
       })

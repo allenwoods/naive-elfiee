@@ -28,7 +28,7 @@ describe('AppStore - File Operations', () => {
       const { save } = await import('@tauri-apps/plugin-dialog')
       vi.mocked(save).mockResolvedValue('/test/path.elf')
 
-      // Mock TauriClient commands
+      // Mock backend commands
       setupCommandMocks({
         createFile: fileId,
         listEditors: mockEditors,
@@ -95,7 +95,7 @@ describe('AppStore - File Operations', () => {
       const { open } = await import('@tauri-apps/plugin-dialog')
       vi.mocked(open).mockResolvedValue('/test/path.elf')
 
-      // Mock TauriClient commands
+      // Mock backend commands
       setupCommandMocks({
         openFile: fileId,
         listEditors: mockEditors,
@@ -176,7 +176,7 @@ describe('AppStore - File Operations', () => {
       })
       store.activeFileId = fileId
 
-      // Mock TauriClient command
+      // Mock backend command
       setupCommandMocks({
         closeFile: null
       })
@@ -206,7 +206,7 @@ describe('AppStore - File Operations', () => {
       })
       store.activeFileId = fileId
 
-      // Mock TauriClient command
+      // Mock backend command
       setupCommandMocks({
         closeFile: null
       })
@@ -263,7 +263,7 @@ describe('AppStore - File Operations', () => {
         events: []
       })
 
-      // Mock TauriClient command
+      // Mock backend command
       setupCommandMocks({
         saveFile: null
       })
