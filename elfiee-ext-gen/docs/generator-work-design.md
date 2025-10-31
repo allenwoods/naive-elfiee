@@ -214,7 +214,7 @@ elfiee-ext-gen/
 ├── rules/                      # 规则文件
 │   ├── error_patterns.yaml
 │   ├── next_steps.yaml
-│   └── test_dependencies.yaml
+│   └── test_dependencies.yaml   # 后续计划：仅作兜底，默认使用自动依赖推断
 └── tests/                      # 集成测试
     ├── integration_test.rs
     └── fixtures/

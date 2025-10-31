@@ -1487,6 +1487,9 @@ elfiee-ext-gen validate todo  # 验证通过
 - [ ] API 文档生成
 - [ ] 用户指南编写
 - [ ] 发布准备
+  - [ ] 支持 `cargo install --path elfiee-ext-gen` 的安装体验
+  - [ ] 提供 CLI 自动定位项目根目录/路径的改进方案
+  - [ ] 准备发布到 crates.io（可选）并在 README 中加入全局命令用法示例
 
 ---
 

@@ -1,0 +1,20 @@
+# Next-step guidance rules used by GuideGenerator (phase 2.5 baseline data)
+#
+# Each entry maps an analyzer category to a human-readable suggestion.
+
+steps:
+  todo_marker:
+    priority: 1
+    message: "Replace the todo!() marker with the actual implementation logic."
+  payload_field_missing:
+    priority: 1
+    message: "Add the missing field to the payload struct and rerun the tests."
+  payload_deserialize_error:
+    priority: 2
+    message: "Ensure the payload structure matches the expected schema before deserialization."
+  missing_block:
+    priority: 2
+    message: "This capability requires a block. Verify the command supplies a valid block_id."
+  authorization_error:
+    priority: 2
+    message: "Grant the required capability or adjust CBAC rules for the editor."

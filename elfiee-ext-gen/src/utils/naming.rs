@@ -16,7 +16,42 @@
 /// assert_eq!(to_snake_case("already_snake"), "already_snake");
 /// ```
 pub fn to_snake_case(s: &str) -> String {
-    todo!("Implement to_snake_case")
+    let mut result = String::new();
+    let mut chars = s.chars().peekable();
+    let mut prev_was_lowercase = false;
+    let mut prev_was_underscore = false;
+
+    while let Some(ch) = chars.next() {
+        if ch == '_' || ch == '-' {
+            if !result.is_empty() && !prev_was_underscore {
+                result.push('_');
+                prev_was_underscore = true;
+            }
+            prev_was_lowercase = false;
+            continue;
+        }
+
+        if ch.is_uppercase() {
+            // Insert underscore before uppercase if:
+            // 1. Not at start AND
+            // 2. Previous was lowercase OR
+            // 3. Next char is lowercase (for handling HTTPRequest -> http_request)
+            if !result.is_empty() && !prev_was_underscore {
+                if prev_was_lowercase || chars.peek().map_or(false, |c| c.is_lowercase()) {
+                    result.push('_');
+                }
+            }
+            result.push(ch.to_lowercase().next().unwrap());
+            prev_was_lowercase = false;
+            prev_was_underscore = false;
+        } else {
+            result.push(ch);
+            prev_was_lowercase = ch.is_lowercase();
+            prev_was_underscore = false;
+        }
+    }
+
+    result
 }
 
 /// Convert a string to PascalCase.
@@ -30,10 +65,30 @@ pub fn to_snake_case(s: &str) -> String {
 /// assert_eq!(to_pascal_case("AlreadyPascal"), "AlreadyPascal");
 /// ```
 pub fn to_pascal_case(s: &str) -> String {
-    todo!("Implement to_pascal_case")
+    let mut result = String::new();
+    let mut capitalize_next = true;
+
+    for ch in s.chars() {
+        if ch == '_' || ch == '-' || ch.is_whitespace() {
+            capitalize_next = true;
+            continue;
+        }
+
+        if capitalize_next {
+            result.push(ch.to_uppercase().next().unwrap());
+            capitalize_next = false;
+        } else {
+            result.push(ch);
+        }
+    }
+
+    result
 }
 
 /// Convert a string to camelCase.
+///
+/// # Note
+/// Currently unused in generator - reserved for potential frontend code generation.
 ///
 /// # Examples
 /// ```
@@ -42,11 +97,26 @@ pub fn to_pascal_case(s: &str) -> String {
 /// assert_eq!(to_camel_case("todo_add_item"), "todoAddItem");
 /// assert_eq!(to_camel_case("http_request"), "httpRequest");
 /// ```
+#[allow(dead_code)]
 pub fn to_camel_case(s: &str) -> String {
-    todo!("Implement to_camel_case")
+    let pascal = to_pascal_case(s);
+    if pascal.is_empty() {
+        return pascal;
+    }
+
+    // Convert first character to lowercase
+    let mut chars = pascal.chars();
+    let first = chars.next().unwrap();
+    let rest: String = chars.collect();
+
+    format!("{}{}", first.to_lowercase(), rest)
 }
 
 /// Convert a capability ID to a Capability struct name.
+///
+/// # Note
+/// Currently unused - generator uses `to_pascal_case` directly to avoid duplication.
+/// Reserved for potential use in capability registration code generation.
 ///
 /// # Examples
 /// ```
@@ -61,8 +131,16 @@ pub fn to_camel_case(s: &str) -> String {
 ///     "MarkdownWriteCapability"
 /// );
 /// ```
+#[allow(dead_code)]
 pub fn capability_to_struct_name(cap_id: &str) -> String {
-    todo!("Implement capability_to_struct_name")
+    // Split by '.' and convert each part to PascalCase
+    let parts: Vec<&str> = cap_id.split('.').collect();
+    let pascal_parts: Vec<String> = parts
+        .iter()
+        .map(|part| to_pascal_case(part))
+        .collect();
+
+    format!("{}Capability", pascal_parts.join(""))
 }
 
 #[cfg(test)]

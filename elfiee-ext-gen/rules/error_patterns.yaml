@@ -1,0 +1,23 @@
+# Error patterns for test failure analysis
+# Used by TestAnalyzer to match test failures and provide hints
+
+patterns:
+  - pattern: 'not yet implemented: (.+)'
+    category: todo_marker
+    hint: "Remove the todo!() marker and implement the functionality"
+
+  - pattern: 'missing field `(\w+)`'
+    category: payload_field_missing
+    hint: "Add the missing field to the Payload struct definition"
+
+  - pattern: 'Failed to deserialize payload: (.+)'
+    category: payload_deserialize_error
+    hint: "Check that the payload structure matches the expected schema"
+
+  - pattern: 'Block required for (.+)'
+    category: missing_block
+    hint: "This capability requires a block to operate on"
+
+  - pattern: 'Authorization failed'
+    category: authorization_error
+    hint: "Check CBAC grants - ensure the editor has the required capability grant"

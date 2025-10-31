@@ -51,7 +51,7 @@ pub fn run() {
             // NOTE: When adding a new extension with payload types, register them here.
             // TODO: Consider automating this with a macro if extensions grow beyond ~10
             // Core payload types (used by builtin capabilities)
-            .typ::<models::CreateBlockPayload>()
+.typ::<models::CreateBlockPayload>()
             .typ::<models::LinkBlockPayload>()
             .typ::<models::UnlinkBlockPayload>()
             .typ::<models::GrantPayload>()
