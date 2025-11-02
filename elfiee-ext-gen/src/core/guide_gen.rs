@@ -111,7 +111,18 @@ impl GuideGenerator {
         // Failures section
         if !report.failing.is_empty() {
             output.push_str("🔴 Failures:\n");
-            for failure in &report.failing {
+
+            let mut failing = report.failing.clone();
+            failing.sort_by_key(|failure| {
+                failure
+                    .matched_pattern
+                    .as_ref()
+                    .and_then(|pattern| self.next_steps.get(&pattern.category))
+                    .map(|rule| rule.priority)
+                    .unwrap_or(usize::MAX)
+            });
+
+            for failure in &failing {
                 output.push_str(&format!("\n  Test: {}\n", failure.test_name));
 
                 if let Some(loc) = &failure.file_location {

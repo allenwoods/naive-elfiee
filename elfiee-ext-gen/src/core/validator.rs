@@ -224,6 +224,9 @@ impl Validator {
                 if path.file_name().and_then(|s| s.to_str()) == Some("mod.rs") {
                     continue;
                 }
+                if path.file_name().and_then(|s| s.to_str()) == Some("tests.rs") {
+                    continue;
+                }
                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                     let struct_name = format!("{}Capability", to_pascal_case(stem));
                     expected_capabilities.push(struct_name);
