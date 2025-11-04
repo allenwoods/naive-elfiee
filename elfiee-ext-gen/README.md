@@ -75,9 +75,9 @@ src/extensions/markdown/
 ```bash
 # 创建一个组件扩展，保留授权测试、关闭工作流测试
 elfiee-ext-gen create \
-  -n my_component \
-  -b component \
-  -c render,update \
+  -n markdown \
+  -b markdown \
+  -c read,write \
   --with-workflow-tests=false
 ```
 
@@ -289,7 +289,7 @@ elfiee-ext-gen validate my_ext
 
 - 在 `elfiee-ext-gen/rules/error_patterns.yaml` 中添加新的编译/测试错误正则，指定分类与提示。
 - 在 `elfiee-ext-gen/rules/next_steps.yaml` 中为分类配置优先级与下一步操作。
-- 若某个扩展需要额外的测试依赖关系，可在 `src-tauri/src/extensions/<extension_name>/test_dependencies.yaml` 定义自有规则，添加`guide` 自动合并项目级与扩展级配置的逻辑。
+- 若某个扩展需要额外的测试依赖关系，可在 `src-tauri/src/extensions/<extension_name>/test_dependencies.yaml` 定义自有规则，添加`guide` 自动合并项目级与扩展级配置的逻辑（未实现）。
 
 ### 自定义字段推断
 
