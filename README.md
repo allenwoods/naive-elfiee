@@ -270,3 +270,11 @@ To ensure each commit runs `make fmt` automatically, the repository ships with a
 2. After that, every `git commit` will invoke `make fmt`. If formatting adjusts files, the hook prints a reminder so you can review, stage the changes, and re-run the commit.
 
 The hook temporarily stashes unstaged changes (using `git stash --keep-index` semantics) so partially staged files are formatted safely. Your workspace is restored at the end of the hook run—if Git reports a conflict while restoring, manually run `git stash pop` to recover the saved changes.
+
+### Extension Generator
+
+The Rust-based extension generator lives in `elfiee-ext-gen/` and ships with its own README covering TDD workflows, CLI usage, and customization points. See:
+
+- `elfiee-ext-gen/README.md`
+
+Use it to scaffold extensions, follow guide-driven development, and validate registry registrations. The generator README also documents advanced customization (template overrides, Guide rules, validator hooks).
