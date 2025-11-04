@@ -7,3 +7,4 @@
 ///
 /// - `markdown`: Read and write markdown content to markdown blocks
 pub mod markdown;
+pub mod directory;
