@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# Abort on any error
+set -e
+
+cleanup() {
+    rm -f /tmp/elfiee-make-fmt.log
+}
+
+trap cleanup EXIT
+
+echo "🛠  Running make fmt before commit..."
+
+if ! make fmt >/tmp/elfiee-make-fmt.log 2>&1; then
+    cat /tmp/elfiee-make-fmt.log
+    echo "❌ make fmt failed. Please fix the issues above."
+    exit 1
+fi
+
+if ! git diff --quiet; then
+    echo "✨ make fmt applied formatting changes."
+    echo "👉 Please review, stage, and re-run git commit."
+    exit 1
+fi
+
+echo "✅ Formatting check passed."
