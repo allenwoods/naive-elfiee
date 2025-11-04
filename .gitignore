@@ -161,3 +161,4 @@ lerna-debug.log*
 elfiee-ext-gen/docs/
 docs/analyze/
 temp/
+**/temp/
