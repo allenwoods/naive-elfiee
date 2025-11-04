@@ -6,6 +6,7 @@
  */
 
 import { open, save } from '@tauri-apps/plugin-dialog'
+
 import {
   commands,
   type Block,
@@ -19,8 +20,8 @@ import {
   type UnlinkBlockPayload,
   type GrantPayload,
   type RevokePayload,
+  type FileEntry,
 } from '@/bindings'
-
 /**
  * Default editor ID for single-user MVP
  */
@@ -92,6 +93,9 @@ export class FileOperations {
     }
 
     const result = await commands.openFile(filePath)
+    const listOpenFiles = await commands.listOpenFiles()
+    console.log('[TauriClient] listOpenFiles:', listOpenFiles)
+    console.log('[TauriClient] openFile result:', result)
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -209,6 +213,24 @@ export class BlockOperations {
    */
   static async getAllBlocks(fileId: string): Promise<Block[]> {
     const result = await commands.getAllBlocks(fileId)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * List files in a block's asset directory
+   * @param fileId - Unique identifier of the file
+   * @param blockId - Unique identifier of the block
+   * @returns List of file and directory names
+   */
+  static async listBlockFiles(
+    fileId: string,
+    blockId: string,
+  ): Promise<string[]> {
+    const result = await commands.listBlockFiles(fileId, blockId)
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -552,6 +574,7 @@ export const TauriClient = {
   block: BlockOperations,
   editor: EditorOperations,
 }
+
 
 // Re-export types from bindings for convenience
 export type { Block, Command, Event, Editor, Grant }

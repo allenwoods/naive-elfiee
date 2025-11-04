@@ -12,21 +12,21 @@ import { Toolbar } from '@/components/Toolbar'
 import { BlockList } from '@/components/BlockList'
 import { BlockEditor } from '@/components/BlockEditor'
 import { EventViewer } from '@/components/EventViewer'
+import { Terminal } from '@/components/Terminal'
 import { Button } from '@/components/ui/button'
 import { Toaster } from '@/components/ui/toaster'
 import { Toaster as SonnerToaster } from '@/components/ui/sonner'
 
-type TabType = 'editor' | 'events'
+type TabType = 'editor' | 'events' | 'terminal'
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('editor')
-
   return (
     <div className="bg-background text-foreground flex h-screen flex-col">
       <Toolbar />
       <Toaster />
       <div className="flex flex-1 overflow-hidden">
-        {/* Left side: Block List */}
+        {/* Left side: Block List */} 
         <div className="w-1/3 border-r">
           <BlockList />
         </div>
@@ -49,11 +49,20 @@ function App() {
             >
               Events
             </Button>
+            <Button
+              variant={activeTab === 'terminal' ? 'default' : 'ghost'}
+              onClick={() => setActiveTab('terminal')}
+              className="rounded-none"
+            >
+              Terminal
+            </Button>
           </div>
 
           {/* Tab Content */}
           <div className="flex-1">
-            {activeTab === 'editor' ? <BlockEditor /> : <EventViewer />}
+            {activeTab === 'editor' && <BlockEditor />}
+            {activeTab === 'events' && <EventViewer />}
+            {activeTab === 'terminal' && <Terminal />}
           </div>
         </div>
       </div>

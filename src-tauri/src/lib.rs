@@ -34,6 +34,7 @@ pub fn run() {
                 commands::block::execute_command,
                 commands::block::get_block,
                 commands::block::get_all_blocks,
+                commands::block::list_block_files,
                 // Editor operations
                 commands::editor::create_editor,
                 commands::editor::list_editors,
@@ -44,6 +45,7 @@ pub fn run() {
                 commands::editor::list_grants,
                 commands::editor::get_editor_grants,
                 commands::editor::get_block_grants,
+
             ])
             // Explicitly export payload types for frontend type generation
             // These types are used inside Command.payload but not in Tauri command signatures,
@@ -58,7 +60,8 @@ pub fn run() {
             .typ::<models::RevokePayload>()
             .typ::<models::EditorCreatePayload>()
             // Extension payload types
-            .typ::<extensions::markdown::MarkdownWritePayload>();
+            .typ::<extensions::markdown::MarkdownWritePayload>()
+            .typ::<extensions::terminal::TerminalExecutePayload>();
 
         // Export TypeScript bindings on app startup
         #[cfg(debug_assertions)]
@@ -86,6 +89,7 @@ pub fn run() {
         commands::block::execute_command,
         commands::block::get_block,
         commands::block::get_all_blocks,
+        commands::block::list_block_files,
         // Editor operations
         commands::editor::create_editor,
         commands::editor::list_editors,
