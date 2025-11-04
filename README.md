@@ -257,7 +257,9 @@ Therefore, the Elfiee App Interface is designed as a **decoupled GUI architectur
 
 The UI never modifies its local state directly. It is only responsible for rendering the latest state projection pushed to it by the Engine.
 
-## Git Hooks
+## Contribution
+
+### Git Hooks
 
 To ensure each commit runs `make fmt` automatically, the repository ships with a local pre-commit hook:
 
