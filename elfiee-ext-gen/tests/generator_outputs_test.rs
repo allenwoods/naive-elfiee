@@ -69,8 +69,7 @@ fn test_generate_extension_produces_expected_structure() {
 #[test]
 fn test_generate_extension_returns_next_steps() {
     let generator = Generator::new().expect("generator should initialize with bundled templates");
-    let config =
-        ExtensionConfig::new("markdown", "markdown", vec!["write".into(), "read".into()]);
+    let config = ExtensionConfig::new("markdown", "markdown", vec!["write".into(), "read".into()]);
 
     let generated = generator
         .generate_extension(&config)

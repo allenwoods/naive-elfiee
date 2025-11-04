@@ -28,6 +28,9 @@ regex = "1"
 # File operations
 walkdir = "2"
 
+# AST parsing
+syn = { version = "2", features = ["full", "visit"] }
+
 # Terminal UI
 colored = "2"
 

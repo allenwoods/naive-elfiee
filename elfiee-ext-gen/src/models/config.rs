@@ -1,7 +1,6 @@
 /// Configuration model for Extension generation.
 ///
 /// This module defines the structure and validation rules for extension configurations.
-
 use serde::{Deserialize, Serialize};
 
 /// Extension configuration structure.

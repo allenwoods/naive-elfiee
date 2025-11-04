@@ -1,7 +1,6 @@
 /// File operation utilities for extension generation.
 ///
 /// This module provides safe file system operations with proper error handling.
-
 use std::fs;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;

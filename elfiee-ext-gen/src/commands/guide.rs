@@ -31,10 +31,10 @@ impl GuideCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::{capture_original_dir, restore_original_dir, test_lock};
     use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
-    use crate::test_support::{capture_original_dir, restore_original_dir, test_lock};
     use tempfile::TempDir;
 
     fn copy_dir_recursive(src: &Path, dst: &Path) {

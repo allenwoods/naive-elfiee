@@ -30,10 +30,7 @@ impl ValidateCommand {
 
         let report = Validator::validate_extension(&extension_path);
         if !report.failed.is_empty() {
-            return Err(format!(
-                "validation failed: {}",
-                report.failed.join(", ")
-            ));
+            return Err(format!("validation failed: {}", report.failed.join(", ")));
         }
 
         Ok(ValidateResult {
@@ -47,10 +44,10 @@ impl ValidateCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::{capture_original_dir, restore_original_dir, test_lock};
     use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
-    use crate::test_support::{capture_original_dir, restore_original_dir, test_lock};
     use tempfile::TempDir;
 
     fn copy_dir_recursive(src: &Path, dst: &Path) {
@@ -146,7 +143,10 @@ pub struct TodoAddItemCapability;
         };
 
         let result = cmd.execute();
-        assert!(result.is_err(), "expected validation to fail for missing extension");
+        assert!(
+            result.is_err(),
+            "expected validation to fail for missing extension"
+        );
 
         restore_original_dir(original_dir);
     }
@@ -169,11 +169,7 @@ pub struct TodoAddItemCapability;
         assert!(result.is_ok(), "expected validation to succeed");
 
         let ValidateResult { failed, .. } = result.unwrap();
-        assert!(
-            failed.is_empty(),
-            "expected no failures, got: {:?}",
-            failed
-        );
+        assert!(failed.is_empty(), "expected no failures, got: {:?}", failed);
 
         restore_original_dir(original_dir);
     }

@@ -1,7 +1,6 @@
 /// Template engine for generating extension files.
 ///
 /// Following generator-dev-plan.md Phase 2.1
-
 use crate::models::config::ExtensionConfig;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -50,7 +49,6 @@ impl Generator {
     /// ```
     pub fn new() -> Result<Self, String> {
         // Try current working directory first, then fall back to manifest directory.
-        let mut last_error = None;
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
 
         let mut bases = Vec::new();
@@ -61,9 +59,12 @@ impl Generator {
             }
         }
 
+        let mut attempts: Vec<String> = Vec::new();
+
         for base in bases {
             let template_root = base.join("templates");
             if !template_root.exists() {
+                attempts.push(format!("{} (directory not found)", template_root.display()));
                 continue;
             }
 
@@ -73,15 +74,21 @@ impl Generator {
             match Tera::new(&pattern_str) {
                 Ok(tera) => return Ok(Self { tera }),
                 Err(err) => {
-                    last_error = Some(format!(
-                        "Failed to load templates from {}: {}",
-                        pattern_str, err
-                    ));
+                    attempts.push(format!("{} (failed to load: {})", pattern_str, err));
                 }
             }
         }
 
-        Err(last_error.unwrap_or_else(|| "No template directory found".to_string()))
+        let details = if attempts.is_empty() {
+            "No template directory found.".to_string()
+        } else {
+            format!(
+                "No template directory found. Searched:\n  - {}",
+                attempts.join("\n  - ")
+            )
+        };
+
+        Err(details)
     }
 
     /// Generate all extension files.
@@ -104,7 +111,7 @@ impl Generator {
     /// assert!(result.files.len() > 0);
     /// ```
     pub fn generate_extension(&self, config: &ExtensionConfig) -> Result<GeneratedFiles, String> {
-        use crate::utils::naming::{to_snake_case, to_pascal_case};
+        use crate::utils::naming::{to_pascal_case, to_snake_case};
 
         let context = self.prepare_context(config);
         let mut files = HashMap::new();
@@ -120,8 +127,10 @@ impl Generator {
             cap_context.insert("capability_id", cap_id);
             cap_context.insert("capability_id_snake", &to_snake_case(cap_id));
             // Same as in prepare_context: struct name without suffix
-            cap_context.insert("capability_struct_name",
-                &to_pascal_case(&format!("{}_{}", config.name, cap_id)));
+            cap_context.insert(
+                "capability_struct_name",
+                &to_pascal_case(&format!("{}_{}", config.name, cap_id)),
+            );
 
             let cap_content = self.render_template("capability.rs.tera", &cap_context)?;
             let cap_path = PathBuf::from(format!(
@@ -135,25 +144,32 @@ impl Generator {
 
         // Generate DEVELOPMENT_GUIDE.md
         let guide_content = self.render_template("DEVELOPMENT_GUIDE.md.tera", &context)?;
-        let guide_path = PathBuf::from(format!("src-tauri/src/extensions/{}/DEVELOPMENT_GUIDE.md", config.name));
+        let guide_path = PathBuf::from(format!(
+            "src-tauri/src/extensions/{}/DEVELOPMENT_GUIDE.md",
+            config.name
+        ));
         files.insert(guide_path, guide_content);
 
         // Generate tests.rs
         let tests_content = self.render_template("tests.rs.tera", &context)?;
-        let tests_path = PathBuf::from(format!("src-tauri/src/extensions/{}/tests.rs", config.name));
+        let tests_path =
+            PathBuf::from(format!("src-tauri/src/extensions/{}/tests.rs", config.name));
         files.insert(tests_path, tests_content);
 
         // Prepare next steps
         let next_steps = vec![
             format!("Run: cargo test {}::tests", config.name),
-            format!("Edit: src-tauri/src/extensions/{}/mod.rs - Define Payload fields", config.name),
-            format!("Follow: src-tauri/src/extensions/{}/DEVELOPMENT_GUIDE.md", config.name),
+            format!(
+                "Edit: src-tauri/src/extensions/{}/mod.rs - Define Payload fields",
+                config.name
+            ),
+            format!(
+                "Follow: src-tauri/src/extensions/{}/DEVELOPMENT_GUIDE.md",
+                config.name
+            ),
         ];
 
-        Ok(GeneratedFiles {
-            files,
-            next_steps,
-        })
+        Ok(GeneratedFiles { files, next_steps })
     }
 
     /// Render a single template.
@@ -248,13 +264,11 @@ impl Generator {
                     reason: "New status".to_string(),
                 },
             ],
-            _ => vec![
-                FieldSuggestion {
-                    name: "data".to_string(),
-                    type_name: "serde_json::Value".to_string(),
-                    reason: "Generic data field - replace with specific fields".to_string(),
-                },
-            ],
+            _ => vec![FieldSuggestion {
+                name: "data".to_string(),
+                type_name: "serde_json::Value".to_string(),
+                reason: "Generic data field - replace with specific fields".to_string(),
+            }],
         }
     }
 }
@@ -272,7 +286,10 @@ mod tests {
     #[test]
     fn test_generator_new() {
         let generator = Generator::new();
-        assert!(generator.is_ok(), "Generator should initialize successfully");
+        assert!(
+            generator.is_ok(),
+            "Generator should initialize successfully"
+        );
     }
 
     // ========================================
@@ -285,9 +302,18 @@ mod tests {
         let generator = Generator::new().unwrap();
         let fields = generator.infer_fields("add_item");
 
-        assert!(!fields.is_empty(), "Should infer at least one field for 'add_item'");
-        assert!(fields.iter().any(|f| f.name == "text"), "Should suggest 'text' field");
-        assert!(fields.iter().any(|f| f.type_name == "String"), "Should suggest String type");
+        assert!(
+            !fields.is_empty(),
+            "Should infer at least one field for 'add_item'"
+        );
+        assert!(
+            fields.iter().any(|f| f.name == "text"),
+            "Should suggest 'text' field"
+        );
+        assert!(
+            fields.iter().any(|f| f.type_name == "String"),
+            "Should suggest String type"
+        );
     }
 
     #[test]
@@ -295,8 +321,14 @@ mod tests {
         let generator = Generator::new().unwrap();
         let fields = generator.infer_fields("toggle_item");
 
-        assert!(!fields.is_empty(), "Should infer at least one field for 'toggle_item'");
-        assert!(fields.iter().any(|f| f.name == "item_id"), "Should suggest 'item_id' field");
+        assert!(
+            !fields.is_empty(),
+            "Should infer at least one field for 'toggle_item'"
+        );
+        assert!(
+            fields.iter().any(|f| f.name == "item_id"),
+            "Should suggest 'item_id' field"
+        );
     }
 
     // ========================================
@@ -318,17 +350,45 @@ mod tests {
         let result = generator.generate_extension(&config).unwrap();
 
         // Should have 5 files: mod.rs + 2 capabilities + DEVELOPMENT_GUIDE.md + tests.rs
-        assert_eq!(result.files.len(), 5, "Should generate 5 files (including tests.rs)");
+        assert_eq!(
+            result.files.len(),
+            5,
+            "Should generate 5 files (including tests.rs)"
+        );
 
         // Verify mod.rs exists in HashMap
-        assert!(result.files.keys().any(|p| p.to_str().unwrap().ends_with("mod.rs")), "Should have mod.rs");
+        assert!(
+            result
+                .files
+                .keys()
+                .any(|p| p.to_str().unwrap().ends_with("mod.rs")),
+            "Should have mod.rs"
+        );
 
         // Verify capability files exist
-        assert!(result.files.keys().any(|p| p.to_str().unwrap().contains("todo_add_item.rs")), "Should have todo_add_item.rs");
-        assert!(result.files.keys().any(|p| p.to_str().unwrap().contains("todo_toggle_item.rs")), "Should have todo_toggle_item.rs");
+        assert!(
+            result
+                .files
+                .keys()
+                .any(|p| p.to_str().unwrap().contains("todo_add_item.rs")),
+            "Should have todo_add_item.rs"
+        );
+        assert!(
+            result
+                .files
+                .keys()
+                .any(|p| p.to_str().unwrap().contains("todo_toggle_item.rs")),
+            "Should have todo_toggle_item.rs"
+        );
 
         // Verify guide exists
-        assert!(result.files.keys().any(|p| p.to_str().unwrap().ends_with("DEVELOPMENT_GUIDE.md")), "Should have DEVELOPMENT_GUIDE.md");
+        assert!(
+            result
+                .files
+                .keys()
+                .any(|p| p.to_str().unwrap().ends_with("DEVELOPMENT_GUIDE.md")),
+            "Should have DEVELOPMENT_GUIDE.md"
+        );
     }
 
     #[test]
@@ -345,14 +405,21 @@ mod tests {
         let result = generator.generate_extension(&config).unwrap();
 
         // Find mod.rs content
-        let mod_content = result.files.iter()
+        let mod_content = result
+            .files
+            .iter()
             .find(|(path, _)| path.to_str().unwrap().ends_with("mod.rs"))
             .map(|(_, content)| content)
             .expect("mod.rs should exist");
 
-        assert!(mod_content.contains("TodoAddItemPayload"), "mod.rs should define TodoAddItemPayload");
-        assert!(mod_content.contains("#[derive(Debug, Clone, Serialize, Deserialize, Type)]"),
-                "Payload should have required derives");
+        assert!(
+            mod_content.contains("TodoAddItemPayload"),
+            "mod.rs should define TodoAddItemPayload"
+        );
+        assert!(
+            mod_content.contains("#[derive(Debug, Clone, Serialize, Deserialize, Type)]"),
+            "Payload should have required derives"
+        );
     }
 
     #[test]
@@ -369,15 +436,25 @@ mod tests {
         let result = generator.generate_extension(&config).unwrap();
 
         // Find capability file content
-        let cap_content = result.files.iter()
+        let cap_content = result
+            .files
+            .iter()
             .find(|(path, _)| path.to_str().unwrap().contains("todo_add_item.rs"))
             .map(|(_, content)| content)
             .expect("Capability file should exist");
 
-        assert!(cap_content.contains("todo!("), "Capability should have todo!() markers");
-        assert!(cap_content.contains("TODO:"), "Capability should have TODO comments");
-        assert!(cap_content.contains("#[capability(id = \"todo.add_item\""),
-                "Capability should have #[capability] macro");
+        assert!(
+            cap_content.contains("todo!("),
+            "Capability should have todo!() markers"
+        );
+        assert!(
+            cap_content.contains("TODO:"),
+            "Capability should have TODO comments"
+        );
+        assert!(
+            cap_content.contains("#[capability(id = \"todo.add_item\""),
+            "Capability should have #[capability] macro"
+        );
     }
 
     #[test]
@@ -393,10 +470,10 @@ mod tests {
 
         let result = generator.generate_extension(&config).unwrap();
 
-        let has_tests_file = result
-            .files
-            .keys()
-            .any(|p| p.to_string_lossy().ends_with("src-tauri/src/extensions/todo/tests.rs"));
+        let has_tests_file = result.files.keys().any(|p| {
+            p.to_string_lossy()
+                .ends_with("src-tauri/src/extensions/todo/tests.rs")
+        });
 
         assert!(
             has_tests_file,

@@ -1,12 +1,11 @@
 /// Intelligent guide generator based on test analysis.
 ///
 /// Following generator-dev-plan.md Phase 2.3 (line 650-742)
-
-use crate::core::analyzer::{AnalysisReport, TestAnalyzer};
+use crate::core::analyzer::{AnalysisReport, TestAnalyzer, TestFailure};
 use serde::Deserialize;
-use std::process::Command;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 // ============================================================================
 // Data Structures
@@ -26,6 +25,15 @@ struct NextStepRule {
 }
 
 impl GuideGenerator {
+    const CATEGORY_LABELS: &'static [(&'static str, &'static str)] = &[
+        ("payload", "Payload"),
+        ("functionality", "Functionality"),
+        ("authorization", "Authorization"),
+        ("workflow", "Workflow"),
+        ("types", "Types & Imports"),
+        ("other", "Other"),
+    ];
+
     /// Create a new GuideGenerator.
     ///
     /// # Arguments
@@ -137,7 +145,18 @@ impl GuideGenerator {
                     }
                 }
             }
-            output.push_str("\n");
+
+            let category_lines = Self::format_category_summary(&report.failing);
+            if !category_lines.is_empty() {
+                output.push('\n');
+                output.push_str("📚 Category Summary:\n");
+                for line in category_lines {
+                    output.push_str(&line);
+                    output.push('\n');
+                }
+            }
+
+            output.push('\n');
         }
 
         // Estimated time
@@ -176,6 +195,52 @@ impl GuideGenerator {
         let parsed: NextSteps = serde_yaml::from_str(&content)
             .map_err(|e| format!("Failed to parse next_steps.yaml: {}", e))?;
         Ok(parsed.steps)
+    }
+
+    fn format_category_summary(failures: &[TestFailure]) -> Vec<String> {
+        if failures.is_empty() {
+            return Vec::new();
+        }
+
+        let mut buckets: HashMap<&'static str, Vec<String>> = HashMap::new();
+
+        for failure in failures {
+            let category = failure
+                .matched_pattern
+                .as_ref()
+                .map(|pattern| pattern.category.as_str());
+            let key = Self::map_category(category);
+            buckets
+                .entry(key)
+                .or_insert_with(Vec::new)
+                .push(failure.test_name.clone());
+        }
+
+        let mut lines = Vec::new();
+        for (key, label) in Self::CATEGORY_LABELS {
+            match buckets.get(key) {
+                Some(names) if !names.is_empty() => lines.push(format!(
+                    "- ❌ {}: {} failing ({})",
+                    label,
+                    names.len(),
+                    names.join(", ")
+                )),
+                _ => lines.push(format!("- ✅ {}: all tests passing", label)),
+            }
+        }
+
+        lines
+    }
+
+    fn map_category(category: Option<&str>) -> &'static str {
+        match category {
+            Some("payload_field_missing") | Some("payload_deserialize_error") => "payload",
+            Some("handler_not_implemented") | Some("todo_marker") => "functionality",
+            Some("authorization_error") => "authorization",
+            Some("workflow_test_todo") => "workflow",
+            Some("missing_type") | Some("type_mismatch") | Some("ownership_error") => "types",
+            _ => "other",
+        }
     }
 
     /// Generate progress bar string.
@@ -231,21 +296,19 @@ mod tests {
         let report = AnalysisReport {
             total_tests: 10,
             passing: 7,
-            failing: vec![
-                TestFailure {
-                    test_name: "test_add_item".to_string(),
-                    error_message: "todo!()".to_string(),
-                    file_location: Some(FileLocation {
-                        file: "todo_add.rs".to_string(),
-                        line: 15,
-                    }),
-                    matched_pattern: Some(ErrorPattern {
-                        pattern: "todo".to_string(),
-                        category: "todo_marker".to_string(),
-                        hint: "Implement the function".to_string(),
-                    }),
-                },
-            ],
+            failing: vec![TestFailure {
+                test_name: "test_add_item".to_string(),
+                error_message: "todo!()".to_string(),
+                file_location: Some(FileLocation {
+                    file: "todo_add.rs".to_string(),
+                    line: 15,
+                }),
+                matched_pattern: Some(ErrorPattern {
+                    pattern: "todo".to_string(),
+                    category: "todo_marker".to_string(),
+                    hint: "Implement the function".to_string(),
+                }),
+            }],
             critical_path: vec![],
             estimated_time: Duration::from_secs(900),
         };
@@ -260,6 +323,8 @@ mod tests {
             formatted.contains("Replace the todo!() marker"),
             "Formatted guide should include next-step suggestion from rules/next_steps.yaml"
         );
+        assert!(formatted.contains("Category Summary"));
+        assert!(formatted.contains("❌ Functionality"));
     }
 
     // ========================================
@@ -301,8 +366,14 @@ mod tests {
                 eprintln!("   This test needs to run from elfiee project root");
                 panic!("Test must be run from elfiee project root with markdown extension");
             } else {
-                eprintln!("✅ Successfully captured test output: {} bytes", output.len());
-                assert!(output.contains("running"), "Output should show test execution");
+                eprintln!(
+                    "✅ Successfully captured test output: {} bytes",
+                    output.len()
+                );
+                assert!(
+                    output.contains("running"),
+                    "Output should show test execution"
+                );
             }
         } else {
             eprintln!("❌ Failed to run cargo test: {}", result.unwrap_err());

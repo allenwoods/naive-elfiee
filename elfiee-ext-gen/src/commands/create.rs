@@ -43,8 +43,29 @@ impl CreateCommand {
             .map(|s| s.to_string())
             .collect();
 
+        for cap in &capabilities {
+            let is_snake = cap
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+            let starts_with_digit = cap
+                .chars()
+                .next()
+                .map(|c| c.is_ascii_digit())
+                .unwrap_or(false);
+            if !is_snake || starts_with_digit {
+                return Err(format!(
+                    "invalid capability name '{}': must be snake_case (letters, digits, underscores)",
+                    cap
+                ));
+            }
+        }
+
         // Build configuration
-        let mut config = ExtensionConfig::new(self.name.clone(), self.block_type.clone(), capabilities.clone());
+        let mut config = ExtensionConfig::new(
+            self.name.clone(),
+            self.block_type.clone(),
+            capabilities.clone(),
+        );
         config.with_auth_tests = self.with_auth_tests;
         config.with_workflow_tests = self.with_workflow_tests;
 
@@ -130,7 +151,10 @@ mod tests {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         env::set_current_dir(temp.path()).unwrap();
 
-        copy_dir_recursive(&manifest_dir.join("templates"), &temp.path().join("templates"));
+        copy_dir_recursive(
+            &manifest_dir.join("templates"),
+            &temp.path().join("templates"),
+        );
         copy_dir_recursive(&manifest_dir.join("rules"), &temp.path().join("rules"));
         prepare_project_layout(&temp);
 
@@ -161,7 +185,10 @@ mod tests {
         env::set_current_dir(temp.path()).unwrap();
 
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        copy_dir_recursive(&manifest_dir.join("templates"), &temp.path().join("templates"));
+        copy_dir_recursive(
+            &manifest_dir.join("templates"),
+            &temp.path().join("templates"),
+        );
         copy_dir_recursive(&manifest_dir.join("rules"), &temp.path().join("rules"));
         prepare_project_layout(&temp);
 
@@ -178,6 +205,40 @@ mod tests {
         assert!(
             result.unwrap_err().contains("invalid"),
             "error message should mention invalid name"
+        );
+
+        restore_original_dir(original_dir);
+    }
+
+    #[test]
+    fn test_execute_invalid_capability_name() {
+        let _guard = test_lock().lock().unwrap();
+        let temp = TempDir::new().unwrap();
+        let original_dir = capture_original_dir();
+        env::set_current_dir(temp.path()).unwrap();
+
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        copy_dir_recursive(
+            &manifest_dir.join("templates"),
+            &temp.path().join("templates"),
+        );
+        copy_dir_recursive(&manifest_dir.join("rules"), &temp.path().join("rules"));
+        prepare_project_layout(&temp);
+
+        let cmd = CreateCommand {
+            name: "valid_name".to_string(),
+            block_type: "todo".to_string(),
+            capabilities: "invalid-cap".to_string(),
+            with_auth_tests: true,
+            with_workflow_tests: true,
+        };
+
+        let result = cmd.execute();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("invalid capability name"),
+            "error message should mention invalid capability name, got: {err}"
         );
 
         restore_original_dir(original_dir);
@@ -228,7 +289,10 @@ impl CreateCommand {
             let register_line = format!("        self.register(Arc::new({}));", struct_name);
             if !content.contains(&register_line) {
                 if let Some(pos) = content.rfind("self.register(") {
-                    let insert_pos = content[pos..].find('\n').map(|i| pos + i + 1).unwrap_or(content.len());
+                    let insert_pos = content[pos..]
+                        .find('\n')
+                        .map(|i| pos + i + 1)
+                        .unwrap_or(content.len());
                     content.insert_str(insert_pos, &format!("{}\n", register_line));
                 } else if let Some(pos) = content.find("fn register_extensions") {
                     if let Some(body_pos) = content[pos..].find('{') {

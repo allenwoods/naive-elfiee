@@ -1,10 +1,14 @@
 /// Extension code validator.
 ///
 /// Following generator-dev-plan.md Phase 2.4 (line 744-851)
-
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::utils::naming::to_pascal_case;
+use syn::visit::Visit;
+use syn::{
+    Expr, ExprMethodCall, ExprPath, File, ImplItem, Item, ItemMod, Type, UseTree, Visibility,
+};
 
 // ============================================================================
 // Data Structures
@@ -181,7 +185,10 @@ impl Validator {
     /// # Returns
     /// * `Ok(Vec<String>)` - List of registration checks passed
     /// * `Err(Vec<String>)` - List of registration issues
-    fn check_registration(extension_path: &Path, extension_name: &str) -> Result<Vec<String>, Vec<String>> {
+    fn check_registration(
+        extension_path: &Path,
+        extension_name: &str,
+    ) -> Result<Vec<String>, Vec<String>> {
         let mut passed = Vec::new();
         let mut errors = Vec::new();
 
@@ -195,17 +202,26 @@ impl Validator {
         // 1. extensions/mod.rs should export the module
         let extensions_mod = src_dir.join("extensions/mod.rs");
         match std::fs::read_to_string(&extensions_mod) {
-            Ok(content) => {
-                let expected = format!("pub mod {};", extension_name);
-                if content.contains(&expected) {
-                    passed.push(format!("extensions/mod.rs exports module `{}`", extension_name));
-                } else {
-                    errors.push(format!(
-                        "extensions/mod.rs missing `pub mod {}` declaration",
-                        extension_name
-                    ));
+            Ok(content) => match syn::parse_file(&content) {
+                Ok(parsed) => {
+                    if module_declared(&parsed, extension_name) {
+                        passed.push(format!(
+                            "extensions/mod.rs exports module `{}`",
+                            extension_name
+                        ));
+                    } else {
+                        errors.push(format!(
+                            "extensions/mod.rs missing `pub mod {}` declaration",
+                            extension_name
+                        ));
+                    }
                 }
-            }
+                Err(err) => errors.push(format!(
+                    "Failed to parse {}: {}",
+                    extensions_mod.display(),
+                    err
+                )),
+            },
             Err(e) => errors.push(format!(
                 "Failed to read {}: {}",
                 extensions_mod.display(),
@@ -237,40 +253,55 @@ impl Validator {
         // 2. capabilities/registry.rs: check use statement and register calls
         let registry_path = src_dir.join("capabilities/registry.rs");
         match std::fs::read_to_string(&registry_path) {
-            Ok(content) => {
-                let use_stmt = format!("use crate::extensions::{}::", extension_name);
-                if content.contains(&use_stmt) {
-                    passed.push(format!(
-                        "capabilities/registry.rs imports crate::extensions::{}",
-                        extension_name
-                    ));
-                } else {
-                    errors.push(format!(
-                        "capabilities/registry.rs missing `use crate::extensions::{}::*;` import",
-                        extension_name
-                    ));
-                }
+            Ok(content) => match syn::parse_file(&content) {
+                Ok(parsed) => {
+                    let analysis = analyze_registry(&parsed, extension_name);
 
-                for struct_name in &expected_capabilities {
-                    let register_call = format!("Arc::new({})", struct_name);
-                    if content.contains(&register_call) {
+                    if analysis.use_found {
                         passed.push(format!(
-                            "capabilities/registry.rs registers {}",
-                            struct_name
+                            "capabilities/registry.rs imports crate::extensions::{}::*",
+                            extension_name
                         ));
                     } else {
                         errors.push(format!(
-                            "capabilities/registry.rs missing registration for {}",
-                            struct_name
+                            "capabilities/registry.rs missing `use crate::extensions::{}::*;` import",
+                            extension_name
                         ));
                     }
+
+                    if !analysis.has_registry_impl {
+                        errors.push(
+                            "capabilities/registry.rs missing CapabilityRegistry implementation"
+                                .to_string(),
+                        );
+                    } else if !analysis.has_register_method {
+                        errors.push(
+                            "capabilities/registry.rs missing register_extensions method"
+                                .to_string(),
+                        );
+                    }
+
+                    for struct_name in &expected_capabilities {
+                        if analysis.registered_capabilities.contains(struct_name) {
+                            passed.push(format!(
+                                "capabilities/registry.rs registers {}",
+                                struct_name
+                            ));
+                        } else {
+                            errors.push(format!(
+                                "capabilities/registry.rs missing registration for {}",
+                                struct_name
+                            ));
+                        }
+                    }
                 }
-            }
-            Err(e) => errors.push(format!(
-                "Failed to read {}: {}",
-                registry_path.display(),
-                e
-            )),
+                Err(err) => errors.push(format!(
+                    "Failed to parse {}: {}",
+                    registry_path.display(),
+                    err
+                )),
+            },
+            Err(e) => errors.push(format!("Failed to read {}: {}", registry_path.display(), e)),
         }
 
         // 3. lib.rs should export Specta types for the extension
@@ -290,11 +321,7 @@ impl Validator {
                     ));
                 }
             }
-            Err(e) => errors.push(format!(
-                "Failed to read {}: {}",
-                lib_path.display(),
-                e
-            )),
+            Err(e) => errors.push(format!("Failed to read {}: {}", lib_path.display(), e)),
         }
 
         if errors.is_empty() {
@@ -331,6 +358,146 @@ impl Validator {
             Err(vec!["No test module found in mod.rs".to_string()])
         }
     }
+}
+
+/// Analysis result when examining `capabilities/registry.rs`.
+struct RegistryAnalysis {
+    use_found: bool,
+    has_registry_impl: bool,
+    has_register_method: bool,
+    registered_capabilities: HashSet<String>,
+}
+
+fn module_declared(file: &File, extension_name: &str) -> bool {
+    file.items.iter().any(|item| {
+        if let Item::Mod(ItemMod { ident, vis, .. }) = item {
+            ident == extension_name && matches!(vis, Visibility::Public(_))
+        } else {
+            false
+        }
+    })
+}
+
+fn analyze_registry(file: &File, extension_name: &str) -> RegistryAnalysis {
+    let mut use_found = false;
+    let mut has_registry_impl = false;
+    let mut has_register_method = false;
+    let mut registered_capabilities = HashSet::new();
+
+    for item in &file.items {
+        if let Item::Use(item_use) = item {
+            if use_tree_contains_extension_glob(&item_use.tree, extension_name, Vec::new()) {
+                use_found = true;
+            }
+        }
+
+        if let Item::Impl(item_impl) = item {
+            if item_impl.trait_.is_some() {
+                continue;
+            }
+
+            if let Type::Path(type_path) = &*item_impl.self_ty {
+                if type_path
+                    .path
+                    .segments
+                    .last()
+                    .map(|seg| seg.ident == "CapabilityRegistry")
+                    == Some(true)
+                {
+                    has_registry_impl = true;
+                    for impl_item in &item_impl.items {
+                        if let ImplItem::Fn(method) = impl_item {
+                            if method.sig.ident == "register_extensions" {
+                                has_register_method = true;
+                                let mut collector = RegisterCallCollector {
+                                    registered: &mut registered_capabilities,
+                                };
+                                collector.visit_block(&method.block);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    RegistryAnalysis {
+        use_found,
+        has_registry_impl,
+        has_register_method,
+        registered_capabilities,
+    }
+}
+
+fn use_tree_contains_extension_glob(
+    tree: &UseTree,
+    extension_name: &str,
+    prefix: Vec<String>,
+) -> bool {
+    match tree {
+        UseTree::Path(use_path) => {
+            let mut prefix = prefix;
+            prefix.push(use_path.ident.to_string());
+            use_tree_contains_extension_glob(&use_path.tree, extension_name, prefix)
+        }
+        UseTree::Group(group) => group
+            .items
+            .iter()
+            .any(|item| use_tree_contains_extension_glob(item, extension_name, prefix.clone())),
+        UseTree::Glob(_) => prefix == ["crate", "extensions", extension_name],
+        UseTree::Name(_) | UseTree::Rename(_) => false,
+    }
+}
+
+struct RegisterCallCollector<'a> {
+    registered: &'a mut HashSet<String>,
+}
+
+impl<'a, 'ast> Visit<'ast> for RegisterCallCollector<'a> {
+    fn visit_expr_method_call(&mut self, node: &'ast ExprMethodCall) {
+        if node.method == "register" {
+            if let Some(first_arg) = node.args.first() {
+                if let Some(name) = extract_capability_name(first_arg) {
+                    self.registered.insert(name);
+                }
+            }
+        }
+        syn::visit::visit_expr_method_call(self, node);
+    }
+}
+
+fn extract_capability_name(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Call(call) => {
+            if is_arc_new(call.func.as_ref()) {
+                call.args.first().and_then(|arg| match arg {
+                    Expr::Path(path) => path.path.segments.last().map(|seg| seg.ident.to_string()),
+                    Expr::Struct(expr_struct) => expr_struct
+                        .path
+                        .segments
+                        .last()
+                        .map(|seg| seg.ident.to_string()),
+                    _ => None,
+                })
+            } else {
+                None
+            }
+        }
+        Expr::Path(path) => path.path.segments.last().map(|seg| seg.ident.to_string()),
+        _ => None,
+    }
+}
+
+fn is_arc_new(expr: &Expr) -> bool {
+    if let Expr::Path(ExprPath { path, .. }) = expr {
+        if path.segments.len() == 2 {
+            let mut iter = path.segments.iter();
+            if let (Some(first), Some(second)) = (iter.next(), iter.next()) {
+                return first.ident == "Arc" && second.ident == "new";
+            }
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -466,9 +633,9 @@ mod tests {
 use crate::extensions::{ext}::*;
 use std::sync::Arc;
 
-pub struct Registry;
+pub struct CapabilityRegistry;
 
-impl Registry {{
+impl CapabilityRegistry {{
     pub fn register_extensions(&mut self) {{
         self.register(Arc::new({struct_name}));
     }}
@@ -507,7 +674,11 @@ fn register_types(builder: &mut Vec<String>) {{
         );
 
         let result = Validator::check_registration(&extension_path, "todo");
-        assert!(result.is_ok(), "expected registration checks to pass: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "expected registration checks to pass: {:?}",
+            result
+        );
     }
 
     #[test]

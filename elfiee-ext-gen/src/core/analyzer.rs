@@ -1,7 +1,6 @@
 /// Test output analyzer for intelligent guidance.
 ///
 /// Following generator-dev-plan.md Phase 2.2
-
 use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashSet;
@@ -31,7 +30,7 @@ pub struct TestFailure {
 #[derive(Debug, Clone)]
 pub struct FileLocation {
     pub file: String,
-    pub line: usize,  // usize per dev-plan line 520
+    pub line: usize, // usize per dev-plan line 520
 }
 
 /// Error pattern loaded from YAML.
@@ -186,8 +185,7 @@ impl TestAnalyzer {
             };
 
             let raw_error = if raw_error.is_empty() {
-                Self::extract_panic_summary(output, &test_name)
-                    .unwrap_or_else(String::new)
+                Self::extract_panic_summary(output, &test_name).unwrap_or_else(String::new)
             } else {
                 raw_error
             };
@@ -269,13 +267,11 @@ impl TestAnalyzer {
         }
 
         // Sort by priority: tests with matched error patterns first
-        roots.sort_by_key(|f| {
-            match &f.matched_pattern {
-                Some(pattern) if pattern.category == "payload_field_missing" => 0,
-                Some(pattern) if pattern.category == "todo_marker" => 1,
-                Some(_) => 2,
-                None => 3,
-            }
+        roots.sort_by_key(|f| match &f.matched_pattern {
+            Some(pattern) if pattern.category == "payload_field_missing" => 0,
+            Some(pattern) if pattern.category == "todo_marker" => 1,
+            Some(_) => 2,
+            None => 3,
         });
 
         roots
@@ -289,7 +285,11 @@ impl TestAnalyzer {
     ///
     /// # Returns
     /// * Vec of failing dependency test names
-    fn get_dependencies_for_test(&self, test_name: &str, failing_names: &HashSet<String>) -> Vec<String> {
+    fn get_dependencies_for_test(
+        &self,
+        test_name: &str,
+        failing_names: &HashSet<String>,
+    ) -> Vec<String> {
         let mut dependencies = Vec::new();
 
         for pattern in &self.dependency_patterns {
@@ -456,23 +456,23 @@ thread 'todo::tests::test_add_item_basic' panicked at 'not yet implemented: Dese
     fn test_compute_critical_path() {
         with_analyzer(|analyzer| {
             let failures = vec![
-            TestFailure {
-                test_name: "test_add_item".to_string(),
-                error_message: "todo!()".to_string(),
-                file_location: None,
-                matched_pattern: Some(ErrorPattern {
-                    pattern: "todo".to_string(),
-                    category: "todo_marker".to_string(),
-                    hint: "Implement".to_string(),
-                }),
-            },
-            TestFailure {
-                test_name: "test_workflow".to_string(),
-                error_message: "depends on add_item".to_string(),
-                file_location: None,
-                matched_pattern: None,
-            },
-        ];
+                TestFailure {
+                    test_name: "test_add_item".to_string(),
+                    error_message: "todo!()".to_string(),
+                    file_location: None,
+                    matched_pattern: Some(ErrorPattern {
+                        pattern: "todo".to_string(),
+                        category: "todo_marker".to_string(),
+                        hint: "Implement".to_string(),
+                    }),
+                },
+                TestFailure {
+                    test_name: "test_workflow".to_string(),
+                    error_message: "depends on add_item".to_string(),
+                    file_location: None,
+                    matched_pattern: None,
+                },
+            ];
 
             let critical = analyzer.compute_critical_path(&failures);
 
@@ -485,23 +485,23 @@ thread 'todo::tests::test_add_item_basic' panicked at 'not yet implemented: Dese
     fn test_compute_critical_path_respects_dependencies() {
         with_analyzer(|analyzer| {
             let failures = vec![
-            TestFailure {
-                test_name: "test_full_workflow_add_toggle_remove".to_string(),
-                error_message: "workflow failed".to_string(),
-                file_location: None,
-                matched_pattern: None,
-            },
-            TestFailure {
-                test_name: "test_add_item_basic".to_string(),
-                error_message: "todo!()".to_string(),
-                file_location: None,
-                matched_pattern: Some(ErrorPattern {
-                    pattern: "todo".to_string(),
-                    category: "todo_marker".to_string(),
-                    hint: "Implement".to_string(),
-                }),
-            },
-        ];
+                TestFailure {
+                    test_name: "test_full_workflow_add_toggle_remove".to_string(),
+                    error_message: "workflow failed".to_string(),
+                    file_location: None,
+                    matched_pattern: None,
+                },
+                TestFailure {
+                    test_name: "test_add_item_basic".to_string(),
+                    error_message: "todo!()".to_string(),
+                    file_location: None,
+                    matched_pattern: Some(ErrorPattern {
+                        pattern: "todo".to_string(),
+                        category: "todo_marker".to_string(),
+                        hint: "Implement".to_string(),
+                    }),
+                },
+            ];
 
             let critical = analyzer.compute_critical_path(&failures);
 

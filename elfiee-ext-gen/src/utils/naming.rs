@@ -135,10 +135,7 @@ pub fn to_camel_case(s: &str) -> String {
 pub fn capability_to_struct_name(cap_id: &str) -> String {
     // Split by '.' and convert each part to PascalCase
     let parts: Vec<&str> = cap_id.split('.').collect();
-    let pascal_parts: Vec<String> = parts
-        .iter()
-        .map(|part| to_pascal_case(part))
-        .collect();
+    let pascal_parts: Vec<String> = parts.iter().map(|part| to_pascal_case(part)).collect();
 
     format!("{}Capability", pascal_parts.join(""))
 }
