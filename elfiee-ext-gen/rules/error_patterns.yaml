@@ -14,6 +14,10 @@ patterns:
     category: payload_deserialize_error
     hint: "Check that the payload structure matches the expected schema"
 
+  - pattern: 'Payload should deserialize successfully'
+    category: payload_example_missing
+    hint: "Update the payload example in tests.rs to match the fields defined in mod.rs"
+
   - pattern: 'Block required for (.+)'
     category: missing_block
     hint: "This capability requires a block to operate on"
@@ -21,3 +25,11 @@ patterns:
   - pattern: 'Authorization failed'
     category: authorization_error
     hint: "Check CBAC grants - ensure the editor has the required capability grant"
+
+  - pattern: 'Handler should execute successfully'
+    category: handler_not_implemented
+    hint: "Replace the todo!() in the handler with real logic and return the expected events"
+
+  - pattern: 'Implement complete workflow test with multiple capability interactions'
+    category: workflow_test_todo
+    hint: "Either implement the workflow interactions or temporarily mark the test with #[ignore] until ready"

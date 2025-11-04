@@ -211,6 +211,10 @@ impl Generator {
 
         context.insert("capabilities", &capabilities);
 
+        // Test configuration
+        context.insert("with_auth_tests", &config.with_auth_tests);
+        context.insert("with_workflow_tests", &config.with_workflow_tests);
+
         context
     }
 

@@ -15,26 +15,20 @@ Elfiee 扩展生成器 - 基于测试驱动开发（TDD）的代码生成工具�
 ### 使用 cargo install（推荐）
 
 ```bash
-# 进入工具目录
-cd elfiee-ext-gen
-
-# 安装到 ~/.cargo/bin/
-cargo install --path .
+# 在 elfiee 项目根目录
+cargo install --path elfiee-ext-gen --force
 
 # 验证安装
 elfiee-ext-gen --version
 ```
 
-安装后，`elfiee-ext-gen` 将可在任意目录使用。
+安装或模板更新后，重新执行上面的命令即可刷新本地二进制。
 
 ### 开发模式（用于调试模板）
 
 ```bash
-# 在 elfiee-ext-gen 目录使用 cargo run
 cd elfiee-ext-gen
 cargo run -- create -n my_ext -b my_type -c action1
-
-# 优点：修改模板后无需重新安装
 ```
 
 ## 使用方法
@@ -42,8 +36,8 @@ cargo run -- create -n my_ext -b my_type -c action1
 ### 基本用法
 
 ```bash
-# 在 elfiee 项目的 src-tauri 目录下运行
-cd /path/to/elfiee/src-tauri
+# 在 elfiee 项目根目录运行（需要访问 src-tauri/src 下的注册文件）
+cd /path/to/elfiee
 
 # 生成扩展（假设已通过 cargo install 安装）
 elfiee-ext-gen create \
@@ -51,6 +45,14 @@ elfiee-ext-gen create \
   -b component \
   -c render,update
 ```
+
+### 推荐开发流程
+
+1. **Create**：在项目根目录执行 `elfiee-ext-gen create ...`。
+2. **Guide**：继续在根目录运行 `elfiee-ext-gen guide <extension>`，明确当前失败的测试和下一步。
+3. **Test**：进入 `src-tauri`，执行 `cargo test <extension>::tests -- --nocapture`，根据输出实现 TODO。
+4. **Validate**：回到项目根目录，运行 `elfiee-ext-gen validate <extension>` 检查结构与注册。
+5. **重复 2-4 步**，直至所有测试通过，Guide 显示 100%。
 
 ### 命令行参数
 
@@ -91,24 +93,22 @@ src/extensions/markdown/
 #### 2. 创建带授权测试的扩展
 
 ```bash
-# 创建一个组件扩展，包含授权测试
+# 创建一个组件扩展，保留授权测试、关闭工作流测试
 elfiee-ext-gen create \
   -n my_component \
   -b component \
   -c render,update \
-  --with-auth-tests
+  --with-workflow-tests false
 ```
 
 #### 3. 创建完整的扩展（包含所有测试）
 
 ```bash
-# 创建一个功能完整的扩展，包含授权和工作流测试
+# 创建一个功能完整的扩展，保留授权与工作流测试（默认即启用）
 elfiee-ext-gen create \
   -n data_store \
   -b data \
-  -c save,load,query \
-  --with-auth-tests \
-  --with-workflow-tests
+  -c save,load,query
 ```
 
 ## 生成的代码结构
@@ -172,44 +172,42 @@ fn handle_capability(
 ### 1. 生成扩展
 
 ```bash
-cd /path/to/elfiee/src-tauri
-/path/to/elfiee-ext-gen create -n my_ext -b my_type -c action1,action2
+cd /path/to/elfiee
+elfiee-ext-gen create -n my_ext -b my_type -c action1,action2
 ```
 
-### 2. 查看开发指南
+### 2. 使用命令行指南
 
 ```bash
-cat src/extensions/my_ext/DEVELOPMENT_GUIDE.md
+elfiee-ext-gen guide my_ext
 ```
 
-开发指南包含：
-- 📋 实现检查清单
-- 🔧 每个能力的详细实现步骤
-- 📝 Payload 字段定义建议
-- ✅ 测试实现指导
+指南会列出失败的测试、跳转位置和下一步建议；同时可以参考自动生成的 `src-tauri/src/extensions/my_ext/DEVELOPMENT_GUIDE.md`。
 
 ### 3. 按 TODO 标记实现
 
-开发指南和代码中包含清晰的 TODO 标记，按顺序完成：
+代码与指南已经标注具体 TODO，推荐顺序：
 
-1. **定义 Payload 字段** (mod.rs)
-2. **实现能力处理器** (capability.rs)
-3. **完善测试用例** (tests.rs)
-4. **注册到 registry** (src/capabilities/registry.rs)
-5. **运行测试验证**
+1. **定义 Payload 字段**（`mod.rs`）
+2. **实现能力处理器**（`*_*.rs`）
+3. **完善测试用例**（`tests.rs`）
+4. **注册到 registry / Specta**（自动生成，但可视需要调整）
 
-### 4. 运行测试
+### 4. 在 src-tauri 下运行测试
 
 ```bash
-# 在 elfiee 项目根目录
-cargo test --package elfiee-app --test test_my_ext
+cd /path/to/elfiee/src-tauri
+cargo test my_ext::tests -- --nocapture
 ```
 
-### 5. 集成到主项目
+### 5. 回到根目录执行验证
 
-生成的代码已自动更新以下文件：
-- `src/extensions/mod.rs` - 添加模块导出
-- `src/capabilities/registry.rs` - 添加能力注册代码
+```bash
+cd /path/to/elfiee
+elfiee-ext-gen validate my_ext
+```
+
+验证会检查模块导出、registry 注册、Specta 类型等是否完整。
 
 ## TDD 开发理念
 
@@ -226,39 +224,40 @@ cargo test --package elfiee-app --test test_my_ext
 # 1. 生成扩展
 elfiee-ext-gen create -n my_ext -b my_type -c action
 
-# 2. 运行测试（会失败）
-cargo test test_my_ext
-# 输出: thread panicked at 'not yet implemented: Implement...'
+# 2. 查看指南（会列出失败的测试和下一步建议）
+elfiee-ext-gen guide my_ext
 
-# 3. 实现 Payload 字段
+# 3. 进入 src-tauri，运行针对性的测试（会失败）
+cd src-tauri
+cargo test my_ext::tests -- --nocapture
+# 输出: thread panicked at 'not yet implemented: ...'
+
+# 4. 实现 Payload 字段
 # 编辑 src/extensions/my_ext/mod.rs
 
-# 4. 实现处理器逻辑
+# 5. 实现处理器逻辑
 # 编辑 src/extensions/my_ext/my_ext_action.rs
 
-# 5. 完善测试用例
+# 6. 完善测试用例
 # 编辑 src/extensions/my_ext/tests.rs
 
-# 6. 再次运行测试（应该通过）
-cargo test test_my_ext
-# 输出: test result: ok. X passed
+# 7. 再次运行测试并验证
+cargo test my_ext::tests -- --nocapture
+cd ..
+elfiee-ext-gen validate my_ext
 ```
 
 ## 字段推断示例
 
-生成器会根据能力名称智能推断 Payload 字段：
+生成器会基于能力名称做简单的字段推断，并在 `mod.rs` 的注释中给出建议：
 
-| 能力名称 | 推断字段 |
-|---------|---------|
-| `write` | `content: String` |
-| `read` | （无输入字段，仅返回数据） |
-| `update` | `content: String` |
-| `render` | `template: String`, `data: serde_json::Value` |
-| `create` | `initial_content: String` |
-| `delete` | `confirm: bool` |
-| `search` | `query: String`, `limit: usize` |
+| 能力名称示例 | 默认建议 |
+|--------------|----------|
+| `add_item`, `create_project` | `text: String`, `priority: Option<u32>` |
+| `toggle_item`, `update_status` | `item_id: String`, `status: bool` |
+| 其他名称 | `data: serde_json::Value`（占位字段，建议自行替换） |
 
-推断的字段仅作为建议，在 Payload 定义的注释中提供，开发者可根据实际需求修改。
+这些建议仅作为起点，实际字段请按业务需求调整。
 
 ## 故障排查
 
@@ -298,49 +297,17 @@ mod tests;
 ### 验证现有扩展
 
 ```bash
-# 验证扩展代码是否符合规范
-elfiee-ext-gen validate \
-  --extension-path src/extensions/my_ext
+# 在项目根目录验证现有扩展
+elfiee-ext-gen validate my_ext
 ```
 
 ## 贡献指南
 
-欢迎贡献！提交 PR 前请确保：
+欢迎贡献！提交 PR 前请确认：
 
-1. 代码通过 `cargo clippy` 检查
-2. 所有测试通过：`cargo test`
-3. 添加了相应的测试用例
-4. 更新了文档
-
-## 相关文档
-
-- [Elfiee 主项目文档](../docs/README.md)
-- [扩展开发指南](../docs/guides/EXTENSION_DEVELOPMENT.md)
-- [生成器开发计划](docs/generator-dev-plan.md)
-- [生成器设计文档](docs/generator-work-design.md)
-
-## 未来工作
-
-### 发布到 crates.io
-
-当前版本需要通过 `cargo install --path .` 从源码安装。计划在未来版本中：
-
-- 发布到 [crates.io](https://crates.io/)
-- 用户可通过 `cargo install elfiee-ext-gen` 全局安装
-- 无需克隆仓库即可使用
-
-**当前使用方式**:
-```bash
-# 从 elfiee 项目源码安装
-cd /path/to/elfiee/elfiee-ext-gen
-cargo install --path .
-```
-
-**未来使用方式**:
-```bash
-# 直接从 crates.io 安装（未来版本）
-cargo install elfiee-ext-gen
-```
+1. 在 `elfiee-ext-gen/` 目录运行 `cargo fmt && cargo clippy && cargo test`
+2. 若改动影响生成结果，请更新模板及对应文档
+3. 在 `src-tauri/` 中用新模板生成的示例扩展跑通 `cargo test <extension>::tests`
 
 ## 许可证
 
@@ -348,11 +315,12 @@ Apache-2.0 License
 
 ## 版本历史
 
-### v0.1.0 (2025-11-02)
+### v0.1.1 (2025-11-02)
 
-初始版本，包含核心功能：
-- ✅ 扩展骨架生成
-- ✅ 智能字段推断
-- ✅ TDD 测试生成
-- ✅ 开发指南生成
-- ✅ 自动注册到 registry
+- Guide 解析新增 payload 示例 / handler TODO / workflow TODO 等匹配规则
+- 模板默认导入 `create_event`，并在注释中说明何时可以返回空事件
+- README、验证器同步更新，指引以项目根目录为中心的工作流
+
+### v0.1.0 (2025-10-31)
+
+- 初始版本，提供扩展骨架、字段推断、测试模板与注册脚本

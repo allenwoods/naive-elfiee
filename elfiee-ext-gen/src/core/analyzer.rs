@@ -162,22 +162,37 @@ impl TestAnalyzer {
         // For each failed test, try to extract detailed error info
         for test_name in failed_test_names {
             // Look for the detailed error section: "---- <test_name> stdout ----"
-            let section_marker = format!("---- {} ", test_name);
+            let raw_error = {
+                let pattern = format!(
+                    r"---- {}\s+(stdout|stderr) ----\n",
+                    regex::escape(&test_name)
+                );
 
-            let error_message = if let Some(start_pos) = output.find(&section_marker) {
-                // Find the end of this section (next "----" or end of string)
-                let section_start = start_pos + section_marker.len();
-                let section_end = output[section_start..]
-                    .find("\n----")
-                    .map(|pos| section_start + pos)
-                    .unwrap_or(output.len());
+                if let Ok(re) = Regex::new(&pattern) {
+                    if let Some(mat) = re.find(output) {
+                        let section_start = mat.end();
+                        let section_end = output[section_start..]
+                            .find("\n---- ")
+                            .map(|pos| section_start + pos)
+                            .unwrap_or(output.len());
 
-                output[section_start..section_end].trim().to_string()
-            } else {
-                // No detailed error found, use empty string
-                String::new()
+                        output[section_start..section_end].trim().to_string()
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    String::new()
+                }
             };
 
+            let raw_error = if raw_error.is_empty() {
+                Self::extract_panic_summary(output, &test_name)
+                    .unwrap_or_else(String::new)
+            } else {
+                raw_error
+            };
+
+            let error_message = Self::strip_ansi_codes(&raw_error);
             let file_location = self.extract_location(&error_message);
             let matched_pattern = self.match_pattern(&error_message);
 
@@ -319,6 +334,22 @@ impl TestAnalyzer {
         }
 
         Err(format!("Failed to locate {}", relative_path))
+    }
+
+    fn strip_ansi_codes(text: &str) -> String {
+        let ansi_re = Regex::new(r"\x1b\[[0-9;]*[mK]").unwrap();
+        ansi_re.replace_all(text, "").to_string()
+    }
+
+    fn extract_panic_summary(output: &str, test_name: &str) -> Option<String> {
+        let pattern = format!(
+            r"thread '{}'.*panicked at [^\n]+\n([^\n]+)",
+            regex::escape(test_name)
+        );
+
+        let re = Regex::new(&pattern).ok()?;
+        let caps = re.captures(output)?;
+        Some(caps.get(1)?.as_str().trim().to_string())
     }
 }
 

@@ -209,7 +209,7 @@ elfiee-ext-gen create --name todo --capabilities "add_item"
 - [x] 在主仓库运行 `elfiee-ext-gen create --name directory --capabilities scan`
 - [x] 验证扩展注册点（extensions/mod.rs、capabilities/registry.rs、lib.rs）自动生成正确
 - [x] 通过 `cargo test directory::tests` 的 TDD 流程实现真实目录扫描逻辑
-- [x] 使用 `guide` / `validate` 辅助调试并确认无警告
+- [x] 使用 `guide` / `validate` 辅助调试并确认无警告（guide 可提示 payload 示例、handler TODO、workflow TODO 等常见问题）
 - [ ] 设计可选的隔离/清理脚本（如需后续接入 CI）
 
 ---

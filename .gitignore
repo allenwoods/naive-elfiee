@@ -155,3 +155,9 @@ lerna-debug.log*
 
 # Exclude all IDEA files
 .idea/
+
+# Local documentation / workspace artifacts
+.claud/
+elfiee-ext-gen/docs/
+docs/analyze/
+temp/
