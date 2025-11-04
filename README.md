@@ -256,3 +256,17 @@ Therefore, the Elfiee App Interface is designed as a **decoupled GUI architectur
 * **Engine (Backend):** Acts as the *logic* processor and arbiter of *fact*. It processes the `Command`, commits an `Event` (Part 2), and broadcasts the authoritative *state projection* back to the UI.
 
 The UI never modifies its local state directly. It is only responsible for rendering the latest state projection pushed to it by the Engine.
+
+## Contribution
+
+### Git Hooks
+
+To ensure each commit runs `make fmt` automatically, the repository ships with a local pre-commit hook:
+
+1. Run this once to enable the hooks directory:
+   ```bash
+   git config core.hooksPath .githooks
+   ```
+2. After that, every `git commit` will invoke `make fmt`. If formatting adjusts files, the hook prints a reminder so you can review, stage the changes, and re-run the commit.
+
+The hook temporarily stashes unstaged changes (using `git stash --keep-index` semantics) so partially staged files are formatted safely. Your workspace is restored at the end of the hook run—if Git reports a conflict while restoring, manually run `git stash pop` to recover the saved changes.
