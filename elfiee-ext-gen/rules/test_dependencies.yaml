@@ -40,7 +40,7 @@ dependency_patterns:
     depends_on_pattern: null
     reason: "Payload tests are foundational and should be fixed first"
 
-# 用户自定义规则说明：
+# 用户自定义规则说明（未开发）：
 # 如果某个 extension 需要特殊的依赖规则，可以在 extension 目录下创建：
 #   src-tauri/src/extensions/<extension_name>/test_dependencies.yaml
 # 该文件会与全局规则合并，extension 特定规则优先级更高。

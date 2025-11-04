@@ -50,7 +50,7 @@ elfiee-ext-gen create [OPTIONS]
 
 ### 实际示例
 
-#### 1. 创建简单的扩展（包含所有扩展）
+#### 1. 创建完整扩展
 
 ```bash
 # 创建一个 markdown 扩展，包含 read 和 write 能力
@@ -289,7 +289,7 @@ elfiee-ext-gen validate my_ext
 
 - 在 `elfiee-ext-gen/rules/error_patterns.yaml` 中添加新的编译/测试错误正则，指定分类与提示。
 - 在 `elfiee-ext-gen/rules/next_steps.yaml` 中为分类配置优先级与下一步操作。
-- 若某个扩展需要额外的测试依赖关系，可在 `src-tauri/src/extensions/<extension_name>/test_dependencies.yaml` 定义自有规则，`guide` 会自动合并项目级与扩展级配置。
+- 若某个扩展需要额外的测试依赖关系，可在 `src-tauri/src/extensions/<extension_name>/test_dependencies.yaml` 定义自有规则，添加`guide` 自动合并项目级与扩展级配置的逻辑。
 
 ### 自定义字段推断
 
