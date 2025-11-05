@@ -234,7 +234,9 @@ impl GuideGenerator {
 
     fn map_category(category: Option<&str>) -> &'static str {
         match category {
-            Some("payload_field_missing") | Some("payload_deserialize_error") => "payload",
+            Some("payload_field_missing")
+            | Some("payload_deserialize_error")
+            | Some("payload_example_missing") => "payload",
             Some("handler_not_implemented") | Some("todo_marker") => "functionality",
             Some("authorization_error") => "authorization",
             Some("workflow_test_todo") => "workflow",
