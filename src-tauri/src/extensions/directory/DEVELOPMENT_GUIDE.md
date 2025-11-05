@@ -10,6 +10,18 @@ This extension provides the following capabilities:
 
 - **list**: TODO: Describe what this capability does
 
+- **create**: TODO: Describe what this capability does
+
+- **delete**: TODO: Describe what this capability does
+
+- **rename**: TODO: Describe what this capability does
+
+- **refresh**: TODO: Describe what this capability does
+
+- **watch**: TODO: Describe what this capability does
+
+- **search**: TODO: Describe what this capability does
+
 
 ---
 
@@ -26,6 +38,87 @@ Suggested fields:
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct DirectoryListPayload {
+    
+    /// Generic data field - replace with specific fields
+    pub data: serde_json::Value,
+    
+}
+```
+
+#### DirectoryCreatePayload
+
+Suggested fields:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryCreatePayload {
+    
+    /// The text content to add
+    pub text: String,
+    
+    /// Optional priority level
+    pub priority: Option<u32>,
+    
+}
+```
+
+#### DirectoryDeletePayload
+
+Suggested fields:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryDeletePayload {
+    
+    /// Generic data field - replace with specific fields
+    pub data: serde_json::Value,
+    
+}
+```
+
+#### DirectoryRenamePayload
+
+Suggested fields:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryRenamePayload {
+    
+    /// Generic data field - replace with specific fields
+    pub data: serde_json::Value,
+    
+}
+```
+
+#### DirectoryRefreshPayload
+
+Suggested fields:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryRefreshPayload {
+    
+    /// Generic data field - replace with specific fields
+    pub data: serde_json::Value,
+    
+}
+```
+
+#### DirectoryWatchPayload
+
+Suggested fields:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryWatchPayload {
+    
+    /// Generic data field - replace with specific fields
+    pub data: serde_json::Value,
+    
+}
+```
+
+#### DirectorySearchPayload
+
+Suggested fields:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectorySearchPayload {
     
     /// Generic data field - replace with specific fields
     pub data: serde_json::Value,
@@ -53,6 +146,150 @@ Replace the `todo!()` markers with actual implementation:
 pub fn handle_list(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     // 1. Deserialize payload
     let payload: DirectoryListPayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Failed to deserialize payload: {}", e))?;
+
+    // 2. Validate input
+    // ... your validation logic ...
+
+    // 3. Perform operation
+    // ... your business logic ...
+
+    // 4. Create events
+    Ok(vec![Event {
+        // ... event fields ...
+    }])
+}
+```
+
+#### File: `directory_create.rs`
+
+Replace the `todo!()` markers with actual implementation:
+
+```rust
+#[capability(id = "directory.create", target = "directory")]
+pub fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    // 1. Deserialize payload
+    let payload: DirectoryCreatePayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Failed to deserialize payload: {}", e))?;
+
+    // 2. Validate input
+    // ... your validation logic ...
+
+    // 3. Perform operation
+    // ... your business logic ...
+
+    // 4. Create events
+    Ok(vec![Event {
+        // ... event fields ...
+    }])
+}
+```
+
+#### File: `directory_delete.rs`
+
+Replace the `todo!()` markers with actual implementation:
+
+```rust
+#[capability(id = "directory.delete", target = "directory")]
+pub fn handle_delete(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    // 1. Deserialize payload
+    let payload: DirectoryDeletePayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Failed to deserialize payload: {}", e))?;
+
+    // 2. Validate input
+    // ... your validation logic ...
+
+    // 3. Perform operation
+    // ... your business logic ...
+
+    // 4. Create events
+    Ok(vec![Event {
+        // ... event fields ...
+    }])
+}
+```
+
+#### File: `directory_rename.rs`
+
+Replace the `todo!()` markers with actual implementation:
+
+```rust
+#[capability(id = "directory.rename", target = "directory")]
+pub fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    // 1. Deserialize payload
+    let payload: DirectoryRenamePayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Failed to deserialize payload: {}", e))?;
+
+    // 2. Validate input
+    // ... your validation logic ...
+
+    // 3. Perform operation
+    // ... your business logic ...
+
+    // 4. Create events
+    Ok(vec![Event {
+        // ... event fields ...
+    }])
+}
+```
+
+#### File: `directory_refresh.rs`
+
+Replace the `todo!()` markers with actual implementation:
+
+```rust
+#[capability(id = "directory.refresh", target = "directory")]
+pub fn handle_refresh(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    // 1. Deserialize payload
+    let payload: DirectoryRefreshPayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Failed to deserialize payload: {}", e))?;
+
+    // 2. Validate input
+    // ... your validation logic ...
+
+    // 3. Perform operation
+    // ... your business logic ...
+
+    // 4. Create events
+    Ok(vec![Event {
+        // ... event fields ...
+    }])
+}
+```
+
+#### File: `directory_watch.rs`
+
+Replace the `todo!()` markers with actual implementation:
+
+```rust
+#[capability(id = "directory.watch", target = "directory")]
+pub fn handle_watch(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    // 1. Deserialize payload
+    let payload: DirectoryWatchPayload = serde_json::from_value(cmd.payload.clone())
+        .map_err(|e| format!("Failed to deserialize payload: {}", e))?;
+
+    // 2. Validate input
+    // ... your validation logic ...
+
+    // 3. Perform operation
+    // ... your business logic ...
+
+    // 4. Create events
+    Ok(vec![Event {
+        // ... event fields ...
+    }])
+}
+```
+
+#### File: `directory_search.rs`
+
+Replace the `todo!()` markers with actual implementation:
+
+```rust
+#[capability(id = "directory.search", target = "directory")]
+pub fn handle_search(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    // 1. Deserialize payload
+    let payload: DirectorySearchPayload = serde_json::from_value(cmd.payload.clone())
         .map_err(|e| format!("Failed to deserialize payload: {}", e))?;
 
     // 2. Validate input

@@ -13,6 +13,24 @@ use specta::Type;
 pub mod directory_list;
 pub use directory_list::*;
 
+pub mod directory_create;
+pub use directory_create::*;
+
+pub mod directory_delete;
+pub use directory_delete::*;
+
+pub mod directory_rename;
+pub use directory_rename::*;
+
+pub mod directory_refresh;
+pub use directory_refresh::*;
+
+pub mod directory_watch;
+pub use directory_watch::*;
+
+pub mod directory_search;
+pub use directory_search::*;
+
 
 // ============================================================================
 // Payload Definitions
@@ -29,18 +47,131 @@ pub use directory_list::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct DirectoryListPayload {
-    // TODO: Replace this generic field with specific fields
-    /// 要扫描的根目录，支持绝对路径或工作区内相对路径
-    pub root: String,
-    /// 是否递归扫描子目录（默认 false）
-    #[serde(default)]
-    pub recursive: bool,
-    /// 是否包含以 '.' 开头的隐藏文件（默认 false）
-    #[serde(default)]
-    pub include_hidden: bool,
-    /// 可选的最大遍历深度（None 表示无限制）
-    #[serde(default)]
-    pub max_depth: Option<usize>,
+
+    /// Generic data field - replace with specific fields
+    // pub data: serde_json::Value,
+
+    /// TODO: Replace this generic field with specific fields (or uncomment the options above)
+    pub data: serde_json::Value,
+}
+
+
+/// Payload for DirectoryCreate
+///
+/// TODO: Define the specific fields needed for this capability.
+///
+/// Suggested fields (modify as needed):
+
+/// - text: String - The text content to add
+
+/// - priority: Option<u32> - Optional priority level
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryCreatePayload {
+
+    /// The text content to add
+    // pub text: String,
+
+    /// Optional priority level
+    // pub priority: Option<u32>,
+
+    /// TODO: Replace this generic field with specific fields (or uncomment the options above)
+    pub data: serde_json::Value,
+}
+
+
+/// Payload for DirectoryDelete
+///
+/// TODO: Define the specific fields needed for this capability.
+///
+/// Suggested fields (modify as needed):
+
+/// - data: serde_json::Value - Generic data field - replace with specific fields
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryDeletePayload {
+
+    /// Generic data field - replace with specific fields
+    // pub data: serde_json::Value,
+
+    /// TODO: Replace this generic field with specific fields (or uncomment the options above)
+    pub data: serde_json::Value,
+}
+
+
+/// Payload for DirectoryRename
+///
+/// TODO: Define the specific fields needed for this capability.
+///
+/// Suggested fields (modify as needed):
+
+/// - data: serde_json::Value - Generic data field - replace with specific fields
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryRenamePayload {
+
+    /// Generic data field - replace with specific fields
+    // pub data: serde_json::Value,
+
+    /// TODO: Replace this generic field with specific fields (or uncomment the options above)
+    pub data: serde_json::Value,
+}
+
+
+/// Payload for DirectoryRefresh
+///
+/// TODO: Define the specific fields needed for this capability.
+///
+/// Suggested fields (modify as needed):
+
+/// - data: serde_json::Value - Generic data field - replace with specific fields
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryRefreshPayload {
+
+    /// Generic data field - replace with specific fields
+    // pub data: serde_json::Value,
+
+    /// TODO: Replace this generic field with specific fields (or uncomment the options above)
+    pub data: serde_json::Value,
+}
+
+
+/// Payload for DirectoryWatch
+///
+/// TODO: Define the specific fields needed for this capability.
+///
+/// Suggested fields (modify as needed):
+
+/// - data: serde_json::Value - Generic data field - replace with specific fields
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryWatchPayload {
+
+    /// Generic data field - replace with specific fields
+    // pub data: serde_json::Value,
+
+    /// TODO: Replace this generic field with specific fields (or uncomment the options above)
+    pub data: serde_json::Value,
+}
+
+
+/// Payload for DirectorySearch
+///
+/// TODO: Define the specific fields needed for this capability.
+///
+/// Suggested fields (modify as needed):
+
+/// - data: serde_json::Value - Generic data field - replace with specific fields
+
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectorySearchPayload {
+
+    /// Generic data field - replace with specific fields
+    // pub data: serde_json::Value,
+
+    /// TODO: Replace this generic field with specific fields (or uncomment the options above)
+    pub data: serde_json::Value,
 }
 
 

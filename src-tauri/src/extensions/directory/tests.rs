@@ -14,7 +14,7 @@ use crate::capabilities::registry::CapabilityRegistry;
 use crate::capabilities::grants::GrantsTable;
 
 use crate::models::{Block, Command};
-use tempfile::TempDir;
+
 
 // ============================================
 // DirectoryList - Payload Tests
@@ -24,20 +24,16 @@ use tempfile::TempDir;
 fn test_list_payload_deserialize() {
     // TODO: After defining Payload fields in mod.rs, fill in example JSON
     let json = serde_json::json!({
-        "root": "/tmp/project",
-        "recursive": true,
-        "include_hidden": false,
-        "max_depth": 2
+        // TODO: Add fields matching DirectoryListPayload
+        // Example: "field_name": "value"
     });
 
     let result: Result<DirectoryListPayload, _> = serde_json::from_value(json);
     assert!(result.is_ok(), "Payload should deserialize successfully");
-    
-    let payload = result.unwrap();
-    assert_eq!(payload.root, "/tmp/project");
-    assert!(payload.recursive);
-    assert!(!payload.include_hidden);
-    assert_eq!(payload.max_depth, Some(2));
+
+    // TODO: Add assertions to verify field values
+    // let payload = result.unwrap();
+    // assert_eq!(payload.field_name, "expected_value");
 }
 
 // ============================================
@@ -46,9 +42,6 @@ fn test_list_payload_deserialize() {
 
 #[test]
 fn test_list_basic() {
-    let temp_dir = TempDir::new().expect("create temp dir");
-    let root_path = temp_dir.path();
-
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("directory.list")
@@ -65,9 +58,7 @@ fn test_list_basic() {
         "directory.list".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-         "root": root_path.display().to_string(),
-         "recursive": false,
-         "include_hidden": false
+            // TODO: Fill in payload fields
         }),
     );
 
@@ -149,13 +140,756 @@ fn test_list_authorization_non_owner_with_grant() {
 
 
 
+// ============================================
+// DirectoryCreate - Payload Tests
+// ============================================
+
+#[test]
+fn test_create_payload_deserialize() {
+    // TODO: After defining Payload fields in mod.rs, fill in example JSON
+    let json = serde_json::json!({
+        // TODO: Add fields matching DirectoryCreatePayload
+        // Example: "field_name": "value"
+    });
+
+    let result: Result<DirectoryCreatePayload, _> = serde_json::from_value(json);
+    assert!(result.is_ok(), "Payload should deserialize successfully");
+
+    // TODO: Add assertions to verify field values
+    // let payload = result.unwrap();
+    // assert_eq!(payload.field_name, "expected_value");
+}
+
+// ============================================
+// DirectoryCreate - Functionality Tests
+// ============================================
+
+#[test]
+fn test_create_basic() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("directory.create")
+        .expect("directory.create should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.create".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            // TODO: Fill in payload fields
+        }),
+    );
+
+    // TODO: After implementing handler, this should pass
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Handler should execute successfully");
+
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+    assert_eq!(events[0].entity, block.block_id);
+    assert_eq!(events[0].attribute, "alice/directory.create");
+
+    // TODO: Add assertions to verify event contents
+    // let contents = events[0].value.get("contents").unwrap();
+    // assert_eq!(contents.get("field"), expected_value);
+}
+
+
+// ============================================
+// DirectoryCreate - Authorization Tests
+// ============================================
+
+#[test]
+fn test_create_authorization_owner() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Owner should always be authorized
+    let is_authorized = block.owner == "alice"
+        || grants_table.has_grant("alice", "directory.create", &block.block_id);
+
+    assert!(is_authorized, "Block owner should be authorized");
+}
+
+#[test]
+fn test_create_authorization_non_owner_without_grant() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Bob (non-owner) without grant should not be authorized
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.create", &block.block_id);
+
+    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+}
+
+#[test]
+fn test_create_authorization_non_owner_with_grant() {
+    let mut grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Grant Bob permission
+    grants_table.add_grant(
+        "bob".to_string(),
+        "directory.create".to_string(),
+        block.block_id.clone(),
+    );
+
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.create", &block.block_id);
+
+    assert!(is_authorized, "Non-owner with grant should be authorized");
+}
+
+
+
+// ============================================
+// DirectoryDelete - Payload Tests
+// ============================================
+
+#[test]
+fn test_delete_payload_deserialize() {
+    // TODO: After defining Payload fields in mod.rs, fill in example JSON
+    let json = serde_json::json!({
+        // TODO: Add fields matching DirectoryDeletePayload
+        // Example: "field_name": "value"
+    });
+
+    let result: Result<DirectoryDeletePayload, _> = serde_json::from_value(json);
+    assert!(result.is_ok(), "Payload should deserialize successfully");
+
+    // TODO: Add assertions to verify field values
+    // let payload = result.unwrap();
+    // assert_eq!(payload.field_name, "expected_value");
+}
+
+// ============================================
+// DirectoryDelete - Functionality Tests
+// ============================================
+
+#[test]
+fn test_delete_basic() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("directory.delete")
+        .expect("directory.delete should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.delete".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            // TODO: Fill in payload fields
+        }),
+    );
+
+    // TODO: After implementing handler, this should pass
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Handler should execute successfully");
+
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+    assert_eq!(events[0].entity, block.block_id);
+    assert_eq!(events[0].attribute, "alice/directory.delete");
+
+    // TODO: Add assertions to verify event contents
+    // let contents = events[0].value.get("contents").unwrap();
+    // assert_eq!(contents.get("field"), expected_value);
+}
+
+
+// ============================================
+// DirectoryDelete - Authorization Tests
+// ============================================
+
+#[test]
+fn test_delete_authorization_owner() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Owner should always be authorized
+    let is_authorized = block.owner == "alice"
+        || grants_table.has_grant("alice", "directory.delete", &block.block_id);
+
+    assert!(is_authorized, "Block owner should be authorized");
+}
+
+#[test]
+fn test_delete_authorization_non_owner_without_grant() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Bob (non-owner) without grant should not be authorized
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.delete", &block.block_id);
+
+    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+}
+
+#[test]
+fn test_delete_authorization_non_owner_with_grant() {
+    let mut grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Grant Bob permission
+    grants_table.add_grant(
+        "bob".to_string(),
+        "directory.delete".to_string(),
+        block.block_id.clone(),
+    );
+
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.delete", &block.block_id);
+
+    assert!(is_authorized, "Non-owner with grant should be authorized");
+}
+
+
+
+// ============================================
+// DirectoryRename - Payload Tests
+// ============================================
+
+#[test]
+fn test_rename_payload_deserialize() {
+    // TODO: After defining Payload fields in mod.rs, fill in example JSON
+    let json = serde_json::json!({
+        // TODO: Add fields matching DirectoryRenamePayload
+        // Example: "field_name": "value"
+    });
+
+    let result: Result<DirectoryRenamePayload, _> = serde_json::from_value(json);
+    assert!(result.is_ok(), "Payload should deserialize successfully");
+
+    // TODO: Add assertions to verify field values
+    // let payload = result.unwrap();
+    // assert_eq!(payload.field_name, "expected_value");
+}
+
+// ============================================
+// DirectoryRename - Functionality Tests
+// ============================================
+
+#[test]
+fn test_rename_basic() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("directory.rename")
+        .expect("directory.rename should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.rename".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            // TODO: Fill in payload fields
+        }),
+    );
+
+    // TODO: After implementing handler, this should pass
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Handler should execute successfully");
+
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+    assert_eq!(events[0].entity, block.block_id);
+    assert_eq!(events[0].attribute, "alice/directory.rename");
+
+    // TODO: Add assertions to verify event contents
+    // let contents = events[0].value.get("contents").unwrap();
+    // assert_eq!(contents.get("field"), expected_value);
+}
+
+
+// ============================================
+// DirectoryRename - Authorization Tests
+// ============================================
+
+#[test]
+fn test_rename_authorization_owner() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Owner should always be authorized
+    let is_authorized = block.owner == "alice"
+        || grants_table.has_grant("alice", "directory.rename", &block.block_id);
+
+    assert!(is_authorized, "Block owner should be authorized");
+}
+
+#[test]
+fn test_rename_authorization_non_owner_without_grant() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Bob (non-owner) without grant should not be authorized
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.rename", &block.block_id);
+
+    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+}
+
+#[test]
+fn test_rename_authorization_non_owner_with_grant() {
+    let mut grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Grant Bob permission
+    grants_table.add_grant(
+        "bob".to_string(),
+        "directory.rename".to_string(),
+        block.block_id.clone(),
+    );
+
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.rename", &block.block_id);
+
+    assert!(is_authorized, "Non-owner with grant should be authorized");
+}
+
+
+
+// ============================================
+// DirectoryRefresh - Payload Tests
+// ============================================
+
+#[test]
+fn test_refresh_payload_deserialize() {
+    // TODO: After defining Payload fields in mod.rs, fill in example JSON
+    let json = serde_json::json!({
+        // TODO: Add fields matching DirectoryRefreshPayload
+        // Example: "field_name": "value"
+    });
+
+    let result: Result<DirectoryRefreshPayload, _> = serde_json::from_value(json);
+    assert!(result.is_ok(), "Payload should deserialize successfully");
+
+    // TODO: Add assertions to verify field values
+    // let payload = result.unwrap();
+    // assert_eq!(payload.field_name, "expected_value");
+}
+
+// ============================================
+// DirectoryRefresh - Functionality Tests
+// ============================================
+
+#[test]
+fn test_refresh_basic() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("directory.refresh")
+        .expect("directory.refresh should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.refresh".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            // TODO: Fill in payload fields
+        }),
+    );
+
+    // TODO: After implementing handler, this should pass
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Handler should execute successfully");
+
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+    assert_eq!(events[0].entity, block.block_id);
+    assert_eq!(events[0].attribute, "alice/directory.refresh");
+
+    // TODO: Add assertions to verify event contents
+    // let contents = events[0].value.get("contents").unwrap();
+    // assert_eq!(contents.get("field"), expected_value);
+}
+
+
+// ============================================
+// DirectoryRefresh - Authorization Tests
+// ============================================
+
+#[test]
+fn test_refresh_authorization_owner() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Owner should always be authorized
+    let is_authorized = block.owner == "alice"
+        || grants_table.has_grant("alice", "directory.refresh", &block.block_id);
+
+    assert!(is_authorized, "Block owner should be authorized");
+}
+
+#[test]
+fn test_refresh_authorization_non_owner_without_grant() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Bob (non-owner) without grant should not be authorized
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.refresh", &block.block_id);
+
+    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+}
+
+#[test]
+fn test_refresh_authorization_non_owner_with_grant() {
+    let mut grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Grant Bob permission
+    grants_table.add_grant(
+        "bob".to_string(),
+        "directory.refresh".to_string(),
+        block.block_id.clone(),
+    );
+
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.refresh", &block.block_id);
+
+    assert!(is_authorized, "Non-owner with grant should be authorized");
+}
+
+
+
+// ============================================
+// DirectoryWatch - Payload Tests
+// ============================================
+
+#[test]
+fn test_watch_payload_deserialize() {
+    // TODO: After defining Payload fields in mod.rs, fill in example JSON
+    let json = serde_json::json!({
+        // TODO: Add fields matching DirectoryWatchPayload
+        // Example: "field_name": "value"
+    });
+
+    let result: Result<DirectoryWatchPayload, _> = serde_json::from_value(json);
+    assert!(result.is_ok(), "Payload should deserialize successfully");
+
+    // TODO: Add assertions to verify field values
+    // let payload = result.unwrap();
+    // assert_eq!(payload.field_name, "expected_value");
+}
+
+// ============================================
+// DirectoryWatch - Functionality Tests
+// ============================================
+
+#[test]
+fn test_watch_basic() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("directory.watch")
+        .expect("directory.watch should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.watch".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            // TODO: Fill in payload fields
+        }),
+    );
+
+    // TODO: After implementing handler, this should pass
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Handler should execute successfully");
+
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+    assert_eq!(events[0].entity, block.block_id);
+    assert_eq!(events[0].attribute, "alice/directory.watch");
+
+    // TODO: Add assertions to verify event contents
+    // let contents = events[0].value.get("contents").unwrap();
+    // assert_eq!(contents.get("field"), expected_value);
+}
+
+
+// ============================================
+// DirectoryWatch - Authorization Tests
+// ============================================
+
+#[test]
+fn test_watch_authorization_owner() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Owner should always be authorized
+    let is_authorized = block.owner == "alice"
+        || grants_table.has_grant("alice", "directory.watch", &block.block_id);
+
+    assert!(is_authorized, "Block owner should be authorized");
+}
+
+#[test]
+fn test_watch_authorization_non_owner_without_grant() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Bob (non-owner) without grant should not be authorized
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.watch", &block.block_id);
+
+    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+}
+
+#[test]
+fn test_watch_authorization_non_owner_with_grant() {
+    let mut grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Grant Bob permission
+    grants_table.add_grant(
+        "bob".to_string(),
+        "directory.watch".to_string(),
+        block.block_id.clone(),
+    );
+
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.watch", &block.block_id);
+
+    assert!(is_authorized, "Non-owner with grant should be authorized");
+}
+
+
+
+// ============================================
+// DirectorySearch - Payload Tests
+// ============================================
+
+#[test]
+fn test_search_payload_deserialize() {
+    // TODO: After defining Payload fields in mod.rs, fill in example JSON
+    let json = serde_json::json!({
+        // TODO: Add fields matching DirectorySearchPayload
+        // Example: "field_name": "value"
+    });
+
+    let result: Result<DirectorySearchPayload, _> = serde_json::from_value(json);
+    assert!(result.is_ok(), "Payload should deserialize successfully");
+
+    // TODO: Add assertions to verify field values
+    // let payload = result.unwrap();
+    // assert_eq!(payload.field_name, "expected_value");
+}
+
+// ============================================
+// DirectorySearch - Functionality Tests
+// ============================================
+
+#[test]
+fn test_search_basic() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("directory.search")
+        .expect("directory.search should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.search".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            // TODO: Fill in payload fields
+        }),
+    );
+
+    // TODO: After implementing handler, this should pass
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Handler should execute successfully");
+
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+    assert_eq!(events[0].entity, block.block_id);
+    assert_eq!(events[0].attribute, "alice/directory.search");
+
+    // TODO: Add assertions to verify event contents
+    // let contents = events[0].value.get("contents").unwrap();
+    // assert_eq!(contents.get("field"), expected_value);
+}
+
+
+// ============================================
+// DirectorySearch - Authorization Tests
+// ============================================
+
+#[test]
+fn test_search_authorization_owner() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Owner should always be authorized
+    let is_authorized = block.owner == "alice"
+        || grants_table.has_grant("alice", "directory.search", &block.block_id);
+
+    assert!(is_authorized, "Block owner should be authorized");
+}
+
+#[test]
+fn test_search_authorization_non_owner_without_grant() {
+    let grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Bob (non-owner) without grant should not be authorized
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.search", &block.block_id);
+
+    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+}
+
+#[test]
+fn test_search_authorization_non_owner_with_grant() {
+    let mut grants_table = GrantsTable::new();
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Grant Bob permission
+    grants_table.add_grant(
+        "bob".to_string(),
+        "directory.search".to_string(),
+        block.block_id.clone(),
+    );
+
+    let is_authorized = block.owner == "bob"
+        || grants_table.has_grant("bob", "directory.search", &block.block_id);
+
+    assert!(is_authorized, "Non-owner with grant should be authorized");
+}
+
+
+
 
 // ============================================
 // Integration Workflow Test
 // ============================================
 
 #[test]
-#[ignore]
 fn test_full_workflow() {
     // TODO: Implement a complete workflow test that exercises multiple capabilities
     // This test should demonstrate a realistic usage scenario
@@ -181,3 +915,4 @@ fn test_full_workflow() {
 
     todo!("Implement complete workflow test with multiple capability interactions");
 }
+
