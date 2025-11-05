@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::utils::naming::to_pascal_case;
 use syn::visit::Visit;
 use syn::{
-    Expr, ExprMethodCall, ExprPath, File, ImplItem, Item, ItemMod, Type, UseTree, Visibility,
+    Expr, ExprMethodCall, ExprPath, File, ImplItem, Item, ItemMod, Stmt, Type, UseTree, Visibility,
 };
 
 // ============================================================================
@@ -409,6 +409,17 @@ fn analyze_registry(file: &File, extension_name: &str) -> RegistryAnalysis {
                         if let ImplItem::Fn(method) = impl_item {
                             if method.sig.ident == "register_extensions" {
                                 has_register_method = true;
+                                for stmt in &method.block.stmts {
+                                    if let Stmt::Item(Item::Use(item_use)) = stmt {
+                                        if use_tree_contains_extension_glob(
+                                            &item_use.tree,
+                                            extension_name,
+                                            Vec::new(),
+                                        ) {
+                                            use_found = true;
+                                        }
+                                    }
+                                }
                                 let mut collector = RegisterCallCollector {
                                     registered: &mut registered_capabilities,
                                 };
