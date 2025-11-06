@@ -8,13 +8,11 @@
 //! - Authorization/CBAC tests
 //! - Integration workflow tests
 
-
 use super::*;
-use crate::capabilities::registry::CapabilityRegistry;
 use crate::capabilities::grants::GrantsTable;
+use crate::capabilities::registry::CapabilityRegistry;
 
 use crate::models::{Block, Command};
-
 
 // ============================================
 // DirectoryList - Payload Tests
@@ -22,18 +20,21 @@ use crate::models::{Block, Command};
 
 #[test]
 fn test_list_payload_deserialize() {
-    // TODO: After defining Payload fields in mod.rs, fill in example JSON
     let json = serde_json::json!({
-        // TODO: Add fields matching DirectoryListPayload
-        // Example: "field_name": "value"
+        "root": "/test/path",
+        "recursive": true,
+        "include_hidden": false,
+        "max_depth": 3
     });
 
     let result: Result<DirectoryListPayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "Payload should deserialize successfully");
+    assert!(result.is_ok(), "Failed to deserialize DirectoryListPayload");
 
-    // TODO: Add assertions to verify field values
-    // let payload = result.unwrap();
-    // assert_eq!(payload.field_name, "expected_value");
+    let payload = result.unwrap();
+    assert_eq!(payload.root, "/test/path");
+    assert_eq!(payload.recursive, true);
+    assert_eq!(payload.include_hidden, false);
+    assert_eq!(payload.max_depth, Some(3));
 }
 
 // ============================================
@@ -42,40 +43,78 @@ fn test_list_payload_deserialize() {
 
 #[test]
 fn test_list_basic() {
+    use std::fs;
+    use tempfile::TempDir;
+
+    // Create temporary test directory
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_string_lossy().to_string();
+
+    // Create test files
+    fs::write(temp_dir.path().join("file1.txt"), "").unwrap();
+    fs::write(temp_dir.path().join("file2.txt"), "").unwrap();
+    fs::create_dir(temp_dir.path().join("subdir")).unwrap();
+
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("directory.list")
-        .expect("directory.list should be registered");
+        .expect("directory.list capability should be registered");
 
-    let block = Block::new(
+    let mut block = Block::new(
         "Test Block".to_string(),
         "directory".to_string(),
         "alice".to_string(),
     );
+
+    // Initialize block contents with root path
+    block.contents = serde_json::json!({
+        "root": temp_path
+    });
 
     let cmd = Command::new(
         "alice".to_string(),
         "directory.list".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            // TODO: Fill in payload fields
+            "root": temp_path,
+            "recursive": false,
+            "include_hidden": false,
+            "max_depth": null
         }),
     );
 
-    // TODO: After implementing handler, this should pass
     let result = cap.handler(&cmd, Some(&block));
-    assert!(result.is_ok(), "Handler should execute successfully");
+    assert!(
+        result.is_ok(),
+        "Handler should execute successfully: {:?}",
+        result.err()
+    );
 
     let events = result.unwrap();
     assert_eq!(events.len(), 1, "Should generate one event");
     assert_eq!(events[0].entity, block.block_id);
     assert_eq!(events[0].attribute, "alice/directory.list");
 
-    // TODO: Add assertions to verify event contents
-    // let contents = events[0].value.get("contents").unwrap();
-    // assert_eq!(contents.get("field"), expected_value);
-}
+    // Verify event contents
+    let entries = events[0]
+        .value
+        .get("entries")
+        .expect("Event should contain entries");
+    let entries_array = entries.as_array().expect("Entries should be an array");
 
+    // Should have 3 entries: file1.txt, file2.txt, subdir
+    assert_eq!(entries_array.len(), 3, "Should list 3 entries");
+
+    // Verify entries contain expected files
+    let entry_names: Vec<String> = entries_array
+        .iter()
+        .map(|e| e.get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+
+    assert!(entry_names.contains(&"file1.txt".to_string()));
+    assert!(entry_names.contains(&"file2.txt".to_string()));
+    assert!(entry_names.contains(&"subdir".to_string()));
+}
 
 // ============================================
 // DirectoryList - Authorization Tests
@@ -109,10 +148,13 @@ fn test_list_authorization_non_owner_without_grant() {
     );
 
     // Bob (non-owner) without grant should not be authorized
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.list", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.list", &block.block_id);
 
-    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+    assert!(
+        !is_authorized,
+        "Non-owner without grant should not be authorized"
+    );
 }
 
 #[test]
@@ -132,13 +174,11 @@ fn test_list_authorization_non_owner_with_grant() {
         block.block_id.clone(),
     );
 
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.list", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.list", &block.block_id);
 
     assert!(is_authorized, "Non-owner with grant should be authorized");
 }
-
-
 
 // ============================================
 // DirectoryCreate - Payload Tests
@@ -146,18 +186,22 @@ fn test_list_authorization_non_owner_with_grant() {
 
 #[test]
 fn test_create_payload_deserialize() {
-    // TODO: After defining Payload fields in mod.rs, fill in example JSON
     let json = serde_json::json!({
-        // TODO: Add fields matching DirectoryCreatePayload
-        // Example: "field_name": "value"
+        "path": "test.txt",
+        "item_type": "file",
+        "content": ""
     });
 
     let result: Result<DirectoryCreatePayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "Payload should deserialize successfully");
+    assert!(
+        result.is_ok(),
+        "Failed to deserialize DirectoryCreatePayload"
+    );
 
-    // TODO: Add assertions to verify field values
-    // let payload = result.unwrap();
-    // assert_eq!(payload.field_name, "expected_value");
+    let payload = result.unwrap();
+    assert_eq!(payload.path, "test.txt");
+    assert_eq!(payload.item_type, "file");
+    assert_eq!(payload.content, "");
 }
 
 // ============================================
@@ -166,40 +210,76 @@ fn test_create_payload_deserialize() {
 
 #[test]
 fn test_create_basic() {
+    use tempfile::TempDir;
+
+    // Create temporary test directory
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_string_lossy().to_string();
+
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("directory.create")
-        .expect("directory.create should be registered");
+        .expect("directory.create capability should be registered");
 
-    let block = Block::new(
+    let mut block = Block::new(
         "Test Block".to_string(),
         "directory".to_string(),
         "alice".to_string(),
     );
 
+    block.contents = serde_json::json!({
+        "root": temp_path
+    });
+
+    // Test 1: Create a file
     let cmd = Command::new(
         "alice".to_string(),
         "directory.create".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            // TODO: Fill in payload fields
+            "path": "test.txt",
+            "item_type": "file",
+            "content": ""
         }),
     );
 
-    // TODO: After implementing handler, this should pass
     let result = cap.handler(&cmd, Some(&block));
-    assert!(result.is_ok(), "Handler should execute successfully");
+    assert!(
+        result.is_ok(),
+        "Handler should execute successfully: {:?}",
+        result.err()
+    );
 
     let events = result.unwrap();
     assert_eq!(events.len(), 1, "Should generate one event");
     assert_eq!(events[0].entity, block.block_id);
     assert_eq!(events[0].attribute, "alice/directory.create");
 
-    // TODO: Add assertions to verify event contents
-    // let contents = events[0].value.get("contents").unwrap();
-    // assert_eq!(contents.get("field"), expected_value);
-}
+    // Verify file was created
+    let created_file = temp_dir.path().join("test.txt");
+    assert!(created_file.exists(), "File should be created");
+    assert!(created_file.is_file(), "Should be a file");
 
+    // Test 2: Create a directory
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.create".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "path": "testdir",
+            "item_type": "dir",
+            "content": ""
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Should create directory successfully");
+
+    // Verify directory was created
+    let created_dir = temp_dir.path().join("testdir");
+    assert!(created_dir.exists(), "Directory should be created");
+    assert!(created_dir.is_dir(), "Should be a directory");
+}
 
 // ============================================
 // DirectoryCreate - Authorization Tests
@@ -233,10 +313,13 @@ fn test_create_authorization_non_owner_without_grant() {
     );
 
     // Bob (non-owner) without grant should not be authorized
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.create", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.create", &block.block_id);
 
-    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+    assert!(
+        !is_authorized,
+        "Non-owner without grant should not be authorized"
+    );
 }
 
 #[test]
@@ -256,13 +339,11 @@ fn test_create_authorization_non_owner_with_grant() {
         block.block_id.clone(),
     );
 
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.create", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.create", &block.block_id);
 
     assert!(is_authorized, "Non-owner with grant should be authorized");
 }
-
-
 
 // ============================================
 // DirectoryDelete - Payload Tests
@@ -270,18 +351,20 @@ fn test_create_authorization_non_owner_with_grant() {
 
 #[test]
 fn test_delete_payload_deserialize() {
-    // TODO: After defining Payload fields in mod.rs, fill in example JSON
     let json = serde_json::json!({
-        // TODO: Add fields matching DirectoryDeletePayload
-        // Example: "field_name": "value"
+        "path": "test.txt",
+        "recursive": false
     });
 
     let result: Result<DirectoryDeletePayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "Payload should deserialize successfully");
+    assert!(
+        result.is_ok(),
+        "Failed to deserialize DirectoryDeletePayload"
+    );
 
-    // TODO: Add assertions to verify field values
-    // let payload = result.unwrap();
-    // assert_eq!(payload.field_name, "expected_value");
+    let payload = result.unwrap();
+    assert_eq!(payload.path, "test.txt");
+    assert_eq!(payload.recursive, false);
 }
 
 // ============================================
@@ -290,40 +373,102 @@ fn test_delete_payload_deserialize() {
 
 #[test]
 fn test_delete_basic() {
+    use std::fs;
+    use tempfile::TempDir;
+
+    // Create temporary test directory
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_string_lossy().to_string();
+
+    // Create test files and directories
+    fs::write(temp_dir.path().join("file_to_delete.txt"), "test").unwrap();
+    fs::create_dir(temp_dir.path().join("empty_dir")).unwrap();
+    fs::create_dir(temp_dir.path().join("non_empty_dir")).unwrap();
+    fs::write(temp_dir.path().join("non_empty_dir/file.txt"), "test").unwrap();
+
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("directory.delete")
-        .expect("directory.delete should be registered");
+        .expect("directory.delete capability should be registered");
 
-    let block = Block::new(
+    let mut block = Block::new(
         "Test Block".to_string(),
         "directory".to_string(),
         "alice".to_string(),
     );
 
+    block.contents = serde_json::json!({
+        "root": temp_path
+    });
+
+    // Test 1: Delete a file
     let cmd = Command::new(
         "alice".to_string(),
         "directory.delete".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            // TODO: Fill in payload fields
+            "path": "file_to_delete.txt",
+            "recursive": false
         }),
     );
 
-    // TODO: After implementing handler, this should pass
     let result = cap.handler(&cmd, Some(&block));
-    assert!(result.is_ok(), "Handler should execute successfully");
+    assert!(
+        result.is_ok(),
+        "Should delete file successfully: {:?}",
+        result.err()
+    );
 
     let events = result.unwrap();
     assert_eq!(events.len(), 1, "Should generate one event");
     assert_eq!(events[0].entity, block.block_id);
     assert_eq!(events[0].attribute, "alice/directory.delete");
 
-    // TODO: Add assertions to verify event contents
-    // let contents = events[0].value.get("contents").unwrap();
-    // assert_eq!(contents.get("field"), expected_value);
-}
+    // Verify file was deleted
+    assert!(
+        !temp_dir.path().join("file_to_delete.txt").exists(),
+        "File should be deleted"
+    );
 
+    // Test 2: Delete empty directory
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.delete".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "path": "empty_dir",
+            "recursive": false
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Should delete empty directory successfully");
+    assert!(
+        !temp_dir.path().join("empty_dir").exists(),
+        "Empty directory should be deleted"
+    );
+
+    // Test 3: Delete non-empty directory with recursive=true
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.delete".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "path": "non_empty_dir",
+            "recursive": true
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(
+        result.is_ok(),
+        "Should delete non-empty directory with recursive=true"
+    );
+    assert!(
+        !temp_dir.path().join("non_empty_dir").exists(),
+        "Non-empty directory should be deleted"
+    );
+}
 
 // ============================================
 // DirectoryDelete - Authorization Tests
@@ -357,10 +502,13 @@ fn test_delete_authorization_non_owner_without_grant() {
     );
 
     // Bob (non-owner) without grant should not be authorized
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.delete", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.delete", &block.block_id);
 
-    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+    assert!(
+        !is_authorized,
+        "Non-owner without grant should not be authorized"
+    );
 }
 
 #[test]
@@ -380,13 +528,11 @@ fn test_delete_authorization_non_owner_with_grant() {
         block.block_id.clone(),
     );
 
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.delete", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.delete", &block.block_id);
 
     assert!(is_authorized, "Non-owner with grant should be authorized");
 }
-
-
 
 // ============================================
 // DirectoryRename - Payload Tests
@@ -394,18 +540,20 @@ fn test_delete_authorization_non_owner_with_grant() {
 
 #[test]
 fn test_rename_payload_deserialize() {
-    // TODO: After defining Payload fields in mod.rs, fill in example JSON
     let json = serde_json::json!({
-        // TODO: Add fields matching DirectoryRenamePayload
-        // Example: "field_name": "value"
+        "old_path": "old.txt",
+        "new_path": "new.txt"
     });
 
     let result: Result<DirectoryRenamePayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "Payload should deserialize successfully");
+    assert!(
+        result.is_ok(),
+        "Failed to deserialize DirectoryRenamePayload"
+    );
 
-    // TODO: Add assertions to verify field values
-    // let payload = result.unwrap();
-    // assert_eq!(payload.field_name, "expected_value");
+    let payload = result.unwrap();
+    assert_eq!(payload.old_path, "old.txt");
+    assert_eq!(payload.new_path, "new.txt");
 }
 
 // ============================================
@@ -414,40 +562,105 @@ fn test_rename_payload_deserialize() {
 
 #[test]
 fn test_rename_basic() {
+    use std::fs;
+    use tempfile::TempDir;
+
+    // Create temporary test directory
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_string_lossy().to_string();
+
+    // Create test file and directory
+    fs::write(temp_dir.path().join("old_file.txt"), "content").unwrap();
+    fs::create_dir(temp_dir.path().join("old_dir")).unwrap();
+    fs::write(temp_dir.path().join("old_dir/nested.txt"), "nested").unwrap();
+
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("directory.rename")
-        .expect("directory.rename should be registered");
+        .expect("directory.rename capability should be registered");
 
-    let block = Block::new(
+    let mut block = Block::new(
         "Test Block".to_string(),
         "directory".to_string(),
         "alice".to_string(),
     );
 
+    block.contents = serde_json::json!({
+        "root": temp_path
+    });
+
+    // Test 1: Rename a file
     let cmd = Command::new(
         "alice".to_string(),
         "directory.rename".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            // TODO: Fill in payload fields
+            "old_path": "old_file.txt",
+            "new_path": "new_file.txt"
         }),
     );
 
-    // TODO: After implementing handler, this should pass
     let result = cap.handler(&cmd, Some(&block));
-    assert!(result.is_ok(), "Handler should execute successfully");
+    assert!(
+        result.is_ok(),
+        "Should rename file successfully: {:?}",
+        result.err()
+    );
 
     let events = result.unwrap();
     assert_eq!(events.len(), 1, "Should generate one event");
     assert_eq!(events[0].entity, block.block_id);
     assert_eq!(events[0].attribute, "alice/directory.rename");
 
-    // TODO: Add assertions to verify event contents
-    // let contents = events[0].value.get("contents").unwrap();
-    // assert_eq!(contents.get("field"), expected_value);
-}
+    // Verify file was renamed
+    assert!(
+        !temp_dir.path().join("old_file.txt").exists(),
+        "Old file should not exist"
+    );
+    assert!(
+        temp_dir.path().join("new_file.txt").exists(),
+        "New file should exist"
+    );
 
+    let content = fs::read_to_string(temp_dir.path().join("new_file.txt")).unwrap();
+    assert_eq!(content, "content", "File content should be preserved");
+
+    // Test 2: Rename a directory (with nested files)
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.rename".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "old_path": "old_dir",
+            "new_path": "new_dir"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Should rename directory successfully");
+
+    // Verify directory was renamed
+    assert!(
+        !temp_dir.path().join("old_dir").exists(),
+        "Old directory should not exist"
+    );
+    assert!(
+        temp_dir.path().join("new_dir").exists(),
+        "New directory should exist"
+    );
+
+    // Verify nested file path is automatically updated by filesystem
+    assert!(
+        temp_dir.path().join("new_dir/nested.txt").exists(),
+        "Nested file should exist in new directory"
+    );
+
+    let nested_content = fs::read_to_string(temp_dir.path().join("new_dir/nested.txt")).unwrap();
+    assert_eq!(
+        nested_content, "nested",
+        "Nested file content should be preserved"
+    );
+}
 
 // ============================================
 // DirectoryRename - Authorization Tests
@@ -481,10 +694,13 @@ fn test_rename_authorization_non_owner_without_grant() {
     );
 
     // Bob (non-owner) without grant should not be authorized
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.rename", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.rename", &block.block_id);
 
-    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+    assert!(
+        !is_authorized,
+        "Non-owner without grant should not be authorized"
+    );
 }
 
 #[test]
@@ -504,13 +720,11 @@ fn test_rename_authorization_non_owner_with_grant() {
         block.block_id.clone(),
     );
 
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.rename", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.rename", &block.block_id);
 
     assert!(is_authorized, "Non-owner with grant should be authorized");
 }
-
-
 
 // ============================================
 // DirectoryRefresh - Payload Tests
@@ -518,18 +732,18 @@ fn test_rename_authorization_non_owner_with_grant() {
 
 #[test]
 fn test_refresh_payload_deserialize() {
-    // TODO: After defining Payload fields in mod.rs, fill in example JSON
     let json = serde_json::json!({
-        // TODO: Add fields matching DirectoryRefreshPayload
-        // Example: "field_name": "value"
+        "recursive": true
     });
 
     let result: Result<DirectoryRefreshPayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "Payload should deserialize successfully");
+    assert!(
+        result.is_ok(),
+        "Failed to deserialize DirectoryRefreshPayload"
+    );
 
-    // TODO: Add assertions to verify field values
-    // let payload = result.unwrap();
-    // assert_eq!(payload.field_name, "expected_value");
+    let payload = result.unwrap();
+    assert_eq!(payload.recursive, true);
 }
 
 // ============================================
@@ -538,40 +752,100 @@ fn test_refresh_payload_deserialize() {
 
 #[test]
 fn test_refresh_basic() {
-    let registry = CapabilityRegistry::new();
-    let cap = registry
-        .get("directory.refresh")
-        .expect("directory.refresh should be registered");
+    use std::fs;
+    use tempfile::TempDir;
 
-    let block = Block::new(
+    // Create temporary test directory
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_string_lossy().to_string();
+
+    // Create initial files
+    fs::write(temp_dir.path().join("file1.txt"), "").unwrap();
+    fs::write(temp_dir.path().join("file2.txt"), "").unwrap();
+
+    let registry = CapabilityRegistry::new();
+    let list_cap = registry.get("directory.list").unwrap();
+    let refresh_cap = registry
+        .get("directory.refresh")
+        .expect("directory.refresh capability should be registered");
+
+    let mut block = Block::new(
         "Test Block".to_string(),
         "directory".to_string(),
         "alice".to_string(),
     );
 
-    let cmd = Command::new(
+    block.contents = serde_json::json!({
+        "root": temp_path
+    });
+
+    // Step 1: Initial list to populate cache
+    let list_cmd = Command::new(
+        "alice".to_string(),
+        "directory.list".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "root": temp_path,
+            "recursive": false,
+            "include_hidden": false,
+            "max_depth": null
+        }),
+    );
+
+    let list_result = list_cap.handler(&list_cmd, Some(&block)).unwrap();
+    let initial_entries = list_result[0]
+        .value
+        .get("entries")
+        .unwrap()
+        .as_array()
+        .unwrap();
+    assert_eq!(initial_entries.len(), 2, "Should initially have 2 files");
+
+    // Update block contents with list result
+    block.contents = list_result[0].value.clone();
+
+    // Step 2: Add a new file externally (simulating external change)
+    fs::write(temp_dir.path().join("file3.txt"), "").unwrap();
+
+    // Step 3: Refresh to detect the new file
+    let refresh_cmd = Command::new(
         "alice".to_string(),
         "directory.refresh".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            // TODO: Fill in payload fields
+            "recursive": false
         }),
     );
 
-    // TODO: After implementing handler, this should pass
-    let result = cap.handler(&cmd, Some(&block));
-    assert!(result.is_ok(), "Handler should execute successfully");
+    let result = refresh_cap.handler(&refresh_cmd, Some(&block));
+    assert!(
+        result.is_ok(),
+        "Should refresh successfully: {:?}",
+        result.err()
+    );
 
     let events = result.unwrap();
     assert_eq!(events.len(), 1, "Should generate one event");
     assert_eq!(events[0].entity, block.block_id);
     assert_eq!(events[0].attribute, "alice/directory.refresh");
 
-    // TODO: Add assertions to verify event contents
-    // let contents = events[0].value.get("contents").unwrap();
-    // assert_eq!(contents.get("field"), expected_value);
-}
+    // Verify refreshed entries include the new file
+    let refreshed_entries = events[0].value.get("entries").unwrap().as_array().unwrap();
+    assert_eq!(
+        refreshed_entries.len(),
+        3,
+        "Should now have 3 files after refresh"
+    );
 
+    let entry_names: Vec<String> = refreshed_entries
+        .iter()
+        .map(|e| e.get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+
+    assert!(entry_names.contains(&"file1.txt".to_string()));
+    assert!(entry_names.contains(&"file2.txt".to_string()));
+    assert!(entry_names.contains(&"file3.txt".to_string()));
+}
 
 // ============================================
 // DirectoryRefresh - Authorization Tests
@@ -605,10 +879,13 @@ fn test_refresh_authorization_non_owner_without_grant() {
     );
 
     // Bob (non-owner) without grant should not be authorized
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.refresh", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.refresh", &block.block_id);
 
-    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+    assert!(
+        !is_authorized,
+        "Non-owner without grant should not be authorized"
+    );
 }
 
 #[test]
@@ -628,13 +905,11 @@ fn test_refresh_authorization_non_owner_with_grant() {
         block.block_id.clone(),
     );
 
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.refresh", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.refresh", &block.block_id);
 
     assert!(is_authorized, "Non-owner with grant should be authorized");
 }
-
-
 
 // ============================================
 // DirectoryWatch - Payload Tests
@@ -642,18 +917,18 @@ fn test_refresh_authorization_non_owner_with_grant() {
 
 #[test]
 fn test_watch_payload_deserialize() {
-    // TODO: After defining Payload fields in mod.rs, fill in example JSON
     let json = serde_json::json!({
-        // TODO: Add fields matching DirectoryWatchPayload
-        // Example: "field_name": "value"
+        "enabled": true
     });
 
     let result: Result<DirectoryWatchPayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "Payload should deserialize successfully");
+    assert!(
+        result.is_ok(),
+        "Failed to deserialize DirectoryWatchPayload"
+    );
 
-    // TODO: Add assertions to verify field values
-    // let payload = result.unwrap();
-    // assert_eq!(payload.field_name, "expected_value");
+    let payload = result.unwrap();
+    assert_eq!(payload.enabled, true);
 }
 
 // ============================================
@@ -662,40 +937,79 @@ fn test_watch_payload_deserialize() {
 
 #[test]
 fn test_watch_basic() {
+    use tempfile::TempDir;
+
+    // Create temporary test directory
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_string_lossy().to_string();
+
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("directory.watch")
-        .expect("directory.watch should be registered");
+        .expect("directory.watch capability should be registered");
 
-    let block = Block::new(
+    let mut block = Block::new(
         "Test Block".to_string(),
         "directory".to_string(),
         "alice".to_string(),
     );
 
+    block.contents = serde_json::json!({
+        "root": temp_path,
+        "watch_enabled": false
+    });
+
+    // Test 1: Enable watching
     let cmd = Command::new(
         "alice".to_string(),
         "directory.watch".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            // TODO: Fill in payload fields
+            "enabled": true
         }),
     );
 
-    // TODO: After implementing handler, this should pass
     let result = cap.handler(&cmd, Some(&block));
-    assert!(result.is_ok(), "Handler should execute successfully");
+    assert!(
+        result.is_ok(),
+        "Should enable watching successfully: {:?}",
+        result.err()
+    );
 
     let events = result.unwrap();
     assert_eq!(events.len(), 1, "Should generate one event");
     assert_eq!(events[0].entity, block.block_id);
     assert_eq!(events[0].attribute, "alice/directory.watch");
 
-    // TODO: Add assertions to verify event contents
-    // let contents = events[0].value.get("contents").unwrap();
-    // assert_eq!(contents.get("field"), expected_value);
-}
+    // Verify watch_enabled flag is set to true
+    let watch_enabled = events[0].value.get("watch_enabled").unwrap();
+    assert_eq!(
+        watch_enabled.as_bool().unwrap(),
+        true,
+        "watch_enabled should be true"
+    );
 
+    // Test 2: Disable watching
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.watch".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "enabled": false
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Should disable watching successfully");
+
+    let events = result.unwrap();
+    let watch_enabled = events[0].value.get("watch_enabled").unwrap();
+    assert_eq!(
+        watch_enabled.as_bool().unwrap(),
+        false,
+        "watch_enabled should be false"
+    );
+}
 
 // ============================================
 // DirectoryWatch - Authorization Tests
@@ -729,10 +1043,13 @@ fn test_watch_authorization_non_owner_without_grant() {
     );
 
     // Bob (non-owner) without grant should not be authorized
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.watch", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.watch", &block.block_id);
 
-    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+    assert!(
+        !is_authorized,
+        "Non-owner without grant should not be authorized"
+    );
 }
 
 #[test]
@@ -752,13 +1069,11 @@ fn test_watch_authorization_non_owner_with_grant() {
         block.block_id.clone(),
     );
 
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.watch", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.watch", &block.block_id);
 
     assert!(is_authorized, "Non-owner with grant should be authorized");
 }
-
-
 
 // ============================================
 // DirectorySearch - Payload Tests
@@ -766,18 +1081,22 @@ fn test_watch_authorization_non_owner_with_grant() {
 
 #[test]
 fn test_search_payload_deserialize() {
-    // TODO: After defining Payload fields in mod.rs, fill in example JSON
     let json = serde_json::json!({
-        // TODO: Add fields matching DirectorySearchPayload
-        // Example: "field_name": "value"
+        "pattern": "*.rs",
+        "recursive": true,
+        "include_hidden": false
     });
 
     let result: Result<DirectorySearchPayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "Payload should deserialize successfully");
+    assert!(
+        result.is_ok(),
+        "Failed to deserialize DirectorySearchPayload"
+    );
 
-    // TODO: Add assertions to verify field values
-    // let payload = result.unwrap();
-    // assert_eq!(payload.field_name, "expected_value");
+    let payload = result.unwrap();
+    assert_eq!(payload.pattern, "*.rs");
+    assert_eq!(payload.recursive, true);
+    assert_eq!(payload.include_hidden, false);
 }
 
 // ============================================
@@ -786,40 +1105,110 @@ fn test_search_payload_deserialize() {
 
 #[test]
 fn test_search_basic() {
+    use std::fs;
+    use tempfile::TempDir;
+
+    // Create temporary test directory
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_string_lossy().to_string();
+
+    // Create test files with different extensions
+    fs::write(temp_dir.path().join("test1.rs"), "").unwrap();
+    fs::write(temp_dir.path().join("test2.rs"), "").unwrap();
+    fs::write(temp_dir.path().join("test.txt"), "").unwrap();
+    fs::write(temp_dir.path().join("readme.md"), "").unwrap();
+    fs::create_dir(temp_dir.path().join("subdir")).unwrap();
+    fs::write(temp_dir.path().join("subdir/nested.rs"), "").unwrap();
+
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("directory.search")
-        .expect("directory.search should be registered");
+        .expect("directory.search capability should be registered");
 
-    let block = Block::new(
+    let mut block = Block::new(
         "Test Block".to_string(),
         "directory".to_string(),
         "alice".to_string(),
     );
 
+    block.contents = serde_json::json!({
+        "root": temp_path
+    });
+
+    // Test 1: Search for *.rs files (non-recursive)
     let cmd = Command::new(
         "alice".to_string(),
         "directory.search".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            // TODO: Fill in payload fields
+            "pattern": "*.rs",
+            "recursive": false,
+            "include_hidden": false
         }),
     );
 
-    // TODO: After implementing handler, this should pass
     let result = cap.handler(&cmd, Some(&block));
-    assert!(result.is_ok(), "Handler should execute successfully");
+    assert!(
+        result.is_ok(),
+        "Should search successfully: {:?}",
+        result.err()
+    );
 
     let events = result.unwrap();
     assert_eq!(events.len(), 1, "Should generate one event");
     assert_eq!(events[0].entity, block.block_id);
     assert_eq!(events[0].attribute, "alice/directory.search");
 
-    // TODO: Add assertions to verify event contents
-    // let contents = events[0].value.get("contents").unwrap();
-    // assert_eq!(contents.get("field"), expected_value);
-}
+    // Verify search results
+    let matches = events[0].value.get("matches").unwrap().as_array().unwrap();
+    assert_eq!(matches.len(), 2, "Should find 2 .rs files in root");
 
+    let match_names: Vec<String> = matches
+        .iter()
+        .map(|m| m.get("name").unwrap().as_str().unwrap().to_string())
+        .collect();
+
+    assert!(match_names.contains(&"test1.rs".to_string()));
+    assert!(match_names.contains(&"test2.rs".to_string()));
+
+    // Test 2: Search recursively for *.rs files
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.search".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "pattern": "*.rs",
+            "recursive": true,
+            "include_hidden": false
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Should search recursively");
+
+    let events = result.unwrap();
+    let matches = events[0].value.get("matches").unwrap().as_array().unwrap();
+    assert_eq!(matches.len(), 3, "Should find 3 .rs files including nested");
+
+    // Test 3: Search with ? wildcard
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.search".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "pattern": "test?.rs",
+            "recursive": false,
+            "include_hidden": false
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Should search with ? wildcard");
+
+    let events = result.unwrap();
+    let matches = events[0].value.get("matches").unwrap().as_array().unwrap();
+    assert_eq!(matches.len(), 2, "Should match test1.rs and test2.rs");
+}
 
 // ============================================
 // DirectorySearch - Authorization Tests
@@ -853,10 +1242,13 @@ fn test_search_authorization_non_owner_without_grant() {
     );
 
     // Bob (non-owner) without grant should not be authorized
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.search", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.search", &block.block_id);
 
-    assert!(!is_authorized, "Non-owner without grant should not be authorized");
+    assert!(
+        !is_authorized,
+        "Non-owner without grant should not be authorized"
+    );
 }
 
 #[test]
@@ -876,14 +1268,11 @@ fn test_search_authorization_non_owner_with_grant() {
         block.block_id.clone(),
     );
 
-    let is_authorized = block.owner == "bob"
-        || grants_table.has_grant("bob", "directory.search", &block.block_id);
+    let is_authorized =
+        block.owner == "bob" || grants_table.has_grant("bob", "directory.search", &block.block_id);
 
     assert!(is_authorized, "Non-owner with grant should be authorized");
 }
-
-
-
 
 // ============================================
 // Integration Workflow Test
@@ -891,28 +1280,180 @@ fn test_search_authorization_non_owner_with_grant() {
 
 #[test]
 fn test_full_workflow() {
-    // TODO: Implement a complete workflow test that exercises multiple capabilities
-    // This test should demonstrate a realistic usage scenario
+    use tempfile::TempDir;
+
+    // Create temporary test directory
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_string_lossy().to_string();
 
     let registry = CapabilityRegistry::new();
+
     let mut block = Block::new(
-        "Workflow Test Block".to_string(),
+        "Test Block".to_string(),
         "directory".to_string(),
         "alice".to_string(),
     );
 
-    // TODO: Step 1 - Use first capability
-    // Example: create/add an item
+    block.contents = serde_json::json!({
+        "root": temp_path
+    });
 
-    // TODO: Step 2 - Update block state (simulate StateProjector)
-    // block.contents = events[0].value.get("contents").unwrap().clone();
+    // Step 1: List empty directory
+    let list_cap = registry.get("directory.list").unwrap();
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.list".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "root": temp_path,
+            "recursive": false,
+            "include_hidden": false,
+            "max_depth": null
+        }),
+    );
+    let result = list_cap.handler(&cmd, Some(&block)).unwrap();
+    let entries = result[0].value.get("entries").unwrap().as_array().unwrap();
+    assert_eq!(entries.len(), 0, "Directory should be empty initially");
 
-    // TODO: Step 3 - Use second capability on updated state
-    // Example: toggle/modify the item
+    // Update block contents
+    block.contents = result[0].value.clone();
 
-    // TODO: Step 4 - Verify final state
-    // assert_eq!(final_state, expected_state);
+    // Step 2: Create a file
+    let create_cap = registry.get("directory.create").unwrap();
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.create".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "path": "test.txt",
+            "item_type": "file",
+            "content": "hello"
+        }),
+    );
+    create_cap.handler(&cmd, Some(&block)).unwrap();
 
-    todo!("Implement complete workflow test with multiple capability interactions");
+    // Step 3: List to verify file was created
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.list".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "root": temp_path,
+            "recursive": false,
+            "include_hidden": false,
+            "max_depth": null
+        }),
+    );
+    let result = list_cap.handler(&cmd, Some(&block)).unwrap();
+    let entries = result[0].value.get("entries").unwrap().as_array().unwrap();
+    assert_eq!(entries.len(), 1, "Should have 1 file after create");
+    assert_eq!(
+        entries[0].get("name").unwrap().as_str().unwrap(),
+        "test.txt"
+    );
+
+    block.contents = result[0].value.clone();
+
+    // Step 4: Rename the file
+    let rename_cap = registry.get("directory.rename").unwrap();
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.rename".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "old_path": "test.txt",
+            "new_path": "renamed.txt"
+        }),
+    );
+    rename_cap.handler(&cmd, Some(&block)).unwrap();
+
+    // Step 5: Refresh to see the renamed file
+    let refresh_cap = registry.get("directory.refresh").unwrap();
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.refresh".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "recursive": false
+        }),
+    );
+    let result = refresh_cap.handler(&cmd, Some(&block)).unwrap();
+    let entries = result[0].value.get("entries").unwrap().as_array().unwrap();
+    assert_eq!(entries.len(), 1, "Should still have 1 file after rename");
+    assert_eq!(
+        entries[0].get("name").unwrap().as_str().unwrap(),
+        "renamed.txt"
+    );
+
+    block.contents = result[0].value.clone();
+
+    // Step 6: Search for the renamed file
+    let search_cap = registry.get("directory.search").unwrap();
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.search".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "pattern": "*.txt",
+            "recursive": false,
+            "include_hidden": false
+        }),
+    );
+    let result = search_cap.handler(&cmd, Some(&block)).unwrap();
+    let matches = result[0].value.get("matches").unwrap().as_array().unwrap();
+    assert_eq!(matches.len(), 1, "Should find 1 .txt file");
+    assert_eq!(
+        matches[0].get("name").unwrap().as_str().unwrap(),
+        "renamed.txt"
+    );
+
+    // Step 7: Enable watching
+    let watch_cap = registry.get("directory.watch").unwrap();
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.watch".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "enabled": true
+        }),
+    );
+    let result = watch_cap.handler(&cmd, Some(&block)).unwrap();
+    assert_eq!(
+        result[0]
+            .value
+            .get("watch_enabled")
+            .unwrap()
+            .as_bool()
+            .unwrap(),
+        true
+    );
+
+    // Step 8: Delete the file
+    let delete_cap = registry.get("directory.delete").unwrap();
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.delete".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "path": "renamed.txt",
+            "recursive": false
+        }),
+    );
+    delete_cap.handler(&cmd, Some(&block)).unwrap();
+
+    // Step 9: List to verify file was deleted
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.list".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "root": temp_path,
+            "recursive": false,
+            "include_hidden": false,
+            "max_depth": null
+        }),
+    );
+    let result = list_cap.handler(&cmd, Some(&block)).unwrap();
+    let entries = result[0].value.get("entries").unwrap().as_array().unwrap();
+    assert_eq!(entries.len(), 0, "Directory should be empty after delete");
 }
-

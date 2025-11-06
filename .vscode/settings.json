@@ -1,3 +1,10 @@
-{
-    "rust-client.engine": "rust-analyzer"
-}
+  {
+      "rust-client.engine": "rust-analyzer",
+      "rust-analyzer.linkedProjects": [
+          "./src-tauri/Cargo.toml"
+      ],
+      "rust-analyzer.cargo.features": "all",
+      "rust-analyzer.procMacro.enable": true,
+      "rust-analyzer.procMacro.attributes.enable": true,
+      "rust-analyzer.cargo.buildScripts.enable": true
+  }

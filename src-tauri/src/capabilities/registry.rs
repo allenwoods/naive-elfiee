@@ -50,7 +50,7 @@ impl CapabilityRegistry {
 
     /// Register all extension capabilities.
     fn register_extensions(&mut self) {
-    use crate::extensions::directory::*;
+        use crate::extensions::directory::*;
 
         use crate::extensions::markdown::*;
 
