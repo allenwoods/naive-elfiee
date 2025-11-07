@@ -183,10 +183,10 @@ fn search_recursive(
     Ok(())
 }
 
-/// Simple pattern matching with wildcards (* and ?)
+/// Simple pattern matching with wildcards (`*` and `?`)
 ///
-///     * matches any sequence of characters
-///     ? matches any single character
+/// - `*` matches any sequence of characters
+/// - `?` matches any single character
 fn matches_pattern(filename: &str, pattern: &str) -> bool {
     let pattern_chars: Vec<char> = pattern.chars().collect();
     let filename_chars: Vec<char> = filename.chars().collect();
