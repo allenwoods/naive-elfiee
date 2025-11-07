@@ -1,6 +1,27 @@
 /// Capability: watch
 ///
-/// Enables or disables file system watching (flag only, no actual watching implemented).
+/// Enables or disables directory watching
+///
+/// **Current Implementation**: This capability only sets a `watch_enabled` flag in the block's
+/// contents. It does NOT implement actual filesystem monitoring yet.
+///
+/// **Future Plan**: When `watch_enabled` is true, the system will:
+/// 1. Use the `notify` crate to monitor filesystem events for the directory
+/// 2. Emit events when files are created, modified, or deleted
+/// 3. Automatically trigger `directory.refresh` when changes are detected
+/// 4. Notify connected clients via Tauri events for real-time updates
+///
+/// **Current Behavior**:
+/// - Setting `watch_enabled: true` stores the flag in `block.contents`
+/// - No actual filesystem watching occurs
+/// - Clients must manually call `directory.refresh` to update the listing
+///
+/// **Integration Requirements** (for future implementation):
+/// - Add `notify` crate dependency
+/// - Create a watcher manager in the Engine
+/// - Map file events to Elfiee events
+/// - Handle watcher lifecycle (start/stop on open/close)
+///
 use super::DirectoryWatchPayload;
 use crate::capabilities::core::{create_event, CapResult};
 use crate::models::{Block, Command, Event};
@@ -8,16 +29,37 @@ use capability_macros::capability;
 
 /// Handler for watch capability.
 ///
-/// Sets the watch_enabled flag in Block.contents.
-/// Actual file system watching is not implemented in this version.
+/// Sets the `watch_enabled` flag in block contents. This is currently a **stub implementation**
+/// that only stores the flag without implementing actual filesystem monitoring.
 ///
 /// # Arguments
-/// * `cmd` - The command containing the payload
-/// * `block` - The block representing the directory
+/// * `cmd` - The command containing the payload with `enabled` field
+/// * `block` - The block representing the directory (must exist)
+///
+/// # Payload
+/// ```json
+/// {
+///   "enabled": true  // or false to disable
+/// }
+/// ```
 ///
 /// # Returns
-/// * `Ok(Vec<Event>)` - Events with updated watch flag
-/// * `Err(String)` - Error description
+/// * `Ok(Vec<Event>)` - Events with updated `watch_enabled` status
+/// * `Err(String)` - Error description if payload is invalid or block is missing
+///
+/// # Example
+/// ```rust,ignore
+/// let payload = DirectoryWatchPayload { enabled: true };
+/// let events = handle_watch(&command, Some(&block))?;
+/// // block.contents will now include: { "watch_enabled": true, "updated_at": "..." }
+/// ```
+///
+/// # Note
+/// This is a placeholder for future filesystem watching functionality. Applications using this
+/// capability should be aware that:
+/// - No automatic updates will occur when files change
+/// - The `watch_enabled` flag is purely informational
+/// - Use `directory.refresh` to manually update directory listings
 ///
 #[capability(id = "directory.watch", target = "directory")]
 fn handle_watch(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {

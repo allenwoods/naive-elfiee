@@ -34,6 +34,15 @@ fn handle_search(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         return Err("DirectorySearchPayload.pattern must not be empty".into());
     }
 
+    // Limit number of wildcards to prevent performance issues
+    let wildcard_count = payload.pattern.chars().filter(|&c| c == '*').count();
+    if wildcard_count > 10 {
+        return Err(format!(
+            "Search pattern contains too many wildcards ({}). Maximum allowed is 10.",
+            wildcard_count
+        ));
+    }
+
     // Step 4: Get root from block contents
     let root = block
         .contents
@@ -44,10 +53,10 @@ fn handle_search(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
     // Step 5: Validate root path
     let path = Path::new(root);
     if !path.exists() {
-        return Err(format!("Root path '{}' does not exist", root));
+        return Err("Root directory does not exist".into());
     }
     if !path.is_dir() {
-        return Err(format!("Root path '{}' is not a directory", root));
+        return Err("Root path is not a directory".into());
     }
 
     // Step 6: Security check
@@ -175,16 +184,28 @@ fn search_recursive(
 }
 
 /// Simple pattern matching with wildcards (* and ?)
-/// * matches any sequence of characters
-/// ? matches any single character
+///
+///     * matches any sequence of characters
+///     ? matches any single character
 fn matches_pattern(filename: &str, pattern: &str) -> bool {
     let pattern_chars: Vec<char> = pattern.chars().collect();
     let filename_chars: Vec<char> = filename.chars().collect();
 
-    matches_pattern_impl(&filename_chars, 0, &pattern_chars, 0)
+    matches_pattern_impl(&filename_chars, 0, &pattern_chars, 0, 0)
 }
 
-fn matches_pattern_impl(filename: &[char], f_idx: usize, pattern: &[char], p_idx: usize) -> bool {
+fn matches_pattern_impl(
+    filename: &[char],
+    f_idx: usize,
+    pattern: &[char],
+    p_idx: usize,
+    depth: usize,
+) -> bool {
+    // Prevent stack overflow from overly complex patterns
+    if depth > 100 {
+        return false;
+    }
+
     // Both exhausted - match
     if f_idx == filename.len() && p_idx == pattern.len() {
         return true;
@@ -204,20 +225,20 @@ fn matches_pattern_impl(filename: &[char], f_idx: usize, pattern: &[char], p_idx
         '*' => {
             // Try matching 0 or more characters
             // Case 1: * matches nothing (skip * in pattern)
-            if matches_pattern_impl(filename, f_idx, pattern, p_idx + 1) {
+            if matches_pattern_impl(filename, f_idx, pattern, p_idx + 1, depth + 1) {
                 return true;
             }
             // Case 2: * matches one or more characters (consume one char from filename)
-            matches_pattern_impl(filename, f_idx + 1, pattern, p_idx)
+            matches_pattern_impl(filename, f_idx + 1, pattern, p_idx, depth + 1)
         }
         '?' => {
             // ? matches exactly one character
-            matches_pattern_impl(filename, f_idx + 1, pattern, p_idx + 1)
+            matches_pattern_impl(filename, f_idx + 1, pattern, p_idx + 1, depth + 1)
         }
         c => {
             // Literal character must match
             if filename[f_idx] == c {
-                matches_pattern_impl(filename, f_idx + 1, pattern, p_idx + 1)
+                matches_pattern_impl(filename, f_idx + 1, pattern, p_idx + 1, depth + 1)
             } else {
                 false
             }

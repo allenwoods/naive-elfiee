@@ -53,12 +53,24 @@ fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         return Err(format!("Path '{}' does not exist", payload.old_path));
     }
 
-    // Step 7: Check if new path already exists
+    // Step 7: Check for symlink in old path (security)
+    let old_metadata = fs::symlink_metadata(&old_full_path)
+        .map_err(|e| format!("Failed to read old path metadata: {}", e))?;
+
+    if old_metadata.is_symlink() {
+        return Err(format!(
+            "Renaming symlinks is not supported for security reasons. \
+             Path '{}' is a symbolic link.",
+            payload.old_path
+        ));
+    }
+
+    // Step 8: Check if new path already exists
     if new_full_path.exists() {
         return Err(format!("Path '{}' already exists", payload.new_path));
     }
 
-    // Step 8: Security check - ensure both paths are within root
+    // Step 9: Security check - ensure both paths are within root
     let canonical_root = Path::new(root)
         .canonicalize()
         .map_err(|e| format!("Failed to canonicalize root: {}", e))?;
@@ -89,15 +101,15 @@ fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         }
     }
 
-    // Step 9: Prevent renaming root directory itself
+    // Step 10: Prevent renaming root directory itself
     if canonical_old_path == canonical_root {
         return Err("Cannot rename root directory".into());
     }
 
-    // Step 10: Perform rename (filesystem handles recursive path updates automatically)
+    // Step 11: Perform rename (filesystem handles recursive path updates automatically)
     fs::rename(&old_full_path, &new_full_path).map_err(|e| format!("Failed to rename: {}", e))?;
 
-    // Step 11: Create event
+    // Step 12: Create event
     let value = serde_json::json!({
         "old_path": payload.old_path,
         "new_path": payload.new_path,

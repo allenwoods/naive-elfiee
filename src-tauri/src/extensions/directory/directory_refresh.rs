@@ -1,11 +1,11 @@
 /// Capability: refresh
 ///
 /// Refreshes the directory cache by re-scanning the filesystem.
+use super::utils::{read_dir_recursive, read_dir_single};
 use super::DirectoryRefreshPayload;
 use crate::capabilities::core::{create_event, CapResult};
 use crate::models::{Block, Command, Event};
 use capability_macros::capability;
-use std::fs;
 use std::path::Path;
 
 /// Handler for refresh capability.
@@ -40,10 +40,10 @@ fn handle_refresh(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>>
     // Step 4: Validate root path
     let path = Path::new(root);
     if !path.exists() {
-        return Err(format!("Root path '{}' does not exist", root));
+        return Err("Root directory does not exist".into());
     }
     if !path.is_dir() {
-        return Err(format!("Root path '{}' is not a directory", root));
+        return Err("Root path is not a directory".into());
     }
 
     // Step 5: Security check
@@ -104,85 +104,5 @@ fn handle_refresh(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>>
     Ok(vec![event])
 }
 
-/// Read directory entries (non-recursive)
-fn read_dir_single(
-    path: &Path,
-    entries: &mut Vec<serde_json::Value>,
-    include_hidden: bool,
-) -> Result<(), String> {
-    for entry in fs::read_dir(path).map_err(|e| format!("Failed to read directory: {}", e))? {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-        let file_name = entry.file_name().to_string_lossy().to_string();
-
-        if !include_hidden && file_name.starts_with('.') {
-            continue;
-        }
-
-        let file_type = entry
-            .file_type()
-            .map_err(|e| format!("Failed to determine entry type: {}", e))?;
-
-        entries.push(serde_json::json!({
-            "name": file_name,
-            "is_dir": file_type.is_dir(),
-            "is_file": file_type.is_file(),
-        }));
-    }
-    Ok(())
-}
-
-/// Read directory entries recursively
-fn read_dir_recursive(
-    root: &Path,
-    current: &Path,
-    entries: &mut Vec<serde_json::Value>,
-    include_hidden: bool,
-    max_depth: Option<usize>,
-    current_depth: usize,
-) -> Result<(), String> {
-    if let Some(max) = max_depth {
-        if current_depth >= max {
-            return Ok(());
-        }
-    }
-
-    for entry in fs::read_dir(current).map_err(|e| format!("Failed to read directory: {}", e))? {
-        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-        let file_name = entry.file_name().to_string_lossy().to_string();
-
-        if !include_hidden && file_name.starts_with('.') {
-            continue;
-        }
-
-        let file_type = entry
-            .file_type()
-            .map_err(|e| format!("Failed to determine entry type: {}", e))?;
-
-        let entry_path = entry.path();
-        let relative_path = entry_path
-            .strip_prefix(root)
-            .map_err(|_| "Failed to calculate relative path".to_string())?
-            .to_string_lossy()
-            .to_string();
-
-        entries.push(serde_json::json!({
-            "name": file_name,
-            "path": relative_path,
-            "is_dir": file_type.is_dir(),
-            "is_file": file_type.is_file(),
-        }));
-
-        if file_type.is_dir() {
-            read_dir_recursive(
-                root,
-                &entry_path,
-                entries,
-                include_hidden,
-                max_depth,
-                current_depth + 1,
-            )?;
-        }
-    }
-
-    Ok(())
-}
+// Note: read_dir_single and read_dir_recursive functions have been moved to utils.rs
+// to avoid code duplication with directory_list.rs

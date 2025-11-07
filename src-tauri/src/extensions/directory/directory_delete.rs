@@ -49,7 +49,19 @@ fn handle_delete(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         return Err(format!("Path '{}' does not exist", payload.path));
     }
 
-    // Step 7: Security check - ensure path is within root
+    // Step 7: Check for symlink (security)
+    let metadata = fs::symlink_metadata(&full_path)
+        .map_err(|e| format!("Failed to read path metadata: {}", e))?;
+
+    if metadata.is_symlink() {
+        return Err(format!(
+            "Deleting symlinks is not supported for security reasons. \
+             Path '{}' is a symbolic link.",
+            payload.path
+        ));
+    }
+
+    // Step 8: Security check - ensure path is within root
     let canonical_root = Path::new(root)
         .canonicalize()
         .map_err(|e| format!("Failed to canonicalize root: {}", e))?;
@@ -62,12 +74,12 @@ fn handle_delete(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         return Err("Path traversal attempt detected".into());
     }
 
-    // Step 8: Prevent deleting root directory itself
+    // Step 9: Prevent deleting root directory itself
     if canonical_path == canonical_root {
         return Err("Cannot delete root directory".into());
     }
 
-    // Step 9: Check if it's a directory and handle recursive flag
+    // Step 10: Check if it's a directory and handle recursive flag
     let is_dir = full_path.is_dir();
 
     if is_dir && !payload.recursive {
@@ -82,7 +94,7 @@ fn handle_delete(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         }
     }
 
-    // Step 10: Delete file or directory
+    // Step 11: Delete file or directory
     if is_dir {
         if payload.recursive {
             fs::remove_dir_all(&full_path)

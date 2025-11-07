@@ -51,27 +51,40 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
     // Step 5: Construct full path
     let full_path = Path::new(root).join(&payload.path);
 
-    // Step 6: Security check - ensure path is within root
+    // Step 6: Canonicalize root for security check
     let canonical_root = Path::new(root)
         .canonicalize()
         .map_err(|e| format!("Failed to canonicalize root: {}", e))?;
 
-    // Check parent directory exists for canonicalization
+    // Step 7: Security check on PARENT directory BEFORE any file creation (TOCTOU mitigation)
     if let Some(parent) = full_path.parent() {
+        // Ensure parent exists
         if !parent.exists() {
             return Err(format!(
-                "Parent directory '{}' does not exist",
-                parent.display()
+                "Parent directory for '{}' does not exist",
+                payload.path
+            ));
+        }
+
+        // Canonicalize parent and verify it's within root
+        let canonical_parent = parent
+            .canonicalize()
+            .map_err(|e| format!("Failed to canonicalize parent directory: {}", e))?;
+
+        if !canonical_parent.starts_with(&canonical_root) {
+            return Err(format!(
+                "Path '{}' attempts to escape root directory",
+                payload.path
             ));
         }
     }
 
-    // Step 7: Check if path already exists
+    // Step 8: Check if path already exists
     if full_path.exists() {
         return Err(format!("Path '{}' already exists", payload.path));
     }
 
-    // Step 8: Create file or directory
+    // Step 9: Now safe to create file/directory
     if payload.item_type == "file" {
         fs::write(&full_path, &payload.content)
             .map_err(|e| format!("Failed to create file: {}", e))?;
@@ -79,22 +92,30 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         fs::create_dir(&full_path).map_err(|e| format!("Failed to create directory: {}", e))?;
     }
 
-    // Step 9: Verify creation and get canonical path for security check
+    // Step 10: Final verification (paranoia check)
     let canonical_path = full_path
         .canonicalize()
-        .map_err(|e| format!("Failed to canonicalize created path: {}", e))?;
+        .map_err(|e| format!("Failed to verify created path: {}", e))?;
 
     if !canonical_path.starts_with(&canonical_root) {
-        // Rollback - delete the created item
-        let _ = if payload.item_type == "file" {
+        // Security violation detected - rollback
+        let rollback_result = if payload.item_type == "file" {
             fs::remove_file(&full_path)
         } else {
             fs::remove_dir(&full_path)
         };
-        return Err("Path traversal attempt detected".into());
+
+        if let Err(e) = rollback_result {
+            eprintln!("Failed to rollback insecure creation: {}", e);
+        }
+
+        return Err(format!(
+            "Security violation: created path '{}' is outside root directory",
+            payload.path
+        ));
     }
 
-    // Step 10: Create event
+    // Step 11: Create event
     let value = serde_json::json!({
         "path": payload.path,
         "item_type": payload.item_type,
