@@ -40,11 +40,10 @@ pub use directory_search::*;
 // ============================================================================
 
 /// Payload for DirectoryList
-
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct DirectoryListPayload {
-    /// Root path to list (relative to Block.contents.root, or use Block.contents.root if None)
-    pub root: String,
+    /// Path to list (relative to Block.contents.root; use "." for the root)
+    pub path: String,
 
     /// Whether to recursively list subdirectories
     #[serde(default)]

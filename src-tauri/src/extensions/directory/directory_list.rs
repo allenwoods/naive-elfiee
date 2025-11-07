@@ -36,26 +36,26 @@ fn handle_list(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
         .and_then(|v| v.as_str())
         .ok_or("Block.contents must have 'root' field")?;
 
-    // Step 4: Validate payload.root
-    if payload.root.trim().is_empty() {
-        return Err("DirectoryListPayload.root must not be empty".into());
+    // Step 4: Validate payload.path
+    if payload.path.trim().is_empty() {
+        return Err("DirectoryListPayload.path must not be empty".into());
     }
 
-    // Step 5: Join payload.root as relative path to block's root
-    let full_path = Path::new(root).join(&payload.root);
+    // Step 5: Join payload.path as relative path to block's root
+    let full_path = Path::new(root).join(&payload.path);
 
     // Step 6: Validate path exists and is directory
     if !full_path.exists() {
-        return Err(format!("Path '{}' does not exist", payload.root));
+        return Err(format!("Path '{}' does not exist", payload.path));
     }
     if !full_path.is_dir() {
-        return Err(format!("Path '{}' is not a directory", payload.root));
+        return Err(format!("Path '{}' is not a directory", payload.path));
     }
 
     // Step 7: Canonicalize for security check
     let canonical_path = full_path
         .canonicalize()
-        .map_err(|e| format!("Failed to canonicalize path '{}': {}", payload.root, e))?;
+        .map_err(|e| format!("Failed to canonicalize path '{}': {}", payload.path, e))?;
 
     let canonical_root = Path::new(root)
         .canonicalize()
@@ -65,7 +65,7 @@ fn handle_list(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     if !canonical_path.starts_with(&canonical_root) {
         return Err(format!(
             "Path '{}' is outside the root directory",
-            payload.root
+            payload.path
         ));
     }
 
@@ -88,7 +88,7 @@ fn handle_list(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     }
 
     // Step 6: Create event with entries
-    // Note: Store the absolute root path (from block.contents), not the relative payload.root
+    // Note: Store the absolute root path (from block.contents), not the relative payload.path
     let value = serde_json::json!({
         "root": root,  // Changed from payload.root to root (absolute path)
         "recursive": payload.recursive,

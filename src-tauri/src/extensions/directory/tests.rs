@@ -21,7 +21,7 @@ use crate::models::{Block, Command};
 #[test]
 fn test_list_payload_deserialize() {
     let json = serde_json::json!({
-        "root": "/test/path",
+        "path": "/test/path",
         "recursive": true,
         "include_hidden": false,
         "max_depth": 3
@@ -31,7 +31,7 @@ fn test_list_payload_deserialize() {
     assert!(result.is_ok(), "Failed to deserialize DirectoryListPayload");
 
     let payload = result.unwrap();
-    assert_eq!(payload.root, "/test/path");
+    assert_eq!(payload.path, "/test/path");
     assert!(payload.recursive);
     assert!(!payload.include_hidden);
     assert_eq!(payload.max_depth, Some(3));
@@ -76,7 +76,7 @@ fn test_list_basic() {
         "directory.list".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            "root": ".",  // Changed to relative path
+            "path": ".",  // Relative to block root
             "recursive": false,
             "include_hidden": false,
             "max_depth": null
@@ -146,7 +146,7 @@ fn test_list_path_traversal_blocked() {
         "directory.list".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            "root": "../../../etc",  // Path traversal attempt
+            "path": "../../../etc",  // Path traversal attempt
             "recursive": false,
             "include_hidden": false,
             "max_depth": null
@@ -202,7 +202,7 @@ fn test_list_max_depth_limit() {
         "directory.list".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            "root": ".",
+            "path": ".",
             "recursive": true,
             "include_hidden": false,
             "max_depth": 1
@@ -1243,7 +1243,7 @@ fn test_refresh_basic() {
         "directory.list".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            "root": ".",  // Changed to relative path
+            "path": ".",
             "recursive": false,
             "include_hidden": false,
             "max_depth": null
@@ -2155,7 +2155,7 @@ fn test_full_workflow() {
         "directory.list".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            "root": temp_path,
+            "path": ".",
             "recursive": false,
             "include_hidden": false,
             "max_depth": null
@@ -2188,7 +2188,7 @@ fn test_full_workflow() {
         "directory.list".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            "root": temp_path,
+            "path": ".",
             "recursive": false,
             "include_hidden": false,
             "max_depth": null
@@ -2294,7 +2294,7 @@ fn test_full_workflow() {
         "directory.list".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            "root": temp_path,
+            "path": ".",
             "recursive": false,
             "include_hidden": false,
             "max_depth": null
@@ -2455,8 +2455,8 @@ fn test_concurrent_create_delete() {
         cap.handler(&cmd, Some(&*block_guard))
     });
 
-    let result1 = handle1.join().unwrap();
-    let result2 = handle2.join().unwrap();
+    let _result1 = handle1.join().unwrap();
+    let _result2 = handle2.join().unwrap();
 
     // Verify final state consistency
     // Either:
@@ -2471,8 +2471,4 @@ fn test_concurrent_create_delete() {
     if child_exists {
         assert!(parent_exists, "If child exists, parent must exist");
     }
-
-    // At least one operation should succeed or fail consistently
-    let has_outcome = result1.is_ok() || result1.is_err() || result2.is_ok() || result2.is_err();
-    assert!(has_outcome, "Operations should have definite outcomes");
 }
