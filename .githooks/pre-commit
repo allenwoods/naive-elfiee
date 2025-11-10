@@ -1,0 +1,45 @@
+#!/bin/sh
+
+# Abort on any error
+set -e
+
+LOG_FILE="$(mktemp -t elfiee-make-fmt.XXXXXX)"
+STASHED=0
+
+cleanup() {
+    if [ "$STASHED" -eq 1 ]; then
+        git stash pop -q || {
+            echo "⚠️  Failed to restore stashed changes. Please run 'git stash pop' manually."
+        }
+    fi
+    rm -f "$LOG_FILE"
+}
+
+trap cleanup EXIT
+
+# Stash unstaged changes so formatting only touches staged files.
+if ! git diff --quiet --ignore-submodules --; then
+    if git stash push --keep-index -q -m "pre-commit-format"; then
+        STASHED=1
+    else
+        echo "❌ Unable to stash unstaged changes. Aborting commit."
+        exit 1
+    fi
+fi
+
+echo "🛠  Running make fmt before commit..."
+
+if ! make fmt >"$LOG_FILE" 2>&1; then
+    cat "$LOG_FILE"
+    echo "❌ make fmt failed. Please fix the issues above."
+    exit 1
+fi
+
+if ! git diff --quiet; then
+    cat "$LOG_FILE"
+    echo "✨ make fmt applied formatting changes."
+    echo "👉 Please review, stage, and re-run git commit."
+    exit 1
+fi
+
+echo "✅ Formatting check passed."
