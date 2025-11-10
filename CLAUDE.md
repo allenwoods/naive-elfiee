@@ -17,6 +17,10 @@ This project uses **Tauri 2** (Rust backend + React frontend) for cross-platform
 - **Backend**: Rust (Tauri) for native performance and system integration
 - **Frontend**: React + TypeScript with Vite for fast development
 - **IPC**: Tauri's command system for frontend-backend communication
+- **Testing**: Vitest for frontend, built-in Rust testing for backend
+- **Styling**: Tailwind CSS v4 with shadcn/ui components
+- **Terminal**: xterm.js integration for terminal functionality
+- **State Management**: Zustand for React state management
 
 ## Architecture Overview
 
@@ -155,6 +159,32 @@ Recommended test structure:
 - **Integration tests**: Full command → event → state projection cycle
 - **Conflict tests**: Concurrent editor scenarios with vector clock resolution
 
+## Current Implementation Status
+
+The project is currently in active development with the following implemented:
+
+### ✅ Completed Components
+- **Core Engine Architecture**: Engine actors, capability system, event sourcing
+- **Capability System**: Procedural macros, built-in capabilities (create, delete, link, grant, revoke)
+- **Frontend Infrastructure**: React components, Tauri integration, terminal integration
+- **Testing Framework**: Vitest setup with coverage, component tests
+- **Type Safety**: tauri-specta integration for type-safe frontend-backend communication
+
+### 🚧 Current Focus
+- **Terminal Integration**: xterm.js-based terminal with command execution capabilities
+- **Block Editor Components**: Enhanced block editing and management
+- **Permission Management**: CBAC implementation and UI
+
+### 📁 Key File Locations
+- **Backend Entry**: `src-tauri/src/main.rs`, `src-tauri/src/lib.rs`
+- **Capability System**: `src-tauri/src/capabilities/`
+- **Commands (Tauri IPC)**: `src-tauri/src/commands/`
+- **Frontend Entry**: `src/App.tsx`, `src/main.tsx`
+- **Components**: `src/components/`
+- **Type Bindings**: `src/bindings.ts` (auto-generated)
+- **State Management**: `src/lib/app-store.ts`
+- **Tests**: `src/**/*.test.tsx`, `src-tauri/src/**/*.rs` (with `#[cfg(test)]`)
+
 ## Key Implementation Notes
 
 1. **Idempotency**: Commands use `cmd_id` (UUID) to prevent duplicate processing
@@ -166,42 +196,48 @@ Recommended test structure:
 ## File Organization
 
 ```
-naive-elfiee/
+elfiee/
 ├── README.md              # Full engineering specification
 ├── CLAUDE.md              # This file
 ├── package.json           # Frontend dependencies
-├── vite.config.ts         # Vite configuration
+├── vite.config.ts         # Vite & Vitest configuration
 ├── tsconfig.json          # TypeScript configuration
 ├── index.html             # App entry point
 ├── .cursor/mcp.json       # Shadcn MCP server config
+├── docs/                  # Comprehensive project documentation
 ├── src/                   # React frontend
 │   ├── main.tsx           # React entry point
 │   ├── App.tsx            # Main app component
+│   ├── bindings.ts        # Auto-generated TypeScript bindings (DO NOT EDIT)
 │   ├── components/        # React components
-│   │   └── BlockComponent.tsx
-│   ├── hooks/             # Custom React hooks
-│   ├── utils/             # Frontend utilities
-│   └── types/             # TypeScript type definitions
+│   │   ├── Terminal.tsx   # xterm.js terminal integration
+│   │   ├── BlockEditor.tsx
+│   │   ├── PermissionManager.tsx
+│   │   └── ui/            # shadcn/ui components
+│   ├── lib/               # Frontend utilities and stores
+│   │   ├── app-store.ts   # Zustand state management
+│   │   └── tauri-client.ts
+│   └── test/              # Test configuration and utilities
 ├── src-tauri/             # Tauri/Rust backend
-│   ├── Cargo.toml         # Rust dependencies
+│   ├── Cargo.toml         # Rust dependencies (workspace)
 │   ├── tauri.conf.json    # Tauri app configuration
 │   ├── build.rs           # Build script
+│   ├── capability-macros/ # Procedural macros for capability system
 │   └── src/
-│       ├── main.rs        # Tauri setup and commands
-│       ├── lib.rs         # Library root
-│       ├── engine/        # Elfile Engine
+│       ├── main.rs        # Tauri setup
+│       ├── lib.rs         # Library root with command registration
+│       ├── capabilities/  # Capability system implementation
 │       │   ├── mod.rs
-│       │   ├── event_store.rs
-│       │   ├── state_projector.rs
-│       │   └── command_processor.rs
-│       ├── models/        # Core data models
+│       │   ├── registry.rs
+│       │   ├── grants.rs
+│       │   └── builtins/  # Built-in capabilities
+│       ├── commands/      # Tauri command handlers
 │       │   ├── block.rs
 │       │   ├── editor.rs
-│       │   ├── capability.rs
-│       │   └── event.rs
-│       ├── extensions/    # Extension system
-│       │   ├── mod.rs
-│       │   └── core.rs
+│       │   └── file.rs
+│       ├── engine/        # Elfile Engine (actor model)
+│       ├── elf/           # ELF archive handling
+│       ├── models/        # Core data models
 │       └── utils/         # Backend utilities
 └── public/                # Static assets
 ```
@@ -338,14 +374,35 @@ pnpm tauri build
 # Run Rust tests
 cd src-tauri && cargo test
 
-# Run frontend tests
+# Run frontend tests (Vitest)
 pnpm test
+
+# Run frontend tests in CI mode
+pnpm test:ci
+
+# Run frontend tests with UI
+pnpm test:ui
+
+# Run frontend tests with coverage
+pnpm test:coverage
+
+# Format frontend code (Prettier)
+pnpm format
+
+# Check frontend code formatting
+pnpm format:check
 
 # Format Rust code
 cd src-tauri && cargo fmt
 
 # Lint Rust code
 cd src-tauri && cargo clippy
+
+# Run specific Rust test
+cd src-tauri && cargo test test_name
+
+# Run Rust tests for specific module
+cd src-tauri && cargo test capabilities::
 ```
 
 ### Part 4: Extension Interface & CBAC

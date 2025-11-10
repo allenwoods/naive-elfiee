@@ -10,7 +10,6 @@ import { Terminal as XTermTerminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { useAppStore } from '@/lib/app-store'
 import { TauriClient } from '@/lib/tauri-client'
-import type { TerminalExecutePayload } from '@/bindings'
 import '@xterm/xterm/css/xterm.css'
 
 export function Terminal() {
@@ -22,6 +21,34 @@ export function Terminal() {
   const fitAddonRef = useRef<FitAddon | null>(null)
   const [isInitializing, setIsInitializing] = useState(true)
 
+  const writeTerminalOutput = (terminal: XTermTerminal, text: string) => {
+    const normalized = text.replace(/\r\n/g, '\n')
+    const ansiStripped = normalized.replace(
+      // eslint-disable-next-line no-control-regex
+      /\u001b\[[0-9;?]*[ -/]*[@-~]/g,
+      ''
+    )
+    const cleaned = ansiStripped.replace(
+      // eslint-disable-next-line no-control-regex
+      /[^\t\n\x20-\x7E]/g,
+      ''
+    )
+    if (!cleaned.trim()) return
+    cleaned.split('\n').forEach((line) => {
+      terminal.writeln(line)
+    })
+  }
+
+  const writePrompt = (terminal: XTermTerminal, directory: string) => {
+    const dir = directory || '.'
+    const displayDir = dir.replace(/\\/g, '/')
+    const cursorX = terminal.buffer.active.cursorX
+    if (cursorX !== 0) {
+      terminal.write('\r\n')
+    }
+    terminal.write(`${displayDir} $ `)
+  }
+
   // Check if a block is selected
   const selectedBlock = activeFileId ? getSelectedBlock(activeFileId) : null
 
@@ -32,11 +59,16 @@ export function Terminal() {
       return
     }
 
-    // Check if block is selected
+    // Check if block is selected - wait a bit for selectedBlock to be available
     if (!selectedBlock) {
-      setIsInitializing(false)
-      // Don't initialize terminal if no block is selected
-      return
+      // Don't immediately fail, give it a chance to load
+      const timeout = setTimeout(() => {
+        const currentSelectedBlock = getSelectedBlock(activeFileId)
+        if (!currentSelectedBlock) {
+          setIsInitializing(false)
+        }
+      }, 200) // Increased timeout for better reliability
+      return () => clearTimeout(timeout)
     }
 
     let isMounted = true
@@ -85,7 +117,9 @@ export function Terminal() {
         }
         
         // Get all blocks
+        console.log('Terminal: Loading blocks for file:', activeFileId)
         const blocks = await TauriClient.block.getAllBlocks(activeFileId)
+        console.log('Terminal: Found blocks:', blocks)
         
         if (!isMounted || !xtermRef.current) {
           setIsInitializing(false)
@@ -94,9 +128,6 @@ export function Terminal() {
         
         // Find existing terminal block
         let terminalBlock = blocks.find(b => b.block_type === 'terminal')
-        
-        // Get block directory path: block-{block_id}
-        const blockDirectory = `block-${selectedBlock.block_id}`
         
         if (!terminalBlock) {
           // Create new terminal block
@@ -136,13 +167,11 @@ export function Terminal() {
         terminalBlockIdRef.current = terminalBlock.block_id
 
         // Get or set current directory from terminal block contents
-        let currentDir = blockDirectory
+        let currentDir = '.'
         if (terminalBlock.contents && typeof terminalBlock.contents === 'object') {
           const contents = terminalBlock.contents as any
           if (contents.current_directory) {
             currentDir = contents.current_directory
-          } else {
-            currentDir = blockDirectory
           }
         }
         currentDirectoryRef.current = currentDir
@@ -154,37 +183,42 @@ export function Terminal() {
           return
         }
 
-        // Clear the "Initializing..." line and update
-        terminal.write('\x1b[2K\r') // Clear current line
-        terminal.write('\x1b[A') // Move up one line  
-        terminal.write('\x1b[2K\r') // Clear that line
+        terminal.clear()
         terminal.writeln('Welcome to Elfiee Terminal!')
         terminal.writeln(`Current directory: ${currentDir}`)
         terminal.writeln('Type any command to execute.')
-        terminal.write(`\r\n${currentDir} $ `)
+        writePrompt(terminal, currentDir)
 
         // Load and display history (non-blocking)
-        if (terminalBlock.contents && typeof terminalBlock.contents === 'object') {
-          const contents = terminalBlock.contents as any
-          if (contents.history && Array.isArray(contents.history) && contents.history.length > 0) {
-            setTimeout(() => {
-              if (xtermRef.current && isMounted) {
-                xtermRef.current.writeln('\r\n--- Command History ---')
-                contents.history.forEach((entry: any) => {
+        setTimeout(async () => {
+          if (xtermRef.current && isMounted) {
+            try {
+              const history = await TauriClient.terminal.getTerminalHistory(activeFileId, terminalBlock.block_id)
+              if (history.length > 0) {
+                xtermRef.current.writeln('')
+                xtermRef.current.writeln('--- Command History ---')
+                history.forEach((entry) => {
                   xtermRef.current?.writeln(`$ ${entry.command}`)
                   if (entry.output) {
-                    xtermRef.current?.writeln(entry.output)
+                    writeTerminalOutput(xtermRef.current!, entry.output)
                   }
+                  if (entry.exit_code !== 0) {
+                    xtermRef.current?.writeln(`(exit code ${entry.exit_code})`)
+                  }
+                  xtermRef.current?.writeln('')
                 })
-                xtermRef.current.write(`\r\n${currentDir} $ `)
               }
-            }, 100)
+              writePrompt(xtermRef.current, currentDir)
+            } catch (error) {
+              console.error('Failed to load terminal history:', error)
+              writePrompt(xtermRef.current, currentDir)
+            }
           }
-        }
+        }, 100)
 
         // Define command handler inside initialization to access latest blockId
         const handleCommand = async (command: string) => {
-          if (!command) return
+          if (!command.trim()) return
 
           const currentBlockId = terminalBlockIdRef.current
           if (!activeFileId || !currentBlockId) {
@@ -199,110 +233,58 @@ export function Terminal() {
           }
 
           try {
-            // Special handling for ls command: get real file list
-            let commandOutput = ''
-            if (command.trim() === 'ls') {
-              try {
-                // Get current directory block_id from currentDirectoryRef
-                const currentDir = currentDirectoryRef.current || ''
-                let targetBlockId: string | null = null
-                
-                if (currentDir === 'block-root') {
-                  // List root - show all blocks (simplified)
-                  commandOutput = '(Root directory - use FileStructure to view all blocks)'
-                } else if (currentDir.startsWith('block-')) {
-                  // Extract block_id from directory path
-                  targetBlockId = currentDir.substring(6) // Remove "block-" prefix
-                }
-                
-                if (targetBlockId) {
-                  // List files in the target block's directory
-                  const files = await TauriClient.block.listBlockFiles(activeFileId, targetBlockId)
-                  if (files.length === 0) {
-                    commandOutput = '(Empty directory)'
-                  } else {
-                    commandOutput = files.join('\n')
-                  }
-                }
-              } catch (error) {
-                commandOutput = `Error listing files: ${error instanceof Error ? error.message : String(error)}`
-              }
-              
-              // If we got output, send it as a special command that just records the output
-              const payload: TerminalExecutePayload = { 
-                command: `__INTERNAL_LS__ ${commandOutput}`
-              }
-              const cmd = {
-                cmd_id: crypto.randomUUID(),
-                editor_id: editor.editor_id,
-                cap_id: 'terminal.execute',
-                block_id: currentBlockId,
-                payload: payload as any,
-                timestamp: new Date().toISOString(),
-              }
-              
-              const events = await TauriClient.block.executeCommand(activeFileId, cmd)
-              
-              // Display the output directly
-              terminal.writeln(commandOutput)
-              
-              // Update directory from event if needed
-              if (events.length > 0 && events[0].value) {
-                const event = events[0]
-                const value = event.value as any
-                if (value.contents && typeof value.contents === 'object') {
-                  const contents = value.contents as any
-                  if (contents.current_directory) {
-                    currentDirectoryRef.current = contents.current_directory
-                  }
-                }
-              }
-              
-              return
-            }
+            // No special handling needed - let all commands go through the backend
+            // The backend will handle ls, pwd, cd and other system commands properly
 
-            // Execute command via backend (for non-ls commands)
-            const payload: TerminalExecutePayload = { command }
-            const cmd = {
-              cmd_id: crypto.randomUUID(),
-              editor_id: editor.editor_id,
-              cap_id: 'terminal.execute',
-              block_id: currentBlockId,
-              payload: payload as any,
-              timestamp: new Date().toISOString(),
-            }
+            // Debug info
+            console.log('Terminal: Executing command:', {
+              command,
+              fileId: activeFileId,
+              blockId: currentBlockId,
+              editorId: editor.editor_id
+            })
+            
+            // Execute command using new TauriClient.terminal interface
+            const events = await TauriClient.terminal.executeCommand(
+              activeFileId,
+              currentBlockId,
+              command,
+              editor.editor_id
+            )
+            
+            console.log('Terminal: Command execution result:', events)
+            
+            // Get updated terminal state
+            const terminalState = await TauriClient.terminal.getTerminalState(activeFileId, currentBlockId)
 
-            const events = await TauriClient.block.executeCommand(activeFileId, cmd)
+            // Update current directory
+            currentDirectoryRef.current = terminalState.currentDirectory
+            
+            // Display command output
+            if (terminalState.history.length > 0) {
+              const latestEntry = terminalState.history[terminalState.history.length - 1]
+              
+              // Show the executed command for clarity
+              console.log('Terminal: Latest history entry:', latestEntry)
+              
+              const commandText = latestEntry.command.trim().toLowerCase()
 
-            // Get the output from the event and update current directory
-            if (events.length > 0 && events[0].value) {
-              const event = events[0]
-              const value = event.value as any
-              if (value.contents && typeof value.contents === 'object') {
-                const contents = value.contents as any
-                
-                // Update current directory if it changed
-                if (contents.current_directory) {
-                  currentDirectoryRef.current = contents.current_directory
-                }
-                
-                if (contents.history && Array.isArray(contents.history)) {
-                  const latestEntry = contents.history[contents.history.length - 1]
-                  if (latestEntry && latestEntry.output) {
-                    terminal.writeln(latestEntry.output)
-                  } else {
-                    terminal.writeln('Command executed successfully')
-                  }
-                }
+              if (latestEntry.exit_code !== 0) {
+                terminal.writeln('[command failed]')
+                terminal.writeln(`Exit code: ${latestEntry.exit_code}`)
+              } else if (latestEntry.output && latestEntry.output.trim()) {
+                writeTerminalOutput(terminal, latestEntry.output)
+              } else if (!commandText.startsWith('cd')) {
+                terminal.writeln('[command completed]')
               }
+            } else {
+              // No history found - this might indicate a problem
+              console.warn('Terminal: No history entries found after command execution')
+              terminal.writeln('Command executed but no history was returned.')
             }
             
-            // Update prompt with new directory after command (don't write prompt here, it will be written by onData handler)
-            const updatedDir = currentDirectoryRef.current || currentDir
-            if (updatedDir) {
-              currentDirectoryRef.current = updatedDir
-            }
           } catch (error) {
+            console.error('Terminal: Command execution failed:', error)
             terminal.writeln(`Error: ${error instanceof Error ? error.message : String(error)}`)
           }
         }
@@ -336,14 +318,14 @@ export function Terminal() {
               } finally {
                 // Update prompt with current directory after command completes
                 const currentDir = currentDirectoryRef.current || 'block-root'
-                terminal.write(`\r\n${currentDir} $ `)
+                writePrompt(terminal, currentDir)
                 isProcessingCommand = false
               }
             } else {
               // Empty command, just show prompt
               terminal.write('\r\n')
               const currentDir = currentDirectoryRef.current || 'block-root'
-              terminal.write(`${currentDir} $ `)
+              writePrompt(terminal, currentDir)
             }
             return
           }
@@ -359,7 +341,9 @@ export function Terminal() {
 
           // Ctrl+C
           if (code === 3) {
-            terminal.write('^C\r\n$ ')
+        terminal.write('^C')
+        const currentDir = currentDirectoryRef.current || 'block-root'
+        writePrompt(terminal, currentDir)
             currentLine = ''
             return
           }
@@ -368,7 +352,7 @@ export function Terminal() {
           if (code === 12) {
             terminal.clear()
             const currentDir = currentDirectoryRef.current || 'block-root'
-            terminal.write(`${currentDir} $ `)
+            writePrompt(terminal, currentDir)
             currentLine = ''
             return
           }
@@ -403,54 +387,8 @@ export function Terminal() {
       }
       setIsInitializing(false)
     }
-  }, [activeFileId, getActiveEditor, selectedBlock?.block_id])
+  }, [activeFileId, selectedBlock, getActiveEditor, getSelectedBlock])
 
-  // Update directory when selected block changes (if terminal is already initialized)
-  useEffect(() => {
-    if (!activeFileId || !selectedBlock || !terminalBlockIdRef.current || !xtermRef.current) return
-
-    const updateDirectory = async () => {
-      try {
-        const blockDirectory = `block-${selectedBlock.block_id}`
-        
-        // Only update if directory actually changed
-        if (currentDirectoryRef.current !== blockDirectory) {
-          currentDirectoryRef.current = blockDirectory
-
-          // Execute a cd command to update the directory in the backend
-          const editor = getActiveEditor(activeFileId)
-          if (!editor || !terminalBlockIdRef.current) return
-
-          try {
-            // Use block directory format: block-{block_id}
-            const payload: TerminalExecutePayload = { command: `cd block-${selectedBlock.block_id}` }
-            const cmd = {
-              cmd_id: crypto.randomUUID(),
-              editor_id: editor.editor_id,
-              cap_id: 'terminal.execute',
-              block_id: terminalBlockIdRef.current,
-              payload: payload as any,
-              timestamp: new Date().toISOString(),
-            }
-
-            await TauriClient.block.executeCommand(activeFileId, cmd)
-          } catch (error) {
-            console.error('Failed to update directory in backend:', error)
-          }
-
-          // Update terminal prompt
-          if (xtermRef.current) {
-            xtermRef.current.write(`\r\nChanged directory to: ${blockDirectory}\r\n`)
-            xtermRef.current.write(`${blockDirectory} $ `)
-          }
-        }
-      } catch (error) {
-        console.error('Failed to update directory:', error)
-      }
-    }
-
-    updateDirectory()
-  }, [activeFileId, selectedBlock?.block_id, getActiveEditor])
 
   if (!activeFileId) {
     return (

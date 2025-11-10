@@ -58,6 +58,9 @@ mod tests {
     use crate::capabilities::grants::GrantsTable;
     use crate::capabilities::CapabilityRegistry;
     use crate::models::{Block, Command};
+    use std::fs;
+    use std::path::PathBuf;
+    use tempfile::tempdir;
 
     #[test]
     fn test_terminal_execute_payload_deserialize() {
@@ -143,6 +146,102 @@ mod tests {
         assert_eq!(history.len(), 2, "History should have 2 entries");
         assert_eq!(history[0].get("command").unwrap().as_str().unwrap(), "ls");
         assert_eq!(history[1].get("command").unwrap().as_str().unwrap(), "pwd");
+    }
+
+    #[test]
+    fn test_terminal_execute_cd_virtual_command() {
+        let registry = CapabilityRegistry::new();
+        let cap = registry.get("terminal.execute").unwrap();
+
+        let temp_dir = tempdir().unwrap();
+        let target_subdir = temp_dir.path().join("sub");
+        fs::create_dir_all(&target_subdir).unwrap();
+
+        let mut block = Block::new(
+            "Terminal".to_string(),
+            "terminal".to_string(),
+            "alice".to_string(),
+        );
+        block.contents = serde_json::json!({
+            "history": [],
+            "root_path": temp_dir.path().to_string_lossy(),
+            "current_path": temp_dir.path().to_string_lossy(),
+            "current_directory": "."
+        });
+
+        let cmd = Command::new(
+            "alice".to_string(),
+            "terminal.execute".to_string(),
+            block.block_id.clone(),
+            serde_json::json!({ "command": "cd sub" }),
+        );
+
+        let events = cap.handler(&cmd, Some(&block)).unwrap();
+        let contents = events[0].value.get("contents").unwrap();
+        let history = contents.get("history").unwrap().as_array().unwrap();
+
+        assert_eq!(history.len(), 1);
+        assert_eq!(
+            history[0].get("exit_code").and_then(|v| v.as_i64()),
+            Some(0),
+            "cd should not fail"
+        );
+        let stored_path = contents
+            .get("current_path")
+            .and_then(|v| v.as_str())
+            .unwrap();
+        assert_eq!(
+            PathBuf::from(stored_path),
+            target_subdir.canonicalize().unwrap()
+        );
+        assert_eq!(
+            contents
+                .get("current_directory")
+                .and_then(|v| v.as_str())
+                .unwrap(),
+            "sub"
+        );
+    }
+
+    #[test]
+    fn test_terminal_execute_pwd_virtual_command() {
+        let registry = CapabilityRegistry::new();
+        let cap = registry.get("terminal.execute").unwrap();
+
+        let temp_dir = tempdir().unwrap();
+        let target_subdir = temp_dir.path().join("nested");
+        fs::create_dir_all(&target_subdir).unwrap();
+
+        let mut block = Block::new(
+            "Terminal".to_string(),
+            "terminal".to_string(),
+            "alice".to_string(),
+        );
+        block.contents = serde_json::json!({
+            "history": [],
+            "root_path": temp_dir.path().to_string_lossy(),
+            "current_path": target_subdir.to_string_lossy(),
+            "current_directory": "nested"
+        });
+
+        let cmd = Command::new(
+            "alice".to_string(),
+            "terminal.execute".to_string(),
+            block.block_id.clone(),
+            serde_json::json!({ "command": "pwd" }),
+        );
+
+        let events = cap.handler(&cmd, Some(&block)).unwrap();
+        let contents = events[0].value.get("contents").unwrap();
+        let history = contents.get("history").unwrap().as_array().unwrap();
+
+        assert_eq!(history.len(), 1);
+        let pwd_output = history[0].get("output").and_then(|v| v.as_str()).unwrap();
+        assert_eq!(PathBuf::from(pwd_output), target_subdir.canonicalize().unwrap());
+        assert_eq!(
+            history[0].get("exit_code").and_then(|v| v.as_i64()),
+            Some(0)
+        );
     }
 
     #[test]
