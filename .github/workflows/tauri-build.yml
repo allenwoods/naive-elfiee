@@ -2,6 +2,9 @@ name: Build Tauri (macOS, Windows, Linux)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/binary-packaging
 
 jobs:
   build:
