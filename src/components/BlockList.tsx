@@ -13,7 +13,6 @@ import type { Block } from '@/bindings'
 import { PermissionManager } from './PermissionManager'
 import { LinkManager } from './LinkManager'
 import { BlockTypeDialog } from './BlockTypeDialog'
-import { formatTimestamp } from '@/lib/utils'
 
 function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
   const {
@@ -156,33 +155,27 @@ export function BlockList() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
   const handleCreateBlock = () => {
-    console.log('[BlockList] handleCreateBlock called')
-    console.log('[BlockList] activeFileId:', activeFileId)
-
     if (!activeFileId) {
-      console.log('[BlockList] No active file, returning')
       return
     }
-
-    // Show the dialog instead of creating block directly
     setShowCreateDialog(true)
   }
 
   const handleConfirmCreate = async (name: string, blockType: string) => {
-    console.log('[BlockList] handleConfirmCreate called with:', { name, blockType })
-
     if (!activeFileId) {
-      console.log('[BlockList] No active file, returning')
       return
     }
 
-    console.log('[BlockList] Calling createBlock...')
     try {
       await createBlock(activeFileId, name, blockType)
-      console.log('[BlockList] createBlock succeeded')
-      addNotification('success', `${blockType.charAt(0).toUpperCase() + blockType.slice(1)} block created successfully!`)
+      const capitalized =
+        blockType.charAt(0).toUpperCase() + blockType.slice(1)
+      addNotification(
+        'success',
+        `${capitalized} block created successfully!`
+      )
+      setShowCreateDialog(false)
     } catch (error) {
-      console.error('[BlockList] createBlock failed:', error)
       addNotification('error', `Failed to create block: ${error}`)
     }
   }

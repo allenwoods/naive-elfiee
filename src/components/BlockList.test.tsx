@@ -2,8 +2,7 @@
  * BlockList Component Tests
  */
 
-import { describe, expect, test, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BlockList } from './BlockList'
 import { useAppStore } from '@/lib/app-store'
@@ -184,7 +183,6 @@ describe('BlockList Component', () => {
     render(<BlockList />)
 
     const deleteButton = screen.getAllByRole('button', { name: /delete/i })[0]
-    const blockElement = deleteButton.closest('div')!
 
     // Click delete button
     await user.click(deleteButton)
@@ -273,7 +271,6 @@ describe('BlockList Component', () => {
   })
 
   test('does not create block when no active file', async () => {
-    const user = userEvent.setup()
     vi.mocked(useAppStore).mockReturnValue({
       ...mockStore,
       activeFileId: null,
@@ -352,28 +349,4 @@ describe('BlockList Component', () => {
     expect(screen.getByText('Children: 3')).toBeInTheDocument()
   })
 
-  test('logs debug information during block creation', async () => {
-    const user = userEvent.setup()
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-    vi.mocked(mockStore.createBlock).mockResolvedValue(undefined)
-
-    render(<BlockList />)
-
-    const createButton = screen.getByRole('button', { name: /new block/i })
-    await user.click(createButton)
-
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[BlockList] handleCreateBlock called'
-    )
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[BlockList] activeFileId:',
-      'test-file-1'
-    )
-    expect(consoleSpy).toHaveBeenCalledWith(
-      '[BlockList] Calling createBlock...'
-    )
-    expect(consoleSpy).toHaveBeenCalledWith('[BlockList] createBlock succeeded')
-
-    consoleSpy.mockRestore()
-  })
 })
