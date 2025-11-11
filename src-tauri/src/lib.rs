@@ -58,6 +58,7 @@ pub fn run() {
             .typ::<extensions::directory::DirectoryDeletePayload>()
             .typ::<extensions::directory::DirectoryCreatePayload>()
             .typ::<extensions::directory::DirectoryListPayload>()
+            .typ::<extensions::directory::DirectoryRootPayload>()
             .typ::<models::CreateBlockPayload>()
             .typ::<models::LinkBlockPayload>()
             .typ::<models::UnlinkBlockPayload>()

@@ -35,6 +35,8 @@ pub use directory_watch::*;
 pub mod directory_search;
 pub use directory_search::*;
 
+pub mod directory_root;
+pub use directory_root::*;
 // ============================================================================
 // Payload Definitions
 // ============================================================================
@@ -125,6 +127,25 @@ pub struct DirectorySearchPayload {
 
 fn default_true() -> bool {
     true
+}
+
+/// Configures the root directory for a directory block.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryRootPayload {
+    /// Absolute path selected by the user
+    pub root: String,
+
+    /// Whether subsequent list/refresh should be recursive
+    #[serde(default = "default_true")]
+    pub recursive: bool,
+
+    /// Whether to include hidden files by default
+    #[serde(default)]
+    pub include_hidden: bool,
+
+    /// Maximum depth for initial prefetch
+    #[serde(default)]
+    pub max_depth: Option<usize>,
 }
 // ============================================================================
 // Tests

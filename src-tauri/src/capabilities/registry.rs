@@ -63,6 +63,7 @@ impl CapabilityRegistry {
         self.register(Arc::new(DirectoryRefreshCapability));
         self.register(Arc::new(DirectoryWatchCapability));
         self.register(Arc::new(DirectorySearchCapability));
+        self.register(Arc::new(DirectoryRootCapability));
     }
 }
 

@@ -13,6 +13,29 @@ use crate::capabilities::grants::GrantsTable;
 use crate::capabilities::registry::CapabilityRegistry;
 
 use crate::models::{Block, Command};
+use tempfile::TempDir;
+
+// ============================================
+// Directory Root - Payload Tests
+// ============================================
+
+#[test]
+fn test_root_payload_deserialize() {
+    let json = serde_json::json!({
+        "root": "/tmp/project",
+        "recursive": true,
+        "include_hidden": true,
+        "max_depth": 5
+    });
+
+    let payload: DirectoryRootPayload =
+        serde_json::from_value(json).expect("Payload should deserialize");
+
+    assert_eq!(payload.root, "/tmp/project");
+    assert!(payload.recursive);
+    assert!(payload.include_hidden);
+    assert_eq!(payload.max_depth, Some(5));
+}
 
 // ============================================
 // DirectoryList - Payload Tests
@@ -38,13 +61,61 @@ fn test_list_payload_deserialize() {
 }
 
 // ============================================
+// DirectoryRoot - Functionality Tests
+// ============================================
+
+#[test]
+fn test_directory_root_sets_contents() {
+    use std::fs;
+
+    let temp_dir = TempDir::new().unwrap();
+    let temp_path = temp_dir.path().to_string_lossy().to_string();
+    fs::create_dir(temp_dir.path().join("nested")).unwrap();
+
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("directory.root")
+        .expect("directory.root should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.root".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "root": temp_path,
+            "recursive": true,
+            "include_hidden": false,
+            "max_depth": 2
+        }),
+    );
+
+    let events = cap.handler(&cmd, Some(&block)).unwrap();
+    assert_eq!(events.len(), 1);
+    let event = &events[0];
+    assert_eq!(event.attribute, "alice/directory.root");
+    assert_eq!(
+        event
+            .value
+            .get("recursive")
+            .and_then(|v| v.as_bool())
+            .unwrap(),
+        true
+    );
+}
+
+// ============================================
 // DirectoryList - Functionality Tests
 // ============================================
 
 #[test]
 fn test_list_basic() {
     use std::fs;
-    use tempfile::TempDir;
 
     // Create temporary test directory
     let temp_dir = TempDir::new().unwrap();
