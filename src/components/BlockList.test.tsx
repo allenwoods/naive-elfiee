@@ -193,34 +193,52 @@ describe('BlockList Component', () => {
     expect(mockStore.selectBlock).not.toHaveBeenCalled()
   })
 
-  test('creates new block when create button is clicked', async () => {
+  test('shows block creation dialog and creates markdown block with custom name', async () => {
     const user = userEvent.setup()
     vi.mocked(mockStore.createBlock).mockResolvedValue(undefined)
 
     render(<BlockList />)
 
-    const createButton = screen.getByRole('button', { name: /new block/i })
-    await user.click(createButton)
+    await user.click(screen.getByRole('button', { name: /new block/i }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Create New Block' })
+    ).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText('Enter block name'), 'My Notes')
+    await user.click(screen.getByText('Markdown'))
+    await user.click(screen.getByRole('button', { name: 'Create Block' }))
 
     expect(mockStore.createBlock).toHaveBeenCalledWith(
       'test-file-1',
-      expect.stringMatching(/Block \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/),
+      'My Notes',
       'markdown'
+    )
+    expect(mockStore.addNotification).toHaveBeenCalledWith(
+      'success',
+      'Markdown block created successfully!'
     )
   })
 
-  test('shows success notification after creating block', async () => {
+  test('creates terminal block with custom name', async () => {
     const user = userEvent.setup()
     vi.mocked(mockStore.createBlock).mockResolvedValue(undefined)
 
     render(<BlockList />)
 
-    const createButton = screen.getByRole('button', { name: /new block/i })
-    await user.click(createButton)
+    await user.click(screen.getByRole('button', { name: /new block/i }))
+    await user.type(screen.getByPlaceholderText('Enter block name'), 'Build Shell')
+    await user.click(screen.getByText('Terminal'))
+    await user.click(screen.getByRole('button', { name: 'Create Block' }))
 
+    expect(mockStore.createBlock).toHaveBeenCalledWith(
+      'test-file-1',
+      'Build Shell',
+      'terminal'
+    )
     expect(mockStore.addNotification).toHaveBeenCalledWith(
       'success',
-      'Block created successfully!'
+      'Terminal block created successfully!'
     )
   })
 
@@ -231,8 +249,10 @@ describe('BlockList Component', () => {
 
     render(<BlockList />)
 
-    const createButton = screen.getByRole('button', { name: /new block/i })
-    await user.click(createButton)
+    await user.click(screen.getByRole('button', { name: /new block/i }))
+    await user.type(screen.getByPlaceholderText('Enter block name'), 'Broken')
+    await user.click(screen.getByText('Markdown'))
+    await user.click(screen.getByRole('button', { name: 'Create Block' }))
 
     expect(mockStore.addNotification).toHaveBeenCalledWith(
       'error',
@@ -240,7 +260,7 @@ describe('BlockList Component', () => {
     )
   })
 
-  test('disables create button when loading', () => {
+  test('disables create button in dialog when loading', async () => {
     vi.mocked(useAppStore).mockReturnValue({
       ...mockStore,
       isLoading: true,

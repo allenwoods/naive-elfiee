@@ -12,6 +12,7 @@ import type { Block } from '@/bindings'
 // Removed message import - using app-store notifications instead
 import { PermissionManager } from './PermissionManager'
 import { LinkManager } from './LinkManager'
+import { BlockTypeDialog } from './BlockTypeDialog'
 import { formatTimestamp } from '@/lib/utils'
 
 function BlockItem({ block, fileId }: { block: Block; fileId: string }) {
@@ -152,8 +153,9 @@ export function BlockList() {
     addNotification,
   } = useAppStore()
   const activeFile = getActiveFile()
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
 
-  const handleCreateBlock = async () => {
+  const handleCreateBlock = () => {
     console.log('[BlockList] handleCreateBlock called')
     console.log('[BlockList] activeFileId:', activeFileId)
 
@@ -162,17 +164,23 @@ export function BlockList() {
       return
     }
 
-    // For MVP, we'll create a simple markdown block with timestamp as name
-    // TODO: Replace with a proper dialog/input component
-    const timestamp = formatTimestamp()
-    const blockName = `Block ${timestamp}`
-    console.log('[BlockList] Creating block with name:', blockName)
+    // Show the dialog instead of creating block directly
+    setShowCreateDialog(true)
+  }
+
+  const handleConfirmCreate = async (name: string, blockType: string) => {
+    console.log('[BlockList] handleConfirmCreate called with:', { name, blockType })
+
+    if (!activeFileId) {
+      console.log('[BlockList] No active file, returning')
+      return
+    }
 
     console.log('[BlockList] Calling createBlock...')
     try {
-      await createBlock(activeFileId, blockName, 'markdown')
+      await createBlock(activeFileId, name, blockType)
       console.log('[BlockList] createBlock succeeded')
-      addNotification('success', 'Block created successfully!')
+      addNotification('success', `${blockType.charAt(0).toUpperCase() + blockType.slice(1)} block created successfully!`)
     } catch (error) {
       console.error('[BlockList] createBlock failed:', error)
       addNotification('error', `Failed to create block: ${error}`)
@@ -188,32 +196,42 @@ export function BlockList() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b p-4">
-        <h2 className="text-lg font-semibold">Blocks</h2>
-        <Button onClick={handleCreateBlock} disabled={isLoading} size="sm">
-          <Plus />
-          New Block
-        </Button>
+    <>
+      <div className="flex h-full flex-col">
+        <div className="flex items-center justify-between border-b p-4">
+          <h2 className="text-lg font-semibold">Blocks</h2>
+          <Button onClick={handleCreateBlock} disabled={isLoading} size="sm">
+            <Plus />
+            New Block
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4">
+          {activeFile.blocks.length === 0 ? (
+            <div className="text-muted-foreground py-8 text-center">
+              No blocks yet. Create your first block!
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {activeFile.blocks.map((block) => (
+                <BlockItem
+                  key={block.block_id}
+                  block={block}
+                  fileId={activeFileId}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        {activeFile.blocks.length === 0 ? (
-          <div className="text-muted-foreground py-8 text-center">
-            No blocks yet. Create your first block!
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {activeFile.blocks.map((block) => (
-              <BlockItem
-                key={block.block_id}
-                block={block}
-                fileId={activeFileId}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+      {/* Block Type Dialog */}
+      <BlockTypeDialog
+        isOpen={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+        onConfirm={handleConfirmCreate}
+        isLoading={isLoading}
+      />
+    </>
   )
 }
