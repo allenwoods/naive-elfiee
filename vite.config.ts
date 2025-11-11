@@ -22,7 +22,7 @@ export default defineConfig(async () => ({
   // Vitest configuration
   test: {
     globals: true,
-    environment: 'jsdom',
+    environment: 'happy-dom',
     setupFiles: ['./src/test/setup.ts'],
     coverage: {
       provider: 'v8',
