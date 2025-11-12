@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // 在生产打包仅做类型检查，不因未使用项失败
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    // 不加载测试相关类型，避免 Node-only 类型报错
+    "types": []
+  },
+  // 排除所有测试文件与测试环境代码
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/test/**"
+  ]
+}
