@@ -1,10 +1,4 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(/mnt/c/Users/lenovo/.cargo/bin/cargo.exe build)"
-    ]
-  },
-  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "shadcn"
   ]
