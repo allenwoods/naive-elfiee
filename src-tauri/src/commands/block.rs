@@ -89,3 +89,61 @@ pub async fn get_all_blocks(
 
     Ok(blocks)
 }
+
+/// List files in a block's asset directory.
+///
+/// # Arguments
+/// * `file_id` - Unique identifier of the file
+/// * `block_id` - Unique identifier of the block whose directory to list
+///
+/// # Returns
+/// * `Ok(Vec<String>)` - List of file and directory names in the block's directory
+/// * `Err(message)` - Error if file is not open or directory doesn't exist
+#[tauri::command]
+#[specta]
+pub fn list_block_files(
+    file_id: String,
+    block_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<String>, String> {
+    use std::fs;
+
+    // Get file info to access the archive
+    let file_info = state
+        .files
+        .get(&file_id)
+        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
+
+    // Get block directory path
+    // Block directories are stored in the archive's temp directory as "block-{block_id}"
+    let block_dir = file_info.archive.temp_path().join(format!("block-{}", block_id));
+
+    // Check if directory exists
+    if !block_dir.exists() {
+        // Directory doesn't exist yet, return empty list
+        return Ok(Vec::new());
+    }
+
+    // Read directory contents
+    let entries = fs::read_dir(&block_dir)
+        .map_err(|e| format!("Failed to read directory '{}': {}", block_dir.display(), e))?;
+
+    let mut files = Vec::new();
+    for entry in entries {
+        match entry {
+            Ok(entry) => {
+                let name = entry.file_name().to_string_lossy().to_string();
+                files.push(name);
+            }
+            Err(e) => {
+                // Log error but continue with other entries
+                eprintln!("Error reading directory entry: {}", e);
+            }
+        }
+    }
+
+    // Sort files for consistent output
+    files.sort();
+
+    Ok(files)
+}

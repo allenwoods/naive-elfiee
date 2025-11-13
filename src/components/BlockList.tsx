@@ -168,12 +168,8 @@ export function BlockList() {
 
     try {
       await createBlock(activeFileId, name, blockType)
-      const capitalized =
-        blockType.charAt(0).toUpperCase() + blockType.slice(1)
-      addNotification(
-        'success',
-        `${capitalized} block created successfully!`
-      )
+      const capitalized = blockType.charAt(0).toUpperCase() + blockType.slice(1)
+      addNotification('success', `${capitalized} block created successfully!`)
       setShowCreateDialog(false)
     } catch (error) {
       addNotification('error', `Failed to create block: ${error}`)

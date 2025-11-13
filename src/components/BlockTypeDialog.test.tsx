@@ -5,11 +5,7 @@ import { BlockTypeDialog } from './BlockTypeDialog'
 describe('BlockTypeDialog', () => {
   test('returns null when not open', () => {
     const { container } = render(
-      <BlockTypeDialog
-        isOpen={false}
-        onClose={vi.fn()}
-        onConfirm={vi.fn()}
-      />
+      <BlockTypeDialog isOpen={false} onClose={vi.fn()} onConfirm={vi.fn()} />
     )
 
     expect(container.firstChild).toBeNull()
@@ -21,11 +17,7 @@ describe('BlockTypeDialog', () => {
     const handleClose = vi.fn()
 
     render(
-      <BlockTypeDialog
-        isOpen
-        onClose={handleClose}
-        onConfirm={handleConfirm}
-      />
+      <BlockTypeDialog isOpen onClose={handleClose} onConfirm={handleConfirm} />
     )
 
     await user.type(
@@ -44,11 +36,7 @@ describe('BlockTypeDialog', () => {
     const handleConfirm = vi.fn()
 
     render(
-      <BlockTypeDialog
-        isOpen
-        onClose={vi.fn()}
-        onConfirm={handleConfirm}
-      />
+      <BlockTypeDialog isOpen onClose={vi.fn()} onConfirm={handleConfirm} />
     )
 
     const input = screen.getByPlaceholderText('Enter block name')
@@ -66,11 +54,7 @@ describe('BlockTypeDialog', () => {
     const handleClose = vi.fn()
 
     render(
-      <BlockTypeDialog
-        isOpen
-        onClose={handleClose}
-        onConfirm={handleConfirm}
-      />
+      <BlockTypeDialog isOpen onClose={handleClose} onConfirm={handleConfirm} />
     )
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -79,4 +63,3 @@ describe('BlockTypeDialog', () => {
     expect(handleClose).toHaveBeenCalled()
   })
 })
-

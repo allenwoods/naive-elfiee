@@ -51,9 +51,13 @@ impl CapabilityRegistry {
     /// Register all extension capabilities.
     fn register_extensions(&mut self) {
         use crate::extensions::markdown::*;
+        use crate::extensions::terminal::*;
 
         self.register(Arc::new(MarkdownWriteCapability));
         self.register(Arc::new(MarkdownReadCapability));
+        self.register(Arc::new(TerminalExecuteCapability));
+        self.register(Arc::new(TerminalReadCapability));
+        self.register(Arc::new(TerminalWriteCapability));
     }
 }
 
