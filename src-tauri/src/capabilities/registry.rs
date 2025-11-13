@@ -56,6 +56,8 @@ impl CapabilityRegistry {
         self.register(Arc::new(MarkdownWriteCapability));
         self.register(Arc::new(MarkdownReadCapability));
         self.register(Arc::new(TerminalExecuteCapability));
+        self.register(Arc::new(TerminalReadCapability));
+        self.register(Arc::new(TerminalWriteCapability));
     }
 }
 

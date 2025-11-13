@@ -16,6 +16,7 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .manage(AppState::new());
 
     // Generate TypeScript bindings in debug mode
@@ -53,7 +54,9 @@ pub fn run() {
             // NOTE: When adding a new extension with payload types, register them here.
             // TODO: Consider automating this with a macro if extensions grow beyond ~10
             // Core payload types (used by builtin capabilities)
-            .typ::<models::CreateBlockPayload>()
+                                    .typ::<extensions::terminal::TerminalWritePayload>()
+.typ::<extensions::terminal::TerminalReadPayload>()
+.typ::<models::CreateBlockPayload>()
             .typ::<models::LinkBlockPayload>()
             .typ::<models::UnlinkBlockPayload>()
             .typ::<models::GrantPayload>()

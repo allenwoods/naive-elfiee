@@ -70,7 +70,12 @@ export function BlockTypeDialog({
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Create New Block</h2>
-          <Button onClick={handleClose} variant="ghost" size="icon" disabled={isLoading}>
+          <Button
+            onClick={handleClose}
+            variant="ghost"
+            size="icon"
+            disabled={isLoading}
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -105,19 +110,19 @@ export function BlockTypeDialog({
                       selectedType === type.id
                         ? 'border-primary bg-primary/10'
                         : 'border-border hover:bg-accent'
-                    } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${isLoading ? 'cursor-not-allowed opacity-50' : ''}`}
                     onClick={() => !isLoading && setSelectedType(type.id)}
                   >
                     <div className="flex items-start gap-3">
                       <Icon className="mt-0.5 h-5 w-5 shrink-0" />
                       <div className="flex-1">
                         <h4 className="font-medium">{type.name}</h4>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-muted-foreground text-sm">
                           {type.description}
                         </p>
                       </div>
                       {selectedType === type.id && (
-                        <div className="mt-0.5 shrink-0 text-primary">
+                        <div className="text-primary mt-0.5 shrink-0">
                           <Check className="h-4 w-4" />
                         </div>
                       )}
@@ -130,12 +135,8 @@ export function BlockTypeDialog({
         </div>
 
         {/* Footer */}
-        <div className="mt-6 flex gap-2 justify-end">
-          <Button
-            variant="outline"
-            onClick={handleClose}
-            disabled={isLoading}
-          >
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="outline" onClick={handleClose} disabled={isLoading}>
             Cancel
           </Button>
           <Button

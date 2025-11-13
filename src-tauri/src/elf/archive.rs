@@ -64,7 +64,45 @@ impl ElfArchive {
         db_file.read_to_end(&mut buffer)?;
         zip.write_all(&buffer)?;
 
+        // Add all additional files from temp directory
+        self.add_directory_to_zip(&mut zip, self.temp_dir.path(), "")?;
+
         zip.finish()?;
+        Ok(())
+    }
+
+    /// Helper method to add directory contents to zip
+    fn add_directory_to_zip(&self, zip: &mut ZipWriter<File>, dir_path: &Path, zip_prefix: &str) -> std::io::Result<()> {
+        let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        
+        for entry in std::fs::read_dir(dir_path)? {
+            let entry = entry?;
+            let path = entry.path();
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            
+            // Skip events.db as it's already handled
+            if name_str == "events.db" {
+                continue;
+            }
+            
+            let zip_path = if zip_prefix.is_empty() {
+                name_str.to_string()
+            } else {
+                format!("{}/{}", zip_prefix, name_str)
+            };
+            
+            if path.is_file() {
+                zip.start_file(&zip_path, options)?;
+                let mut file = File::open(&path)?;
+                let mut buffer = Vec::new();
+                file.read_to_end(&mut buffer)?;
+                zip.write_all(&buffer)?;
+            } else if path.is_dir() {
+                self.add_directory_to_zip(zip, &path, &zip_path)?;
+            }
+        }
+        
         Ok(())
     }
 

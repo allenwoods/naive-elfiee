@@ -475,15 +475,48 @@ capability: string;
  */
 target_block?: string }
 /**
- * Payload for terminal.execute capability
+ * Payload for TerminalExecute
  * 
- * This payload is used to execute a terminal command and record it in the terminal block's history.
+ * Executes a command in the terminal and stores the result in history.
+ * 
+ * Fields:
+ * - command: The command string to execute
  */
 export type TerminalExecutePayload = { 
 /**
  * The command to execute
  */
 command: string }
+/**
+ * Payload for TerminalRead
+ * 
+ * Used for querying terminal state and history. Currently no parameters needed
+ * as it returns the entire terminal state.
+ */
+export type TerminalReadPayload = Record<string, never>
+/**
+ * Payload for TerminalWrite
+ * 
+ * Used for writing content directly to the terminal without executing commands,
+ * or for saving the entire terminal buffer content to the block.
+ */
+export type TerminalWritePayload = { 
+/**
+ * Content to write to the terminal. Can be text or any JSON value.
+ */
+data: JsonValue | null; 
+/**
+ * Saved terminal content (for save functionality)
+ */
+saved_content: string | null; 
+/**
+ * Timestamp when content was saved
+ */
+saved_at: string | null; 
+/**
+ * Current directory when content was saved
+ */
+current_directory: string | null }
 /**
  * Payload for core.unlink capability
  * 

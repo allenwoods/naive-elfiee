@@ -225,7 +225,10 @@ describe('BlockList Component', () => {
     render(<BlockList />)
 
     await user.click(screen.getByRole('button', { name: /new block/i }))
-    await user.type(screen.getByPlaceholderText('Enter block name'), 'Build Shell')
+    await user.type(
+      screen.getByPlaceholderText('Enter block name'),
+      'Build Shell'
+    )
     await user.click(screen.getByText('Terminal'))
     await user.click(screen.getByRole('button', { name: 'Create Block' }))
 
@@ -348,5 +351,4 @@ describe('BlockList Component', () => {
     // Should show total children count (3)
     expect(screen.getByText('Children: 3')).toBeInTheDocument()
   })
-
 })
