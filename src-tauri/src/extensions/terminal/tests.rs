@@ -142,7 +142,7 @@ fn test_write_payload_deserialize() {
     assert!(result.is_ok(), "Payload should deserialize successfully");
 
     let payload = result.unwrap();
-    assert_eq!(payload.data, serde_json::json!("Hello terminal!"));
+    assert_eq!(payload.data, Some(serde_json::json!("Hello terminal!")));
 }
 
 // ============================================

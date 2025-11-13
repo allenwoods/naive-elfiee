@@ -4,9 +4,11 @@
 /// - Regular write operations (appending to history)  
 /// - Save operations (storing terminal content to block contents)
 
-use super::{handle_write, TerminalWritePayload};
+use crate::extensions::terminal::terminal_write::handle_write;
+use super::TerminalWritePayload;
 use crate::models::{Block, Command};
 use std::collections::HashMap;
+use chrono::Utc;
 
 #[cfg(test)]
 mod tests {
@@ -30,7 +32,7 @@ mod tests {
             cap_id: "terminal.write".to_string(),
             block_id: "test-terminal-block".to_string(),
             payload: serde_json::to_value(payload).unwrap(),
-            timestamp: HashMap::new(),
+            timestamp: Utc::now(),
         }
     }
 
@@ -54,7 +56,7 @@ mod tests {
         
         let event = &events[0];
         assert_eq!(event.entity, "test-terminal-block");
-        assert_eq!(event.attribute, "terminal.write");
+        assert_eq!(event.attribute, "test-editor/terminal.write");
         
         let contents = event.value.get("contents").unwrap().as_object().unwrap();
         assert_eq!(
@@ -336,7 +338,7 @@ Hello World
         
         // Verify event structure
         assert_eq!(event.entity, "test-terminal-block");
-        assert_eq!(event.attribute, "terminal.write");
+        assert_eq!(event.attribute, "test-editor/terminal.write");
         assert!(event.value.get("contents").is_some());
         assert!(event.event_id.len() > 0);
         

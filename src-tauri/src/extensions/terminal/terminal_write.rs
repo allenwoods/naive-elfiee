@@ -21,7 +21,7 @@ use capability_macros::capability;
 /// * `Err(String)` - Error description
 ///
 #[capability(id = "terminal.write", target = "terminal")]
-fn handle_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+pub(crate) fn handle_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for terminal.write")?;
 
     // Deserialize payload
