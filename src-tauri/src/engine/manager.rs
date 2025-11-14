@@ -1,6 +1,5 @@
-use crate::engine::{spawn_engine, EngineHandle};
+use crate::engine::{spawn_engine, EngineHandle, EventPoolWithPath};
 use dashmap::DashMap;
-use sqlx::SqlitePool;
 use std::sync::Arc;
 
 /// Manages multiple engine instances (one per .elf file).
@@ -28,14 +27,14 @@ impl EngineManager {
     ///
     /// # Arguments
     /// * `file_id` - Unique identifier for the .elf file
-    /// * `event_pool` - SQLite connection pool for this file's event store
+    /// * `event_pool_with_path` - Event pool with database path for this file's event store
     ///
     /// # Returns
     /// A handle to communicate with the spawned engine actor.
     pub async fn spawn_engine(
         &self,
         file_id: String,
-        event_pool: SqlitePool,
+        event_pool_with_path: EventPoolWithPath,
     ) -> Result<EngineHandle, String> {
         // Check if engine already exists
         if self.engines.contains_key(&file_id) {
@@ -43,7 +42,7 @@ impl EngineManager {
         }
 
         // Spawn new engine (registry is created inside the actor)
-        let handle = spawn_engine(file_id.clone(), event_pool).await?;
+        let handle = spawn_engine(file_id.clone(), event_pool_with_path).await?;
 
         // Store handle
         self.engines.insert(file_id.clone(), handle.clone());
@@ -136,7 +135,7 @@ mod tests {
     use crate::engine::EventStore;
     use crate::models::Command;
 
-    async fn create_test_pool() -> SqlitePool {
+    async fn create_test_pool() -> EventPoolWithPath {
         EventStore::create(":memory:")
             .await
             .expect("Failed to create test pool")
