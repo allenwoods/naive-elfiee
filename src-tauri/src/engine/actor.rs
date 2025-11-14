@@ -1,10 +1,48 @@
 use crate::capabilities::registry::CapabilityRegistry;
-use crate::engine::event_store::EventStore;
+use crate::engine::event_store::{EventPoolWithPath, EventStore};
 use crate::engine::state::StateProjector;
 use crate::models::{Block, Command, Editor, Event};
-use sqlx::SqlitePool;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use tokio::sync::{mpsc, oneshot};
+
+/// Prefix for block-specific directories
+const BLOCK_DIR_PREFIX: &str = "block-";
+
+/// Inject _block_dir into block contents and create the directory.
+///
+/// Creates a block-specific directory and injects its path into the contents.
+/// This is a runtime-only operation - _block_dir should be stripped before persistence.
+///
+/// # Arguments
+/// - `temp_dir`: Parent temporary directory
+/// - `block_id`: Block identifier
+/// - `contents`: Block contents to inject _block_dir into
+///
+/// # Returns
+/// - `Ok(PathBuf)`: Path to the created block directory
+/// - `Err(String)`: I/O error
+fn inject_block_dir(
+    temp_dir: &Path,
+    block_id: &str,
+    contents: &mut serde_json::Value,
+) -> Result<PathBuf, String> {
+    let block_dir = temp_dir.join(format!("{}{}", BLOCK_DIR_PREFIX, block_id));
+
+    // Create block directory if it doesn't exist
+    std::fs::create_dir_all(&block_dir)
+        .map_err(|e| format!("Failed to create block directory: {}", e))?;
+
+    // Inject _block_dir into contents (runtime only, will be stripped before persistence)
+    if let Some(obj) = contents.as_object_mut() {
+        obj.insert(
+            "_block_dir".to_string(),
+            serde_json::json!(block_dir.to_string_lossy()),
+        );
+    }
+
+    Ok(block_dir)
+}
 
 /// Messages that can be sent to the engine actor.
 #[derive(Debug)]
@@ -58,8 +96,8 @@ pub struct ElfileEngineActor {
     #[allow(dead_code)]
     file_id: String,
 
-    /// SQLite connection pool for event persistence
-    event_pool: SqlitePool,
+    /// Event pool with database path for temp_dir derivation
+    event_pool_with_path: EventPoolWithPath,
 
     /// Current state projection
     state: StateProjector,
@@ -78,21 +116,21 @@ impl ElfileEngineActor {
     /// to rebuild the current state.
     pub async fn new(
         file_id: String,
-        event_pool: SqlitePool,
+        event_pool_with_path: EventPoolWithPath,
         mailbox: mpsc::UnboundedReceiver<EngineMessage>,
     ) -> Result<Self, String> {
         let registry = CapabilityRegistry::new();
         let mut state = StateProjector::new();
 
         // Replay all events from database to rebuild state
-        let events = EventStore::get_all_events(&event_pool)
+        let events = EventStore::get_all_events(&event_pool_with_path.pool)
             .await
             .map_err(|e| format!("Failed to load events from database: {}", e))?;
         state.replay(events);
 
         Ok(Self {
             file_id,
-            event_pool,
+            event_pool_with_path,
             state,
             registry,
             mailbox,
@@ -126,7 +164,7 @@ impl ElfileEngineActor {
                     let _ = response.send(grants);
                 }
                 EngineMessage::GetAllEvents { response } => {
-                    let events = EventStore::get_all_events(&self.event_pool)
+                    let events = EventStore::get_all_events(&self.event_pool_with_path.pool)
                         .await
                         .map_err(|e| format!("Failed to get events: {}", e));
                     let _ = response.send(events);
@@ -186,19 +224,34 @@ impl ElfileEngineActor {
 
         // 2. Get block (None for create operations, Some for others)
         // System-level operations like core.create and editor.create don't require a block
-        let block_opt = if cmd.cap_id == "core.create" || cmd.cap_id == "editor.create" {
+        let mut block_opt = if cmd.cap_id == "core.create" || cmd.cap_id == "editor.create" {
             None
         } else {
             Some(
                 self.state
                     .get_block(&cmd.block_id)
-                    .ok_or_else(|| format!("Block not found: {}", cmd.block_id))?,
+                    .ok_or_else(|| format!("Block not found: {}", cmd.block_id))?
+                    .clone(), // Clone so we can modify it
             )
         };
 
+        // 2.5. Inject _block_dir into block contents (runtime only, not persisted)
+        // Skip for :memory: databases used in unit tests (no filesystem access needed)
+        if let Some(ref mut block) = block_opt {
+            if let Some(temp_dir) = self
+                .event_pool_with_path
+                .db_path
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+            {
+                // Use helper function to inject _block_dir and create directory
+                inject_block_dir(temp_dir, &block.block_id, &mut block.contents)?;
+            }
+        }
+
         // 3. Check authorization (certificator)
         // Only check if block exists (non-create operations)
-        if let Some(block) = block_opt {
+        if let Some(block) = block_opt.as_ref() {
             let is_authorized = block.owner == cmd.editor_id
                 || self
                     .state
@@ -213,8 +266,8 @@ impl ElfileEngineActor {
             }
         }
 
-        // 4. Execute handler
-        let mut events = handler.handler(&cmd, block_opt)?;
+        // 4. Execute handler (block now contains _block_dir)
+        let mut events = handler.handler(&cmd, block_opt.as_ref())?;
 
         // 5. Update vector clock
         let current_count = self.state.get_editor_count(&cmd.editor_id);
@@ -222,6 +275,27 @@ impl ElfileEngineActor {
 
         for event in &mut events {
             event.timestamp.insert(cmd.editor_id.clone(), new_count);
+        }
+
+        // 5.5. Special handling: inject _block_dir for core.create
+        // Skip for :memory: databases used in unit tests
+        if cmd.cap_id == "core.create" {
+            if let Some(temp_dir) = self
+                .event_pool_with_path
+                .db_path
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+            {
+                for event in &mut events {
+                    if event.attribute.ends_with("/core.create") {
+                        // Inject _block_dir into new block's contents
+                        if let Some(contents) = event.value.get_mut("contents") {
+                            // Use helper function to inject and create directory
+                            inject_block_dir(temp_dir, &event.entity, contents)?;
+                        }
+                    }
+                }
+            }
         }
 
         // 6. Check for conflicts (MVP simple version)
@@ -236,16 +310,28 @@ impl ElfileEngineActor {
             );
         }
 
-        // 7. Persist events to database
-        EventStore::append_events(&self.event_pool, &events)
+        // 7. Strip runtime-only fields before persistence
+        // _block_dir is injected at runtime and should not be stored in events
+        let mut events_to_persist = events.clone();
+        for event in &mut events_to_persist {
+            if let Some(contents) = event.value.get_mut("contents") {
+                if let Some(obj) = contents.as_object_mut() {
+                    obj.remove("_block_dir");
+                }
+            }
+        }
+
+        // 8. Persist events to database (without runtime fields)
+        EventStore::append_events(&self.event_pool_with_path.pool, &events_to_persist)
             .await
             .map_err(|e| format!("Failed to persist events to database: {}", e))?;
 
-        // 8. Apply events to StateProjector
+        // 9. Apply events to StateProjector (use original events with runtime fields)
         for event in &events {
             self.state.apply_event(event);
         }
 
+        // Return original events (with _block_dir) for caller
         Ok(events)
     }
 }
@@ -399,10 +485,13 @@ impl EngineHandle {
 /// Spawn a new engine actor for a file.
 ///
 /// Returns a handle for interacting with the actor.
-pub async fn spawn_engine(file_id: String, event_pool: SqlitePool) -> Result<EngineHandle, String> {
+pub async fn spawn_engine(
+    file_id: String,
+    event_pool_with_path: EventPoolWithPath,
+) -> Result<EngineHandle, String> {
     let (tx, rx) = mpsc::unbounded_channel();
 
-    let actor = ElfileEngineActor::new(file_id.clone(), event_pool, rx).await?;
+    let actor = ElfileEngineActor::new(file_id.clone(), event_pool_with_path, rx).await?;
 
     // Spawn the actor on tokio runtime
     tokio::spawn(async move {
