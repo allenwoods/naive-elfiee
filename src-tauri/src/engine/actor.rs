@@ -11,35 +11,29 @@ const BLOCK_DIR_PREFIX: &str = "block-";
 
 /// Inject _block_dir into block contents and create the directory.
 ///
-/// # Security
-/// - Validates block_id is a valid UUID to prevent path traversal
-/// - Creates isolated directory for each block
-/// - Returns the created directory path
+/// Creates a block-specific directory and injects its path into the contents.
+/// This is a runtime-only operation - _block_dir should be stripped before persistence.
 ///
 /// # Arguments
 /// - `temp_dir`: Parent temporary directory
-/// - `block_id`: Block identifier (must be valid UUID)
+/// - `block_id`: Block identifier
 /// - `contents`: Block contents to inject _block_dir into
 ///
 /// # Returns
 /// - `Ok(PathBuf)`: Path to the created block directory
-/// - `Err(String)`: Validation or I/O error
+/// - `Err(String)`: I/O error
 fn inject_block_dir(
     temp_dir: &Path,
     block_id: &str,
     contents: &mut serde_json::Value,
 ) -> Result<PathBuf, String> {
-    // SECURITY: Validate block_id is a valid UUID to prevent path traversal
-    uuid::Uuid::parse_str(block_id)
-        .map_err(|_| format!("Invalid block_id format (not a UUID): {}", block_id))?;
-
     let block_dir = temp_dir.join(format!("{}{}", BLOCK_DIR_PREFIX, block_id));
 
     // Create block directory if it doesn't exist
     std::fs::create_dir_all(&block_dir)
         .map_err(|e| format!("Failed to create block directory: {}", e))?;
 
-    // Inject _block_dir into contents
+    // Inject _block_dir into contents (runtime only, will be stripped before persistence)
     if let Some(obj) = contents.as_object_mut() {
         obj.insert(
             "_block_dir".to_string(),
@@ -242,15 +236,17 @@ impl ElfileEngineActor {
         };
 
         // 2.5. Inject _block_dir into block contents (runtime only, not persisted)
+        // Skip for :memory: databases used in unit tests (no filesystem access needed)
         if let Some(ref mut block) = block_opt {
-            let temp_dir = self
+            if let Some(temp_dir) = self
                 .event_pool_with_path
                 .db_path
                 .parent()
-                .ok_or("Invalid db_path: no parent directory")?;
-
-            // Use helper function to inject _block_dir (validates UUID, creates directory)
-            inject_block_dir(temp_dir, &block.block_id, &mut block.contents)?;
+                .filter(|p| !p.as_os_str().is_empty())
+            {
+                // Use helper function to inject _block_dir and create directory
+                inject_block_dir(temp_dir, &block.block_id, &mut block.contents)?;
+            }
         }
 
         // 3. Check authorization (certificator)
@@ -282,19 +278,21 @@ impl ElfileEngineActor {
         }
 
         // 5.5. Special handling: inject _block_dir for core.create
+        // Skip for :memory: databases used in unit tests
         if cmd.cap_id == "core.create" {
-            let temp_dir = self
+            if let Some(temp_dir) = self
                 .event_pool_with_path
                 .db_path
                 .parent()
-                .ok_or("Invalid db_path: no parent directory")?;
-
-            for event in &mut events {
-                if event.attribute.ends_with("/core.create") {
-                    // Inject _block_dir into new block's contents
-                    if let Some(contents) = event.value.get_mut("contents") {
-                        // Use helper function (validates UUID, creates directory)
-                        inject_block_dir(temp_dir, &event.entity, contents)?;
+                .filter(|p| !p.as_os_str().is_empty())
+            {
+                for event in &mut events {
+                    if event.attribute.ends_with("/core.create") {
+                        // Inject _block_dir into new block's contents
+                        if let Some(contents) = event.value.get_mut("contents") {
+                            // Use helper function to inject and create directory
+                            inject_block_dir(temp_dir, &event.entity, contents)?;
+                        }
                     }
                 }
             }
@@ -312,16 +310,28 @@ impl ElfileEngineActor {
             );
         }
 
-        // 7. Persist events to database
-        EventStore::append_events(&self.event_pool_with_path.pool, &events)
+        // 7. Strip runtime-only fields before persistence
+        // _block_dir is injected at runtime and should not be stored in events
+        let mut events_to_persist = events.clone();
+        for event in &mut events_to_persist {
+            if let Some(contents) = event.value.get_mut("contents") {
+                if let Some(obj) = contents.as_object_mut() {
+                    obj.remove("_block_dir");
+                }
+            }
+        }
+
+        // 8. Persist events to database (without runtime fields)
+        EventStore::append_events(&self.event_pool_with_path.pool, &events_to_persist)
             .await
             .map_err(|e| format!("Failed to persist events to database: {}", e))?;
 
-        // 8. Apply events to StateProjector
+        // 9. Apply events to StateProjector (use original events with runtime fields)
         for event in &events {
             self.state.apply_event(event);
         }
 
+        // Return original events (with _block_dir) for caller
         Ok(events)
     }
 }

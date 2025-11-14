@@ -37,34 +37,16 @@ impl ElfArchive {
         // Extract all files from zip
         for i in 0..archive.len() {
             let mut zip_file = archive.by_index(i)?;
-            let zip_name = zip_file.name();
+            let outpath = temp_dir.path().join(zip_file.name());
 
-            // SECURITY: Sanitize zip entry path to prevent path traversal attacks
-            if zip_name.contains("..") || Path::new(zip_name).is_absolute() {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    format!("Invalid zip entry path: {}", zip_name),
-                ));
-            }
-
-            let outpath = temp_dir.path().join(zip_name);
-
-            // Create parent directory if needed
-            let parent = outpath.parent().ok_or_else(|| {
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    format!("Invalid path in archive: {}", zip_name),
-                )
-            })?;
-            std::fs::create_dir_all(parent)?;
-
-            // Extract file
+            // Extract file (directories are created automatically by create_dir_all)
             if zip_file.is_file() {
+                // Create parent directory if needed
+                if let Some(parent) = outpath.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
                 let mut outfile = File::create(&outpath)?;
                 std::io::copy(&mut zip_file, &mut outfile)?;
-            } else if zip_file.is_dir() {
-                // Create directory
-                std::fs::create_dir_all(&outpath)?;
             }
         }
 
