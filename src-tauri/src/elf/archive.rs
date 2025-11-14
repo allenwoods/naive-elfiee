@@ -1,6 +1,5 @@
 use crate::engine::{EventPoolWithPath, EventStore};
 use std::fs::File;
-use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use walkdir::WalkDir;
@@ -38,12 +37,26 @@ impl ElfArchive {
         // Extract all files from zip
         for i in 0..archive.len() {
             let mut zip_file = archive.by_index(i)?;
-            let outpath = temp_dir.path().join(zip_file.name());
+            let zip_name = zip_file.name();
+
+            // SECURITY: Sanitize zip entry path to prevent path traversal attacks
+            if zip_name.contains("..") || Path::new(zip_name).is_absolute() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("Invalid zip entry path: {}", zip_name),
+                ));
+            }
+
+            let outpath = temp_dir.path().join(zip_name);
 
             // Create parent directory if needed
-            if let Some(parent) = outpath.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
+            let parent = outpath.parent().ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!("Invalid path in archive: {}", zip_name),
+                )
+            })?;
+            std::fs::create_dir_all(parent)?;
 
             // Extract file
             if zip_file.is_file() {
@@ -76,7 +89,11 @@ impl ElfArchive {
         let temp_path = self.temp_dir.path();
 
         // Recursively traverse temp_dir and save all files
-        for entry in WalkDir::new(temp_path).into_iter().filter_map(|e| e.ok()) {
+        for entry in WalkDir::new(temp_path) {
+            let entry = entry.map_err(|e| {
+                std::io::Error::other(format!("Failed to traverse directory: {}", e))
+            })?;
+
             let path = entry.path();
 
             // Skip directories, only process files
@@ -85,19 +102,17 @@ impl ElfArchive {
             }
 
             // Calculate relative path (relative to temp_path)
-            let relative_path = path
-                .strip_prefix(temp_path)
-                .map_err(std::io::Error::other)?;
+            let relative_path = path.strip_prefix(temp_path).map_err(|e| {
+                std::io::Error::other(format!("Path not under temp_dir: {:?}: {}", path, e))
+            })?;
 
             // Convert to string path (for zip internal path)
             let zip_path = relative_path.to_string_lossy();
 
-            // Add file to zip
+            // Add file to zip using streaming I/O (avoids loading entire file into memory)
             zip.start_file(zip_path.as_ref(), options)?;
             let mut file = File::open(path)?;
-            let mut buffer = Vec::new();
-            file.read_to_end(&mut buffer)?;
-            zip.write_all(&buffer)?;
+            std::io::copy(&mut file, &mut zip)?;
         }
 
         zip.finish()?;

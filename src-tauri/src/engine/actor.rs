@@ -3,7 +3,52 @@ use crate::engine::event_store::{EventPoolWithPath, EventStore};
 use crate::engine::state::StateProjector;
 use crate::models::{Block, Command, Editor, Event};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use tokio::sync::{mpsc, oneshot};
+
+/// Prefix for block-specific directories
+const BLOCK_DIR_PREFIX: &str = "block-";
+
+/// Inject _block_dir into block contents and create the directory.
+///
+/// # Security
+/// - Validates block_id is a valid UUID to prevent path traversal
+/// - Creates isolated directory for each block
+/// - Returns the created directory path
+///
+/// # Arguments
+/// - `temp_dir`: Parent temporary directory
+/// - `block_id`: Block identifier (must be valid UUID)
+/// - `contents`: Block contents to inject _block_dir into
+///
+/// # Returns
+/// - `Ok(PathBuf)`: Path to the created block directory
+/// - `Err(String)`: Validation or I/O error
+fn inject_block_dir(
+    temp_dir: &Path,
+    block_id: &str,
+    contents: &mut serde_json::Value,
+) -> Result<PathBuf, String> {
+    // SECURITY: Validate block_id is a valid UUID to prevent path traversal
+    uuid::Uuid::parse_str(block_id)
+        .map_err(|_| format!("Invalid block_id format (not a UUID): {}", block_id))?;
+
+    let block_dir = temp_dir.join(format!("{}{}", BLOCK_DIR_PREFIX, block_id));
+
+    // Create block directory if it doesn't exist
+    std::fs::create_dir_all(&block_dir)
+        .map_err(|e| format!("Failed to create block directory: {}", e))?;
+
+    // Inject _block_dir into contents
+    if let Some(obj) = contents.as_object_mut() {
+        obj.insert(
+            "_block_dir".to_string(),
+            serde_json::json!(block_dir.to_string_lossy()),
+        );
+    }
+
+    Ok(block_dir)
+}
 
 /// Messages that can be sent to the engine actor.
 #[derive(Debug)]
@@ -204,20 +249,8 @@ impl ElfileEngineActor {
                 .parent()
                 .ok_or("Invalid db_path: no parent directory")?;
 
-            // Calculate block-specific directory
-            let block_dir = temp_dir.join(format!("block-{}", block.block_id));
-
-            // Ensure block directory exists
-            std::fs::create_dir_all(&block_dir)
-                .map_err(|e| format!("Failed to create block directory: {}", e))?;
-
-            // Inject into contents (temporary, not persisted to events)
-            if let Some(obj) = block.contents.as_object_mut() {
-                obj.insert(
-                    "_block_dir".to_string(),
-                    serde_json::json!(block_dir.to_string_lossy()),
-                );
-            }
+            // Use helper function to inject _block_dir (validates UUID, creates directory)
+            inject_block_dir(temp_dir, &block.block_id, &mut block.contents)?;
         }
 
         // 3. Check authorization (certificator)
@@ -260,18 +293,8 @@ impl ElfileEngineActor {
                 if event.attribute.ends_with("/core.create") {
                     // Inject _block_dir into new block's contents
                     if let Some(contents) = event.value.get_mut("contents") {
-                        if let Some(obj) = contents.as_object_mut() {
-                            let block_dir = temp_dir.join(format!("block-{}", event.entity));
-
-                            // Create block directory
-                            std::fs::create_dir_all(&block_dir)
-                                .map_err(|e| format!("Failed to create block directory: {}", e))?;
-
-                            obj.insert(
-                                "_block_dir".to_string(),
-                                serde_json::json!(block_dir.to_string_lossy()),
-                            );
-                        }
+                        // Use helper function (validates UUID, creates directory)
+                        inject_block_dir(temp_dir, &event.entity, contents)?;
                     }
                 }
             }
