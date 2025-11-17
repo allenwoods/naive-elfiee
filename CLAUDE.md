@@ -61,6 +61,8 @@ example.elf/
     └── src/
 ```
 
+**Note**: `_block_dir` is injected at runtime and NOT persisted to events. The event database remains portable across systems. Block directories are automatically created during command processing, and the `_block_dir` path is stripped before events are saved to `_eventstore.db`.
+
 ### Extension Interface (Part 4)
 
 Extensions add functionality by defining:
