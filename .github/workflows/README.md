@@ -161,6 +161,27 @@ on:
 
 ---
 
+## PNPM 安装与版本固定
+
+在 CI 中使用 `pnpm/action-setup@v4` 时，如果仓库的 `package.json` 已通过 `packageManager` 固定了 pnpm 版本（例如 `pnpm@10.20.0+sha512...`），不要在工作流里再通过 `with.version` 指定另一个版本，否则会出现：
+
+```
+Error: Multiple versions of pnpm specified
+```
+
+正确做法：
+- 保留 `packageManager` 字段来固定版本；
+- 在工作流中仅使用 action，不再传入 `version`：
+
+```yaml
+- name: Install pnpm
+  uses: pnpm/action-setup@v4
+```
+
+升级 pnpm 版本时，只需修改 `package.json` 的 `packageManager` 值，CI 会自动安装该版本。
+
+参考：pnpm 自我安装与 packageManager 说明：https://pnpm.io/package_manager_config
+
 ## Related Documentation
 
 - [Claude Code Documentation](https://docs.claude.com/en/docs/claude-code)
