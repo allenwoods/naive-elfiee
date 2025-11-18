@@ -1,3 +1,4 @@
+pub mod directory;
 /// Extensions for Elfiee capability system.
 ///
 /// This module contains extension capabilities that build on top of the core system.
