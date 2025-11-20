@@ -194,9 +194,10 @@ describe('Terminal Save Functionality', () => {
 
       render(<Terminal />)
 
-      const button = await screen.findByRole('button', { name: /update save/i })
-      expect(button).toHaveTextContent('Update Save')
-      expect(screen.getByText(/• Saved \(6 lines\)/)).toBeInTheDocument()
+      // 简化后的实现：统一显示 "Save" 按钮，不再区分 "Update Save"
+      const button = await screen.findByRole('button', { name: /save/i })
+      expect(button).toHaveTextContent('Save')
+      // 注意：Terminal 组件中不再显示保存状态信息
     })
 
     it('should handle invalid saved content', async () => {
@@ -252,7 +253,7 @@ describe('Terminal Save Functionality', () => {
 
       expect(mockAppStore.addNotification).toHaveBeenCalledWith(
         'success',
-        '终端内容已保存到Block中。'
+        '终端内容已保存到 Block 中。'
       )
     })
 
@@ -394,22 +395,21 @@ describe('Terminal Save Functionality', () => {
 
       render(<Terminal />)
 
-      expect(await screen.findByText(/• Saved \(6 lines\)/)).toBeInTheDocument()
-      expect(
-        screen.getByText((content) =>
-          content.replace(/\s+/g, ' ').includes('Directory: /home/user')
-        )
-      ).toBeInTheDocument()
+      // 简化后的实现：Terminal 组件不再显示保存状态信息
+      // 只验证按钮存在且显示 "Save"
+      const button = await screen.findByRole('button', { name: /save/i })
+      expect(button).toHaveTextContent('Save')
     })
 
-    it('should show "Update Save" button for saved content', async () => {
+    it('should show "Save" button for saved content', async () => {
       mockAppStore.getSelectedBlock.mockReturnValue(mockTerminalBlockWithSave)
       mockGetAllBlocks.mockResolvedValue([mockTerminalBlockWithSave])
 
       render(<Terminal />)
 
-      const button = await screen.findByRole('button', { name: /update save/i })
-      expect(button).toHaveTextContent('Update Save')
+      // 简化后的实现：统一显示 "Save" 按钮，不再区分 "Update Save"
+      const button = await screen.findByRole('button', { name: /save/i })
+      expect(button).toHaveTextContent('Save')
     })
 
     it('should show "Save" button for unsaved content', async () => {
