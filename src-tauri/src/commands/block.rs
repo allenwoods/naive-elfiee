@@ -48,12 +48,20 @@ pub async fn execute_command(
                                 .unwrap_or("unknown")
                                 .to_string();
                             
+                            // 获取该 file_id 对应的互斥锁，确保同一文件的保存操作串行执行
+                            // 防止多个文件操作快速连续执行时触发并发的 archive.save() 调用
+                            let save_mutex = state.get_file_save_mutex(&file_id);
+                            
                             // 克隆 AppHandle 和 file_id 用于异步任务中发送事件
                             let app_handle = app.clone();
                             let file_id_clone = file_id.clone();
                             
                             // 异步触发文件同步，不阻塞命令返回
+                            // 使用互斥锁确保同一 file_id 的保存操作串行执行
                             tokio::spawn(async move {
+                                // 获取锁，确保同一文件的保存操作不会并发执行
+                                let _guard = save_mutex.lock().await;
+                                
                                 match archive.save(&elf_path) {
                                     Ok(_) => {
                                         println!("File sync completed successfully for command: {}", command);
@@ -74,6 +82,7 @@ pub async fn execute_command(
                                         }
                                     }
                                 }
+                                // _guard 在这里自动释放，允许下一个保存操作继续
                             });
                         }
                         break;

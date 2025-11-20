@@ -3,6 +3,7 @@ use crate::engine::EngineManager;
 use dashmap::DashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Information about an open file
 pub struct FileInfo {
@@ -26,6 +27,11 @@ pub struct AppState {
     /// This is UI state and is NOT persisted to .elf file
     /// Using DashMap for thread-safe concurrent access
     pub active_editors: Arc<DashMap<String, String>>,
+
+    /// Map of file_id -> Mutex for serializing file save operations
+    /// Prevents race conditions when multiple file operations trigger concurrent archive.save() calls
+    /// Using DashMap for thread-safe concurrent access, Arc<Mutex<()>> for per-file serialization
+    pub file_save_mutexes: Arc<DashMap<String, Arc<Mutex<()>>>>,
 }
 
 impl AppState {
@@ -35,7 +41,21 @@ impl AppState {
             engine_manager: EngineManager::new(),
             files: Arc::new(DashMap::new()),
             active_editors: Arc::new(DashMap::new()),
+            file_save_mutexes: Arc::new(DashMap::new()),
         }
+    }
+
+    /// Get or create a mutex for serializing file save operations for a specific file_id.
+    ///
+    /// This ensures that only one archive.save() operation can run at a time for each file,
+    /// preventing race conditions and file corruption.
+    pub fn get_file_save_mutex(&self, file_id: &str) -> Arc<Mutex<()>> {
+        // Use entry API to get or insert a new mutex atomically
+        self.file_save_mutexes
+            .entry(file_id.to_string())
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .value()
+            .clone()
     }
 
     /// Get the active editor for a file.
