@@ -1,7 +1,7 @@
 use crate::models::{Block, Command, Event};
 use crate::state::AppState;
 use specta::specta;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 /// Execute a command on a block in the specified file.
 ///
@@ -20,6 +20,7 @@ use tauri::State;
 pub async fn execute_command(
     file_id: String,
     cmd: Command,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<Event>, String> {
     // Get engine handle for this file
@@ -47,12 +48,31 @@ pub async fn execute_command(
                                 .unwrap_or("unknown")
                                 .to_string();
                             
+                            // 克隆 AppHandle 和 file_id 用于异步任务中发送事件
+                            let app_handle = app.clone();
+                            let file_id_clone = file_id.clone();
+                            
                             // 异步触发文件同步，不阻塞命令返回
                             tokio::spawn(async move {
-                                if let Err(e) = archive.save(&elf_path) {
-                                    eprintln!("File sync failed: {}", e);
-                                } else {
-                                    println!("File sync completed successfully for command: {}", command);
+                                match archive.save(&elf_path) {
+                                    Ok(_) => {
+                                        println!("File sync completed successfully for command: {}", command);
+                                        // 可选：发送成功通知（如果需要）
+                                        // app_handle.emit("file-sync-success", &command).ok();
+                                    }
+                                    Err(e) => {
+                                        let error_msg = format!("文件同步失败: {}", e);
+                                        eprintln!("File sync failed: {}", e);
+                                        
+                                        // 发送错误事件到前端，前端可以显示通知
+                                        if let Err(emit_err) = app_handle.emit("file-sync-error", serde_json::json!({
+                                            "command": command,
+                                            "error": error_msg,
+                                            "file_id": file_id_clone
+                                        })) {
+                                            eprintln!("Failed to emit file-sync-error event: {}", emit_err);
+                                        }
+                                    }
                                 }
                             });
                         }

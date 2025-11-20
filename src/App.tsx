@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { listen } from '@tauri-apps/api/event'
 import { Toolbar } from '@/components/Toolbar'
 import { BlockList } from '@/components/BlockList'
 import { BlockEditor } from '@/components/BlockEditor'
@@ -22,7 +23,7 @@ type TabType = 'editor' | 'events' | 'terminal'
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('editor')
-  const { activeFileId, getSelectedBlock } = useAppStore()
+  const { activeFileId, getSelectedBlock, addNotification } = useAppStore()
   const selectedBlock = activeFileId ? getSelectedBlock(activeFileId) : null
 
   // 当选中的block类型改变时，自动切换到合适的tab
@@ -41,6 +42,40 @@ function App() {
       }
     }
   }, [selectedBlock?.block_type, activeTab])
+
+  // 监听文件同步错误事件
+  useEffect(() => {
+    let unlistenFn: (() => void) | undefined
+
+    const setupFileSyncErrorListener = async () => {
+      try {
+        const unlisten = await listen<{
+          command: string
+          error: string
+          file_id: string
+        }>('file-sync-error', (event) => {
+          const { command, error } = event.payload
+          addNotification(
+            'error',
+            `文件同步失败: 命令 "${command}" 执行后无法同步到文件。错误: ${error}`
+          )
+        })
+
+        unlistenFn = unlisten
+      } catch (error) {
+        console.error('Failed to setup file-sync-error listener:', error)
+      }
+    }
+
+    setupFileSyncErrorListener()
+
+    // 清理函数：组件卸载时取消监听
+    return () => {
+      if (unlistenFn) {
+        unlistenFn()
+      }
+    }
+  }, [addNotification])
 
   return (
     <div className="bg-background text-foreground flex h-screen flex-col">

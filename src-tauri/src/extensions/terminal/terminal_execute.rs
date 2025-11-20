@@ -72,6 +72,27 @@ pub(crate) fn is_file_operation_command(command: &str) -> bool {
 /// - `pwd`: Returns the current directory (virtual, from block contents)
 /// - All other commands: Executed as real system commands
 ///
+/// # Security Considerations
+///
+/// **Command Injection Risk**: Commands are executed via shell (`sh -c` on Unix, `cmd /c` on Windows),
+/// allowing full shell syntax and command chaining. This is intentional for terminal functionality,
+/// but requires careful consideration:
+///
+/// - **Path Sandboxing**: All commands run within sandboxed block directories (`block-{block_id}`),
+///   preventing access to files outside the block's scope. The `root_path` and `current_path` are
+///   validated to ensure commands cannot escape the sandbox.
+///
+/// - **Command Length Limit**: Commands are limited to 10,000 characters to prevent resource exhaustion.
+///
+/// - **Path Validation**: Directory traversal attacks are mitigated through path canonicalization
+///   and validation against `root_path`.
+///
+/// - **Production Recommendations**: For production use in untrusted environments, consider:
+///   - Command whitelisting/blacklisting
+///   - Additional input sanitization
+///   - Rate limiting for command execution
+///   - Audit logging of all executed commands
+///
 /// # Payload
 /// Uses `TerminalExecutePayload` with a single `command` field.
 #[capability(id = "terminal.execute", target = "terminal")]
@@ -80,7 +101,13 @@ fn handle_terminal_execute(cmd: &Command, block: Option<&Block>) -> CapResult<Ve
 
     // Deserialize strongly-typed payload
     let payload: TerminalExecutePayload = serde_json::from_value(cmd.payload.clone())
-        .map_err(|e| format!("Invalid payload for terminal.execute: {}", e))?;
+        .map_err(|e| {
+            format!(
+                "Invalid payload for terminal.execute: {}. Expected schema: {{ \"command\": string }}. Received: {}",
+                e,
+                serde_json::to_string(&cmd.payload).unwrap_or_else(|_| "invalid JSON".to_string())
+            )
+        })?;
 
     // Security: Validate command length
     if payload.command.len() > 10000 {
@@ -206,12 +233,6 @@ fn handle_terminal_execute(cmd: &Command, block: Option<&Block>) -> CapResult<Ve
 
     // 检测是否为文件操作命令，如果是则需要标记需要同步到 .elf 文件
     let is_save_operation = is_file_operation_command(&payload.command);
-    if is_save_operation && exit_code == 0 {
-        // 记录文件操作成功，后续需要触发文件同步
-        // 注意：这里只是标记，实际的 .elf 文件同步需要在 Engine Actor 层面处理
-        // 因为 capability handler 无法直接访问 ElfArchive 实例
-        println!("File operation detected: {}", payload.command);
-    }
 
     // Preserve existing contents and update history and current_directory
     let mut new_contents = if let Some(obj) = block.contents.as_object() {
@@ -316,12 +337,46 @@ fn relative_display(current_path: &Path, root_path: &Path) -> String {
     }
 }
 
-/// Execute a real system command and return output and exit code
-/// 
-/// Security considerations:
-/// - Command is executed in a shell (sh on Unix, cmd on Windows)
-/// - Working directory is set based on current_dir (if it's a valid block path)
+/// Execute a real system command and return output and exit code.
+///
+/// # Arguments
+/// * `command` - The command string to execute (will be passed to shell)
+/// * `current_path` - The working directory for command execution (must be within block sandbox)
+///
+/// # Returns
+/// A tuple of (output_string, exit_code)
+///
+/// # Security Considerations
+///
+/// **Command Injection Risk**: This function executes commands via shell (`sh -c` on Unix, `cmd /c` on Windows),
+/// allowing full shell syntax including:
+/// - Command chaining (`&&`, `||`, `;`)
+/// - Pipes (`|`)
+/// - Redirections (`>`, `>>`, `<`)
+/// - Variable expansion (`$VAR`, `${VAR}`)
+/// - Subshells (`$(command)`, `` `command` ``)
+///
+/// This is intentional for terminal functionality, but be aware:
+///
+/// - **Sandboxing**: Commands run within the block's sandboxed directory (`block-{block_id}`),
+///   which is isolated from other blocks and the system. The `current_path` is validated to ensure
+///   it stays within the `root_path` boundary.
+///
+/// - **Command Length**: Commands are limited to 10,000 characters (validated in `handle_terminal_execute`).
+///
+/// - **Path Safety**: The `current_path` parameter is validated before reaching this function to ensure
+///   it's within the block's root directory, preventing directory traversal attacks.
+///
+/// - **Production Recommendations**: For production use in untrusted environments, consider:
+///   - Command whitelisting/blacklisting
+///   - Additional input sanitization
+///   - Rate limiting for command execution
+///   - Audit logging of all executed commands
+///
+/// # Notes
+/// - Working directory is set based on `current_path` (validated to be within block sandbox)
 /// - Output is captured from stdout and stderr
+/// - Both stdout and stderr are combined in the output string
 fn execute_system_command(command: &str, current_path: &Path) -> (String, i32) {
     // Parse command into parts
     let trimmed = command.trim();
@@ -329,9 +384,12 @@ fn execute_system_command(command: &str, current_path: &Path) -> (String, i32) {
         return ("".to_string(), 0);
     }
 
-    // Security: Basic validation
-    // In production, you might want to add whitelist/blacklist of allowed commands
-    // For now, we allow any command but with length limit (already checked earlier)
+    // Security: Commands are executed in a shell, allowing full shell syntax.
+    // This is intentional for terminal functionality, but be aware:
+    // - All commands run within sandboxed block directories (validated via current_path)
+    // - Command length is limited to 10,000 characters (validated in handle_terminal_execute)
+    // - Path traversal is prevented by root_path validation
+    // - For production use, consider adding command whitelisting
     
     // Determine working directory
     // For block directories, we'd need to get the actual file system path

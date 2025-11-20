@@ -61,7 +61,10 @@ mod tests {
         assert_eq!(event.entity, "test-terminal-block");
         assert_eq!(event.attribute, "test-editor/terminal.write");
         
-        let contents = event.value.get("contents").unwrap().as_object().unwrap();
+        let contents = event.value.get("contents")
+        .expect("Event should have contents")
+        .as_object()
+        .expect("Contents should be an object");
         assert_eq!(
             contents.get("saved_content").unwrap().as_str().unwrap(),
             "Welcome to Terminal!\n$ ls\nfile1.txt file2.txt"
