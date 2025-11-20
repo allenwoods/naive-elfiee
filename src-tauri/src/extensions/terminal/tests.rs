@@ -14,6 +14,15 @@ use crate::capabilities::registry::CapabilityRegistry;
 use crate::capabilities::grants::GrantsTable;
 
 use crate::models::{Block, Command};
+use uuid::Uuid;
+
+fn platform_command(unix_command: &str, windows_command: &str) -> String {
+    if cfg!(target_os = "windows") {
+        windows_command.to_string()
+    } else {
+        unix_command.to_string()
+    }
+}
 
 
 // ============================================
@@ -364,5 +373,1562 @@ fn test_full_workflow() {
     assert_eq!(final_history[1]["output"], "Additional output from application");
     assert_eq!(final_history[1]["type"], "write");
     assert_eq!(final_history[1]["command"], "");
+}
+
+// ============================================
+// Additional Terminal Execute Tests
+// ============================================
+
+#[test]
+fn test_execute_pwd_command() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "PWD Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "pwd"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "PWD command should execute successfully");
+
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1);
+    
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], "pwd");
+    assert_eq!(history[0]["exit_code"], 0);
+    // PWD should return some path
+    assert!(history[0]["output"].as_str().unwrap().len() > 0);
+}
+
+#[test]
+fn test_execute_command_length_validation() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Length Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // Create a command longer than 10000 characters
+    let long_command = "echo ".to_string() + &"a".repeat(10000);
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": long_command
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_err(), "Long command should be rejected");
+    
+    let error = result.unwrap_err();
+    assert!(error.contains("Command too long"), "Error should mention command length");
+}
+
+#[test]
+fn test_execute_empty_command() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Empty Command Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": ""
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Empty command should be handled gracefully");
+
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1);
+    
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], "");
+    assert_eq!(history[0]["exit_code"], 0);
+    assert_eq!(history[0]["output"], "");
+}
+
+#[test]
+fn test_execute_without_block() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        "dummy-block-id".to_string(),
+        serde_json::json!({
+            "command": "echo test"
+        }),
+    );
+
+    let result = cap.handler(&cmd, None);
+    assert!(result.is_err(), "Command without block should fail");
+    
+    let error = result.unwrap_err();
+    assert_eq!(error, "Block required for terminal.execute");
+}
+
+#[test]
+fn test_execute_history_preservation() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    // Create a block with existing history
+    let mut block = Block::new(
+        "History Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+    
+    block.contents = serde_json::json!({
+        "history": [
+            {
+                "command": "echo first",
+                "output": "first",
+                "timestamp": "2024-01-01T00:00:00Z",
+                "exit_code": 0
+            }
+        ],
+        "root_path": ".",
+        "current_path": ".",
+        "current_directory": "."
+    });
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "echo second"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    // Should have both old and new commands
+    assert_eq!(history.len(), 2);
+    
+    // First command should be preserved
+    assert_eq!(history[0]["command"], "echo first");
+    assert_eq!(history[0]["output"], "first");
+    
+    // Second command should be appended
+    assert_eq!(history[1]["command"], "echo second");
+    assert!(history[1]["output"].as_str().unwrap().contains("second"));
+}
+
+// ============================================
+// Non-Interactive Commands Tests
+// ============================================
+
+#[test]
+fn test_execute_ls_command() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let mut block = Block::new(
+        "LS Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+    
+    // Set up a block directory with some test files
+    block.contents = serde_json::json!({
+        "root_path": ".",
+        "current_path": ".",
+        "current_directory": ".",
+        "history": []
+    });
+
+    let command = platform_command("ls", "dir");
+    let payload = serde_json::json!({ "command": command.clone() });
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        payload,
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "LS command should execute successfully");
+
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1);
+    
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], command);
+    assert_eq!(history[0]["exit_code"], 0);
+    // ls should return some output (file listings)
+    assert!(history[0]["output"].as_str().is_some());
+}
+
+#[test]
+fn test_execute_echo_command() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Echo Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "echo \"Hello Terminal!\""
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Echo command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], "echo \"Hello Terminal!\"");
+    assert_eq!(history[0]["exit_code"], 0);
+    assert!(history[0]["output"].as_str().unwrap().contains("Hello Terminal!"));
+}
+
+#[test]
+fn test_execute_mkdir_command() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Mkdir Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let command = platform_command(
+        "mkdir -p terminal_test_dir",
+        r#"powershell -Command "New-Item -ItemType Directory -Path 'terminal_test_dir' -Force; exit 0""#,
+    );
+    let payload = serde_json::json!({ "command": command.clone() });
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        payload,
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Mkdir command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], command);
+    // mkdir typically returns exit code 0 on success
+    assert_eq!(history[0]["exit_code"], 0);
+}
+
+#[test]
+fn test_execute_touch_command() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Touch Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let command = platform_command(
+        "touch terminal_test_file.txt",
+        "type nul > terminal_test_file.txt",
+    );
+    let payload = serde_json::json!({ "command": command.clone() });
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        payload,
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Touch command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], command);
+    assert_eq!(history[0]["exit_code"], 0);
+}
+
+#[test]
+fn test_execute_cat_command() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Cat Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // Test cat on a non-existent file (should fail)
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "cat nonexistent.txt"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Cat command should execute (but may fail)");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], "cat nonexistent.txt");
+    // Should fail with exit code != 0 for non-existent file
+    assert_ne!(history[0]["exit_code"], 0);
+    assert!(history[0]["output"].as_str().unwrap().len() > 0); // Should have error message
+}
+
+#[test]
+fn test_execute_grep_command() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Grep Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // Test grep on current directory (should work even if no matches)
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "grep \"test\" *.txt || echo \"no matches found\""
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Grep command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    assert_eq!(history.len(), 1);
+    assert!(history[0]["command"].as_str().unwrap().contains("grep"));
+    // Command should complete (exit code may vary based on matches)
+    assert!(history[0].get("exit_code").is_some());
+}
+
+#[test]
+fn test_execute_find_command() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Find Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let command = platform_command(
+        r#"find . -name "*.txt" -type f"#,
+        r#"dir /s /b *.txt"#,
+    );
+    let payload = serde_json::json!({ "command": command.clone() });
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        payload,
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Find command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], command);
+    assert_eq!(history[0]["exit_code"], 0);
+    // find should return paths or empty output
+    assert!(history[0]["output"].as_str().is_some());
+}
+
+#[test]
+fn test_execute_head_tail_commands() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let mut block = Block::new(
+        "Head/Tail Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+    
+    block.contents = serde_json::json!({
+        "root_path": ".",
+        "current_path": ".",
+        "current_directory": ".",
+        "history": []
+    });
+
+    // Test head command (should work even on non-existent file, just return error)
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "head -n 5 nonexistent.txt || echo \"head completed\""
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Head command should execute");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    assert_eq!(history.len(), 1);
+    assert!(history[0]["command"].as_str().unwrap().contains("head"));
+    assert!(history[0].get("exit_code").is_some());
+    assert!(history[0]["output"].as_str().is_some());
+}
+
+#[test]
+fn test_execute_multiple_commands_sequence() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let mut block = Block::new(
+        "Multi Command Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+    
+    block.contents = serde_json::json!({
+        "root_path": ".",
+        "current_path": ".",
+        "current_directory": ".",
+        "history": []
+    });
+
+    // Test command sequence with && operator
+    let command = platform_command(
+        "echo \"first\" && echo \"second\" && pwd",
+        "echo first && echo second && cd",
+    );
+    let payload = serde_json::json!({ "command": command.clone() });
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        payload,
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Multi-command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], command);
+    assert_eq!(history[0]["exit_code"], 0);
+    
+    let output = history[0]["output"].as_str().unwrap();
+    assert!(output.contains("first"));
+    assert!(output.contains("second"));
+    // Should also contain the pwd output (current directory path)
+    assert!(output.len() > 10); // pwd should add substantial output
+}
+
+#[test]
+fn test_execute_command_with_special_characters() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Special Chars Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // Test echo with special characters and escaping
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "echo \"Hello $USER! Today is $(date +%Y-%m-%d) & it's great!\""
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Command with special characters should execute");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    assert_eq!(history.len(), 1);
+    assert!(history[0]["command"].as_str().unwrap().contains("Hello"));
+    assert_eq!(history[0]["exit_code"], 0);
+    assert!(history[0]["output"].as_str().unwrap().contains("Hello"));
+}
+
+#[test]
+fn test_execute_pipe_operations() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Pipe Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // Test command with pipes
+    let command = platform_command(
+        "echo \"line1\\nline2\\nline3\" | grep \"line2\"",
+        r#"powershell -Command "Write-Output 'line1'; Write-Output 'line2'; Write-Output 'line3' | Select-String 'line2'; exit 0""#,
+    );
+    let payload = serde_json::json!({ "command": command.clone() });
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        payload,
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Pipe command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], command);
+    assert_eq!(history[0]["exit_code"], 0);
+    assert!(history[0]["output"].as_str().unwrap().contains("line2"));
+}
+
+// ============================================
+// 文件操作检测测试 - 新需求
+// ============================================
+
+#[test]
+fn test_file_operation_detection_mkdir() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "File Op Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let dir_name = format!("terminal_test_dir_{}", Uuid::new_v4().simple());
+    let command = format!("mkdir {}", dir_name);
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": command.clone()
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Mkdir command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    
+    // 检查是否标记了需要文件同步
+    assert!(contents.get("needs_file_sync").is_some());
+    assert_eq!(contents.get("needs_file_sync").unwrap().as_bool(), Some(true));
+    assert_eq!(
+        contents.get("file_operation_command").unwrap().as_str().unwrap(),
+        command
+    );
+}
+
+#[test]
+fn test_file_operation_detection_touch() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Touch Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let file_name = format!("terminal_test_file_{}.txt", Uuid::new_v4().simple());
+    let command = platform_command(
+        &format!("touch {}", file_name),
+        &format!("type nul > {}", file_name),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": command.clone()
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Touch command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    
+    // 检查是否标记了需要文件同步
+    assert!(contents.get("needs_file_sync").is_some());
+    assert_eq!(contents.get("needs_file_sync").unwrap().as_bool(), Some(true));
+    assert_eq!(
+        contents.get("file_operation_command").unwrap().as_str().unwrap(),
+        command
+    );
+}
+
+#[test]
+fn test_file_operation_detection_echo_redirect() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Echo Redirect Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "echo \"hello world\" > output.txt"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Echo redirect command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    
+    // 检查是否标记了需要文件同步
+    assert!(contents.get("needs_file_sync").is_some());
+    assert_eq!(contents.get("needs_file_sync").unwrap().as_bool(), Some(true));
+    assert_eq!(
+        contents.get("file_operation_command").unwrap().as_str().unwrap(),
+        "echo \"hello world\" > output.txt"
+    );
+}
+
+#[test]
+fn test_non_file_operation_no_sync_flag() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Non-File Op Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "echo \"hello world\""
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Echo command should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let contents_obj = contents
+        .as_object()
+        .expect("contents should be an object");
+    
+    // 非文件操作命令不应该标记需要文件同步
+    assert!(!contents_obj.contains_key("needs_file_sync"));
+    assert!(!contents_obj.contains_key("file_operation_command"));
+}
+
+// ============================================
+// 文件操作检测函数详细测试
+// ============================================
+
+#[test]
+fn test_file_operation_detection_comprehensive() {
+    use crate::extensions::terminal::terminal_execute::is_file_operation_command;
+    
+    // 测试各种文件操作命令
+    let file_ops = vec![
+        "mkdir test_dir",
+        "MKDIR test_dir", // 大小写不敏感
+        "touch file.txt",
+        "rm file.txt",
+        "rmdir directory",
+        "mv old.txt new.txt",
+        "cp source.txt dest.txt",
+        "vi filename.txt",
+        "vim filename.txt", 
+        "nano filename.txt",
+        "chmod 755 file.txt",
+        "chown user:group file.txt",
+        "chgrp group file.txt",
+        "echo \"content\" > file.txt",    // 重定向输出
+        "echo \"content\" >> file.txt",   // 追加输出
+        "cat input.txt > output.txt",    // 管道重定向
+    ];
+    
+    for cmd in file_ops {
+        assert!(is_file_operation_command(cmd), 
+                "Command '{}' should be detected as file operation", cmd);
+    }
+}
+
+#[test]
+fn test_file_operation_detection_windows_commands() {
+    use crate::extensions::terminal::terminal_execute::is_file_operation_command;
+    
+    // Windows 特定命令（只在 Windows 平台测试）
+    #[cfg(target_os = "windows")]
+    {
+        let windows_ops = vec![
+            "del file.txt",
+            "DEL file.txt", // 大小写不敏感
+            "move old.txt new.txt",
+            "copy source.txt dest.txt",
+            "md test_dir",
+            "rd test_dir",
+            "type nul > file.txt",
+        ];
+        
+        for cmd in windows_ops {
+            assert!(is_file_operation_command(cmd), 
+                    "Windows command '{}' should be detected as file operation", cmd);
+        }
+    }
+}
+
+#[test]
+fn test_file_operation_detection_non_file_commands() {
+    use crate::extensions::terminal::terminal_execute::is_file_operation_command;
+    
+    // 非文件操作命令
+    let non_file_ops = vec![
+        "echo hello world",      // 普通 echo（无重定向）
+        "ls -la",               // 列出文件但不修改
+        "pwd",                  // 显示路径
+        "cd directory",         // 切换目录
+        "ps aux",               // 进程列表
+        "grep pattern file.txt", // 搜索但不修改
+        "cat file.txt",         // 读取但不修改
+        "head -n 10 file.txt",  // 读取但不修改
+        "tail -f file.txt",     // 读取但不修改
+        "find . -name '*.txt'", // 搜索但不修改
+        "history",              // 命令历史
+        "whoami",               // 用户信息
+        "date",                 // 显示日期
+        "uptime",               // 系统信息
+    ];
+    
+    for cmd in non_file_ops {
+        assert!(!is_file_operation_command(cmd), 
+                "Command '{}' should NOT be detected as file operation", cmd);
+    }
+}
+
+#[test]
+fn test_file_operation_detection_edge_cases() {
+    use crate::extensions::terminal::terminal_execute::is_file_operation_command;
+    
+    // 边界情况
+    assert!(!is_file_operation_command(""), "Empty command should not be file operation");
+    assert!(!is_file_operation_command("   "), "Whitespace command should not be file operation");
+    assert!(!is_file_operation_command("mkdirtest"), "mkdirtest is not a complete mkdir command");
+    assert!(is_file_operation_command("mkdir test"), "mkdir with argument should be detected");
+    assert!(is_file_operation_command("  mkdir  test  "), "mkdir with extra whitespace should be detected");
+    
+    // 复杂管道命令
+    assert!(is_file_operation_command("ls -la | grep test > output.txt"), 
+            "Pipe with file redirection should be detected");
+    assert!(!is_file_operation_command("ls -la | grep test"), 
+            "Pipe without file redirection should NOT be detected");
+    
+    // 命令链（当前实现不支持复杂命令链检测，只检查直接的命令）
+    assert!(!is_file_operation_command("echo test && mkdir dir"), 
+            "Command chain detection not implemented in current version");
+}
+
+// ============================================
+// CD 命令专项测试
+// ============================================
+
+#[test]
+fn test_cd_path_resolution() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let mut block = Block::new(
+        "CD Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+    
+    // 设置初始状态
+    block.contents = serde_json::json!({
+        "root_path": "/tmp/test",
+        "current_path": "/tmp/test",
+        "current_directory": ".",
+        "history": []
+    });
+
+    // 测试 cd 到相对路径
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "cd .."
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "cd .. should execute successfully");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    
+    // cd .. 应该被限制在 root_path 内
+    assert_eq!(
+        contents.get("current_directory").unwrap().as_str().unwrap(),
+        "."
+    );
+}
+
+#[test]
+fn test_cd_nonexistent_directory() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "CD Error Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "cd nonexistent_directory_12345"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "cd to nonexistent directory should execute (but fail)");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], "cd nonexistent_directory_12345");
+    assert_eq!(history[0]["exit_code"], 1); // 应该失败
+    assert!(history[0]["output"].as_str().unwrap().contains("No such file or directory"));
+}
+
+// ============================================
+// 错误处理和边界条件测试
+// ============================================
+
+#[test]
+fn test_execute_command_failed_exit_code() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Failed Command Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // 测试一个会失败的命令
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "false"  // 总是返回错误码1
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Command should execute (even if it fails)");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let contents_obj = contents
+        .as_object()
+        .expect("contents should be an object");
+    
+    // 文件操作失败时不应该标记为需要同步
+    assert!(
+        !contents_obj.contains_key("needs_file_sync"),
+            "Failed commands should not trigger file sync");
+}
+
+#[test]
+fn test_file_operation_command_failed_no_sync() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Failed File Op Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // 测试一个会失败的文件操作命令
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "command": "rm nonexistent_file_12345.txt"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "rm command should execute (even if it fails)");
+
+    let events = result.unwrap();
+    let contents = events[0].value.get("contents").unwrap();
+    let contents_obj = contents
+        .as_object()
+        .expect("contents should be an object");
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    
+    // 检查命令失败
+    assert_ne!(history[0]["exit_code"], 0);
+    
+    // 失败的文件操作不应该触发文件同步
+    assert!(
+        !contents_obj.contains_key("needs_file_sync"),
+            "Failed file operations should not trigger sync");
+    assert!(!contents_obj.contains_key("file_operation_command"));
+}
+
+// ============================================
+// Terminal Write 详细测试
+// ============================================
+
+#[test]
+fn test_write_empty_payload() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.write")
+        .expect("terminal.write should be registered");
+
+    let block = Block::new(
+        "Empty Payload Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.write".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({}), // 空载荷
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Empty payload should be handled gracefully");
+
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1);
+    
+    // 空载荷应该不做任何修改，只是保留原有内容
+    let contents = events[0].value.get("contents").unwrap();
+    assert!(contents.is_object());
+}
+
+#[test]
+fn test_write_invalid_payload() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.write")
+        .expect("terminal.write should be registered");
+
+    let block = Block::new(
+        "Invalid Payload Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.write".to_string(),
+        block.block_id.clone(),
+        serde_json::json!("invalid_payload_string"), // 无效载荷
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_err(), "Invalid payload should return error");
+    
+    let error = result.unwrap_err();
+    assert!(error.contains("Invalid payload"), "Error should mention invalid payload");
+}
+
+// ============================================
+// Terminal Read 详细测试
+// ============================================
+
+#[test]
+fn test_read_without_block() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.read")
+        .expect("terminal.read should be registered");
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.read".to_string(),
+        "dummy-block-id".to_string(),
+        serde_json::json!({}),
+    );
+
+    let result = cap.handler(&cmd, None);
+    assert!(result.is_err(), "Read without block should fail");
+    
+    let error = result.unwrap_err();
+    assert_eq!(error, "Block required for terminal.read");
+}
+
+#[test]
+fn test_read_with_block() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.read")
+        .expect("terminal.read should be registered");
+
+    let block = Block::new(
+        "Read Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.read".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({}),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Read with block should succeed");
+
+    let events = result.unwrap();
+    assert_eq!(events.len(), 0, "Read should not generate events");
+}
+
+// ============================================
+// Additional Edge Cases and Error Handling Tests
+// ============================================
+
+#[test]
+fn test_execute_command_with_null_bytes() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // 包含空字节的命令（可能导致安全问题）
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({"command": "echo 'test\0malicious'"}),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Command with null bytes should execute (system will handle it)");
+    
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+}
+
+#[test]
+fn test_execute_command_with_unicode() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // Unicode 字符命令
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({"command": "echo '你好世界 🌍'"}),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Unicode command should execute successfully");
+    
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+}
+
+#[test]
+fn test_execute_command_with_extreme_whitespace() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // 极端空白字符
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({"command": "   \t\n  echo test  \t\n  "}),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Command with extreme whitespace should execute");
+    
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+}
+
+#[test]
+fn test_cd_to_current_directory() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // cd 到当前目录
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({"command": "cd ."}),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "cd . should execute successfully");
+    
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+    
+    let contents = events[0].value.get("contents").unwrap();
+    let history = contents.get("history").unwrap().as_array().unwrap();
+    assert_eq!(history.len(), 1);
+    assert_eq!(history[0]["command"], "cd .");
+    assert_eq!(history[0]["exit_code"], 0);
+}
+
+#[test]
+fn test_cd_with_quotes() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // cd 带引号的路径
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({"command": "cd \"test dir\""}),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "cd with quotes should execute");
+    
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+}
+
+#[test]
+fn test_multiple_consecutive_spaces() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // 多个连续空格
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({"command": "echo    hello     world"}),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Command with multiple spaces should execute");
+    
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+}
+
+#[test]
+fn test_write_with_very_large_content() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.write")
+        .expect("terminal.write should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // 生成非常大的内容（但仍在合理范围内）
+    let large_content = "A".repeat(50000);
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.write".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "data": large_content
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Large content should be handled");
+    
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+}
+
+#[test]
+fn test_write_with_json_object_data() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.write")
+        .expect("terminal.write should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // JSON 对象作为数据
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.write".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "data": {"key": "value", "number": 42}
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "JSON object data should be handled");
+    
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+}
+
+#[test]
+fn test_write_with_array_data() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.write")
+        .expect("terminal.write should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // 数组作为数据
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.write".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "data": [1, 2, 3, "test"]
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "Array data should be handled");
+    
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+}
+
+#[test]
+fn test_execute_with_mixed_slash_paths() {
+    use crate::extensions::terminal::terminal_execute::is_file_operation_command;
+    
+    // 测试混合斜杠路径
+    assert!(is_file_operation_command("mkdir test\\dir/subdir"));
+    assert!(is_file_operation_command("touch /home/user\\file.txt"));
+    assert!(is_file_operation_command("rm path/to\\file.txt"));
+}
+
+#[test]
+fn test_file_operation_detection_with_arguments() {
+    use crate::extensions::terminal::terminal_execute::is_file_operation_command;
+    
+    // 带参数的文件操作命令
+    assert!(is_file_operation_command("mkdir -p test/dir"));
+    assert!(is_file_operation_command("rm -rf olddir"));
+    assert!(is_file_operation_command("cp -r source dest"));
+    assert!(is_file_operation_command("mv -v old new"));
+    assert!(is_file_operation_command("chmod 755 script.sh"));
+    assert!(is_file_operation_command("chown user:group file.txt"));
+    assert!(is_file_operation_command("touch -t 202401010000 file.txt"));
+}
+
+#[test]
+fn test_file_operation_false_positives() {
+    use crate::extensions::terminal::terminal_execute::is_file_operation_command;
+    
+    // 确保非文件操作命令不被误判
+    assert!(!is_file_operation_command("echo 'mkdir test'"));
+    assert!(!is_file_operation_command("grep 'rm file' document.txt"));
+    assert!(!is_file_operation_command("ps aux | grep vim"));
+    assert!(!is_file_operation_command("history | grep touch"));
+}
+
+#[test]
+fn test_cd_special_characters() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // cd 带特殊字符的路径
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({"command": "cd /path/with-special_chars.123"}),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "cd with special characters should execute");
+    
+    let events = result.unwrap();
+    assert_eq!(events.len(), 1, "Should generate one event");
+}
+
+#[test]
+fn test_pwd_after_nonexistent_cd() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let mut block = Block::new(
+        "Test Block".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    // 首先尝试 cd 到不存在的目录
+    let cd_cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({"command": "cd /nonexistent/path"}),
+    );
+
+    let cd_result = cap.handler(&cd_cmd, Some(&block));
+    assert!(cd_result.is_ok(), "cd command should execute (but may fail)");
+    
+    let cd_events = cd_result.unwrap();
+    if !cd_events.is_empty() {
+        // 更新 block 内容
+        if let Some(contents) = cd_events[0].value.get("contents") {
+            block.contents = contents.clone();
+        }
+    }
+
+    // 然后执行 pwd
+    let pwd_cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({"command": "pwd"}),
+    );
+
+    let pwd_result = cap.handler(&pwd_cmd, Some(&block));
+    assert!(pwd_result.is_ok(), "pwd should execute successfully");
+    
+    let pwd_events = pwd_result.unwrap();
+    assert_eq!(pwd_events.len(), 1, "Should generate one event for pwd");
 }
 

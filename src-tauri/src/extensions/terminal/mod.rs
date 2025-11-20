@@ -66,6 +66,15 @@ pub struct TerminalWritePayload {
     
     /// Current directory when content was saved
     pub current_directory: Option<String>,
+    
+    /// Root path for the terminal session
+    pub root_path: Option<String>,
+    
+    /// Current absolute path
+    pub current_path: Option<String>,
+    
+    /// Latest Markdown snapshot block ID (for Save to Markdown functionality)
+    pub latest_snapshot_block_id: Option<String>,
 }
 
 

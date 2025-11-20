@@ -516,7 +516,19 @@ saved_at: string | null;
 /**
  * Current directory when content was saved
  */
-current_directory: string | null }
+current_directory: string | null; 
+/**
+ * Root path for the terminal session
+ */
+root_path: string | null; 
+/**
+ * Current absolute path
+ */
+current_path: string | null; 
+/**
+ * Latest Markdown snapshot block ID (for Save to Markdown functionality)
+ */
+latest_snapshot_block_id: string | null }
 /**
  * Payload for core.unlink capability
  * 

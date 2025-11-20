@@ -29,7 +29,41 @@ pub async fn execute_command(
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
     // Process command through engine actor
-    handle.process_command(cmd).await
+    let events = handle.process_command(cmd.clone()).await?;
+
+    // 检查是否是 terminal.execute 命令，并且需要文件同步
+    if cmd.cap_id == "terminal.execute" && !events.is_empty() {
+        // 检查返回的事件中是否包含需要文件同步的标记
+        for event in &events {
+            if let Some(contents) = event.value.get("contents") {
+                if let Some(obj) = contents.as_object() {
+                    if obj.get("needs_file_sync").and_then(|v| v.as_bool()).unwrap_or(false) {
+                        // 需要进行文件同步，获取 archive 并触发同步
+                        if let Some(file_info) = state.files.get(&file_id) {
+                            let archive = file_info.archive.clone();
+                            let elf_path = file_info.path.clone();
+                            let command = obj.get("file_operation_command")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown")
+                                .to_string();
+                            
+                            // 异步触发文件同步，不阻塞命令返回
+                            tokio::spawn(async move {
+                                if let Err(e) = archive.save(&elf_path) {
+                                    eprintln!("File sync failed: {}", e);
+                                } else {
+                                    println!("File sync completed successfully for command: {}", command);
+                                }
+                            });
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(events)
 }
 
 /// Get a specific block by ID from a file.

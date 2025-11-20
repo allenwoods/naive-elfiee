@@ -36,6 +36,8 @@ pub(crate) fn handle_write(cmd: &Command, block: Option<&Block>) -> CapResult<Ve
     };
 
     // Check if this is a save operation
+    let is_save_operation = payload.saved_content.is_some();
+    
     if let Some(saved_content) = payload.saved_content {
         // Save operation: store the terminal content and metadata
         new_contents.insert("saved_content".to_string(), serde_json::json!(saved_content));
@@ -47,34 +49,50 @@ pub(crate) fn handle_write(cmd: &Command, block: Option<&Block>) -> CapResult<Ve
         if let Some(current_dir) = payload.current_directory {
             new_contents.insert("current_directory".to_string(), serde_json::json!(current_dir));
         }
-    } else if let Some(data) = payload.data {
-        // Regular write operation: append to history
-        let text_content = if let Some(text) = data.as_str() {
-            text.to_string()
-        } else {
-            data.to_string()
-        };
+    }
 
-        // Extract existing history or create new
-        let mut history = new_contents
-            .get("history")
-            .and_then(|h| h.as_array())
-            .map(|arr| arr.iter().cloned().collect::<Vec<_>>())
-            .unwrap_or_default();
+    // Handle additional terminal state fields
+    if let Some(root_path) = payload.root_path {
+        new_contents.insert("root_path".to_string(), serde_json::json!(root_path));
+    }
+    
+    if let Some(current_path) = payload.current_path {
+        new_contents.insert("current_path".to_string(), serde_json::json!(current_path));
+    }
+    
+    if let Some(latest_snapshot_block_id) = payload.latest_snapshot_block_id {
+        new_contents.insert("latest_snapshot_block_id".to_string(), serde_json::json!(latest_snapshot_block_id));
+    }
+    
+    // Handle regular write operation (only if data is provided and no save operation)
+    if let Some(data) = payload.data {
+        if !is_save_operation {
+            // Regular write operation: append to history
+            let text_content = if let Some(text) = data.as_str() {
+                text.to_string()
+            } else {
+                data.to_string()
+            };
 
-        // Create new history entry for the written content
-        let history_entry = serde_json::json!({
-            "command": "", // No command, this is direct output
-            "output": text_content,
-            "timestamp": chrono::Utc::now().to_rfc3339(),
-            "exit_code": 0,
-            "type": "write" // Mark as written content vs command output
-        });
+            // Extract existing history or create new
+            let mut history = new_contents
+                .get("history")
+                .and_then(|h| h.as_array())
+                .map(|arr| arr.iter().cloned().collect::<Vec<_>>())
+                .unwrap_or_default();
 
-        history.push(history_entry);
-        new_contents.insert("history".to_string(), serde_json::json!(history));
-    } else {
-        return Err("Invalid payload: either 'data' or 'saved_content' must be provided".to_string());
+            // Create new history entry for the written content
+            let history_entry = serde_json::json!({
+                "command": "", // No command, this is direct output
+                "output": text_content,
+                "timestamp": chrono::Utc::now().to_rfc3339(),
+                "exit_code": 0,
+                "type": "write" // Mark as written content vs command output
+            });
+
+            history.push(history_entry);
+            new_contents.insert("history".to_string(), serde_json::json!(history));
+        }
     }
 
     // Create event

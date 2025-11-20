@@ -45,6 +45,9 @@ mod tests {
             saved_content: Some("Welcome to Terminal!\n$ ls\nfile1.txt file2.txt".to_string()),
             saved_at: Some("2024-01-15T14:30:25.123Z".to_string()),
             current_directory: Some("/home/user".to_string()),
+            root_path: None,
+            current_path: None,
+            latest_snapshot_block_id: None, // 不再使用
         };
         
         let cmd = create_test_command("test-editor", payload);
@@ -89,6 +92,9 @@ mod tests {
             saved_content: Some("Terminal content".to_string()),
             saved_at: Some("2024-01-15T14:30:25.123Z".to_string()),
             current_directory: Some("/test".to_string()),
+            root_path: None,
+            current_path: None,
+            latest_snapshot_block_id: None, // 不再使用
         };
         
         let cmd = create_test_command("test-editor", payload);
@@ -127,6 +133,9 @@ mod tests {
             saved_content: Some("New content".to_string()),
             saved_at: Some("2024-01-15T14:30:25.123Z".to_string()),
             current_directory: Some("/new".to_string()),
+            root_path: None,
+            current_path: None,
+            latest_snapshot_block_id: None, // 不再使用
         };
         
         let cmd = create_test_command("test-editor", payload);
@@ -166,6 +175,9 @@ mod tests {
             saved_content: None,
             saved_at: None,
             current_directory: None,
+            root_path: None,
+            current_path: None,
+            latest_snapshot_block_id: None, // 不再使用
         };
         
         let cmd = create_test_command("test-editor", payload);
@@ -194,6 +206,9 @@ mod tests {
             saved_content: None,
             saved_at: None,
             current_directory: None,
+            root_path: None,
+            current_path: None,
+            latest_snapshot_block_id: None, // 不再使用
         };
         
         let cmd = create_test_command("test-editor", payload);
@@ -222,6 +237,9 @@ mod tests {
             saved_content: Some("Content only".to_string()),
             saved_at: None, // Missing timestamp
             current_directory: None, // Missing directory
+            root_path: None,
+            current_path: None,
+            latest_snapshot_block_id: None, // 不再使用
         };
         
         let cmd = create_test_command("test-editor", payload);
@@ -242,24 +260,8 @@ mod tests {
         assert!(!contents.contains_key("current_directory"));
     }
 
-    #[test]
-    fn test_error_when_both_data_and_saved_content_missing() {
-        let block = create_test_block(serde_json::json!({}));
-        
-        let payload = TerminalWritePayload {
-            data: None,
-            saved_content: None,
-            saved_at: None,
-            current_directory: None,
-        };
-        
-        let cmd = create_test_command("test-editor", payload);
-        let result = handle_write(&cmd, Some(&block));
-        
-        assert!(result.is_err());
-        let error = result.unwrap_err();
-        assert!(error.contains("either 'data' or 'saved_content' must be provided"));
-    }
+    // 注意：移除 latest_snapshot_block_id 相关测试，因为新需求不再创建 Markdown Block
+    // #[test] - REMOVED: test_no_error_when_only_latest_snapshot_block_id_provided
 
     #[test]
     fn test_error_when_no_block_provided() {
@@ -268,6 +270,9 @@ mod tests {
             saved_content: None,
             saved_at: None,
             current_directory: None,
+            root_path: None,
+            current_path: None,
+            latest_snapshot_block_id: None, // 不再使用
         };
         
         let cmd = create_test_command("test-editor", payload);
@@ -297,6 +302,9 @@ Hello World
             saved_content: Some(multiline_content.to_string()),
             saved_at: Some("2024-01-15T14:30:25.123Z".to_string()),
             current_directory: Some("/home/user".to_string()),
+            root_path: None,
+            current_path: None,
+            latest_snapshot_block_id: None, // 不再使用
         };
         
         let cmd = create_test_command("test-editor", payload);
@@ -325,6 +333,9 @@ Hello World
             saved_content: Some("Test content".to_string()),
             saved_at: Some("2024-01-15T14:30:25.123Z".to_string()),
             current_directory: Some("/test".to_string()),
+            root_path: None,
+            current_path: None,
+            latest_snapshot_block_id: None, // 不再使用
         };
         
         let cmd = create_test_command("test-editor", payload);
@@ -344,5 +355,49 @@ Hello World
         
         // Event should be properly formatted for event store
         assert!(event.value.is_object());
+    }
+
+    #[test]
+    fn test_new_fields_are_saved_correctly() {
+        let block = create_test_block(serde_json::json!({}));
+        
+        let payload = TerminalWritePayload {
+            data: None,
+            saved_content: Some("Test content".to_string()),
+            saved_at: Some("2024-01-15T14:30:25.123Z".to_string()),
+            current_directory: Some("/test".to_string()),
+            root_path: Some("/root/path".to_string()),
+            current_path: Some("/current/path".to_string()),
+            latest_snapshot_block_id: None, // 不再使用 // 不再使用 latest_snapshot_block_id
+        };
+        
+        let cmd = create_test_command("test-editor", payload);
+        let result = handle_write(&cmd, Some(&block));
+        
+        assert!(result.is_ok());
+        let events = result.unwrap();
+        let contents = events[0].value.get("contents").unwrap().as_object().unwrap();
+        
+        // Verify all new fields are saved
+        assert_eq!(
+            contents.get("root_path").unwrap().as_str().unwrap(),
+            "/root/path"
+        );
+        assert_eq!(
+            contents.get("current_path").unwrap().as_str().unwrap(),
+            "/current/path"
+        );
+        
+        // 注意：不再检查 latest_snapshot_block_id，因为新需求不再创建 Markdown Block
+        
+        // Verify original fields are still saved
+        assert_eq!(
+            contents.get("saved_content").unwrap().as_str().unwrap(),
+            "Test content"
+        );
+        assert_eq!(
+            contents.get("current_directory").unwrap().as_str().unwrap(),
+            "/test"
+        );
     }
 }

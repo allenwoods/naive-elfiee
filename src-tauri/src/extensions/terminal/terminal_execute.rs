@@ -7,6 +7,61 @@ use std::process::Stdio;
 
 use super::TerminalExecutePayload;
 
+/// 检测命令是否为文件操作相关命令
+/// 
+/// 文件操作命令包括：
+/// - 创建文件/目录: mkdir, touch, echo > file, cat > file, vi/vim newfile
+/// - 编辑文件: vi, vim, nano, echo >> file  
+/// - 删除文件: rm, rmdir
+/// - 移动/复制文件: mv, cp
+/// - 修改文件权限: chmod, chown
+pub(crate) fn is_file_operation_command(command: &str) -> bool {
+    let cmd_lower = command.trim().to_lowercase();
+    
+    // Windows 和 Unix 通用的文件操作命令
+    let file_ops = [
+        "mkdir", "touch", "rm", "rmdir", "mv", "cp",
+        "vi", "vim", "nano", "chmod", "chown", "chgrp"
+    ];
+    
+    // Windows 特定命令
+    #[cfg(target_os = "windows")]
+    let windows_ops = ["del", "move", "copy", "type", "md", "rd"];
+    
+    // 检查基本命令（确保是完整单词，不是部分匹配）
+    if file_ops.iter().any(|op| {
+        cmd_lower.starts_with(op) && (
+            cmd_lower.len() == op.len() || 
+            cmd_lower.chars().nth(op.len()).map_or(false, |c| c.is_whitespace())
+        )
+    }) {
+        return true;
+    }
+    
+    // Windows 特定检查（确保是完整单词，不是部分匹配）
+    #[cfg(target_os = "windows")]
+    if windows_ops.iter().any(|op| {
+        cmd_lower.starts_with(op) && (
+            cmd_lower.len() == op.len() || 
+            cmd_lower.chars().nth(op.len()).map_or(false, |c| c.is_whitespace())
+        )
+    }) {
+        return true;
+    }
+    
+    // 检查重定向操作 (echo > file, cat > file, echo >> file)
+    if cmd_lower.contains(" > ") || cmd_lower.contains(" >> ") {
+        return true;
+    }
+    
+    // 检查管道到文件的操作
+    if cmd_lower.contains(" | ") && (cmd_lower.contains(" > ") || cmd_lower.contains(" >> ")) {
+        return true;
+    }
+    
+    false
+}
+
 /// Handler for terminal.execute capability.
 ///
 /// Executes a real system command and records it in the terminal block's history.
@@ -46,11 +101,14 @@ fn handle_terminal_execute(cmd: &Command, block: Option<&Block>) -> CapResult<Ve
     // Determine root and current working directories
     let default_root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let mut root_path = if let Some(contents) = block.contents.as_object() {
-        contents
-            .get("root_path")
-            .and_then(|d| d.as_str())
-            .map(PathBuf::from)
-            .unwrap_or_else(|| default_root.clone())
+        // Prioritize _block_dir injected by Engine Actor, fallback to root_path, then default
+        if let Some(block_dir) = contents.get("_block_dir").and_then(|d| d.as_str()) {
+            PathBuf::from(block_dir)
+        } else if let Some(root_path) = contents.get("root_path").and_then(|d| d.as_str()) {
+            PathBuf::from(root_path) 
+        } else {
+            default_root.clone()
+        }
     } else {
         default_root.clone()
     };
@@ -58,11 +116,14 @@ fn handle_terminal_execute(cmd: &Command, block: Option<&Block>) -> CapResult<Ve
         root_path = canonical_root;
     }
     let mut current_path = if let Some(contents) = block.contents.as_object() {
-        contents
-            .get("current_path")
-            .and_then(|d| d.as_str())
-            .map(PathBuf::from)
-            .unwrap_or_else(|| root_path.clone())
+        // If no current_path is set yet, use _block_dir as initial current_path
+        if let Some(current_path) = contents.get("current_path").and_then(|d| d.as_str()) {
+            PathBuf::from(current_path)
+        } else if let Some(block_dir) = contents.get("_block_dir").and_then(|d| d.as_str()) {
+            PathBuf::from(block_dir)
+        } else {
+            root_path.clone()
+        }
     } else {
         root_path.clone()
     };
@@ -143,6 +204,15 @@ fn handle_terminal_execute(cmd: &Command, block: Option<&Block>) -> CapResult<Ve
     // Append to history
     history.push(history_entry);
 
+    // 检测是否为文件操作命令，如果是则需要标记需要同步到 .elf 文件
+    let is_save_operation = is_file_operation_command(&payload.command);
+    if is_save_operation && exit_code == 0 {
+        // 记录文件操作成功，后续需要触发文件同步
+        // 注意：这里只是标记，实际的 .elf 文件同步需要在 Engine Actor 层面处理
+        // 因为 capability handler 无法直接访问 ElfArchive 实例
+        println!("File operation detected: {}", payload.command);
+    }
+
     // Preserve existing contents and update history and current_directory
     let mut new_contents = if let Some(obj) = block.contents.as_object() {
         obj.clone()
@@ -163,6 +233,18 @@ fn handle_terminal_execute(cmd: &Command, block: Option<&Block>) -> CapResult<Ve
         "root_path".to_string(),
         serde_json::json!(root_path.to_string_lossy()),
     );
+
+    // 如果是成功的文件操作，添加标记以便 Engine Actor 可以检测到
+    if is_save_operation && exit_code == 0 {
+        new_contents.insert(
+            "needs_file_sync".to_string(),
+            serde_json::json!(true)
+        );
+        new_contents.insert(
+            "file_operation_command".to_string(),
+            serde_json::json!(payload.command)
+        );
+    }
 
     // Create event
     let event = create_event(

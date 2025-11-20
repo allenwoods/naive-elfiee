@@ -76,6 +76,8 @@ export function Terminal() {
   const fitAddonRef = useRef<FitAddon | null>(null)
   const terminalBlockIdRef = useRef<string | null>(null)
   const currentDirectoryRef = useRef<string>('.')
+  
+  // 移除Markdown快照相关的状态管理 - 不再需要
 
   const [isInitializing, setIsInitializing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -179,14 +181,51 @@ export function Terminal() {
       terminalBlockIdRef.current = terminalBlock.block_id
 
       let initialDirectory = '.'
+      let blockDir: string | null = null
+      let shouldSetRootPath = false
+      
       if (
         terminalBlock.contents &&
-        typeof terminalBlock.contents === 'object' &&
-        (terminalBlock.contents as any).current_directory
+        typeof terminalBlock.contents === 'object'
       ) {
-        initialDirectory = (terminalBlock.contents as any).current_directory
+        const contents = terminalBlock.contents as any
+
+        // First check for _block_dir (injected by backend)
+        if (contents._block_dir && typeof contents._block_dir === 'string') {
+          blockDir = contents._block_dir
+          // For display in prompt, use current_directory if available, otherwise "."
+          initialDirectory = contents.current_directory || '.'
+          
+          // Always ensure root_path is set to _block_dir for consistency
+          if (!contents.root_path || contents.root_path !== contents._block_dir) {
+            shouldSetRootPath = true
+          }
+        }
+        // Fallback to current_directory if _block_dir is not available
+        else if (contents.current_directory) {
+          initialDirectory = contents.current_directory
+        }
       }
       currentDirectoryRef.current = initialDirectory
+      
+      // If we need to set the root_path to the block directory, do it now
+      if (shouldSetRootPath && blockDir) {
+        try {
+          const editor = getActiveEditor(activeFileId)
+          await TauriClient.terminal.writeToTerminal(
+            activeFileId,
+            terminalBlock.block_id,
+            {
+              root_path: blockDir,
+              current_path: blockDir,
+              current_directory: '.'
+            },
+            editor?.editor_id || 'default-editor'
+          )
+        } catch (error) {
+          console.warn('Failed to set terminal root path:', error)
+        }
+      }
 
       // Check if there's saved terminal content to restore
       const saveInfo = getTerminalSaveInfo(terminalBlock)
@@ -204,7 +243,7 @@ export function Terminal() {
 
         // Display the saved content line by line
         const lines = saveInfo.savedContent.split('\n')
-        lines.forEach((line) => {
+        lines.forEach((line: string) => {
           if (line.trim()) {
             // Skip empty lines
             term.writeln(line)
@@ -216,7 +255,12 @@ export function Terminal() {
       } else {
         // Default welcome message for new terminal
         term.writeln('Welcome to Elfiee Terminal!')
-        term.writeln(`Current directory: ${initialDirectory}`)
+        if (blockDir) {
+          term.writeln(`Block directory: ${blockDir}`)
+          term.writeln(`Working directory: ${initialDirectory}`)
+        } else {
+          term.writeln(`Current directory: ${initialDirectory}`)
+        }
         term.writeln('Type any command to execute.')
       }
 
@@ -408,6 +452,7 @@ export function Terminal() {
     }
 
     setIsSaving(true)
+    
     try {
       // 1. 获取当前terminal的可视化内容
       const buffer = term.buffer.active
@@ -424,7 +469,7 @@ export function Terminal() {
       // 合并为完整的terminal内容文本
       const terminalContent = terminalLines.join('\n')
 
-      // 2. 保存terminal内容到block的contents中
+      // 2. 保存terminal内容到Terminal Block（仅此一步）
       const saveCmd = {
         cmd_id: crypto.randomUUID(),
         editor_id: editor.editor_id,
@@ -440,7 +485,9 @@ export function Terminal() {
 
       await TauriClient.block.executeCommand(activeFileId, saveCmd)
 
-      addNotification('success', '终端内容已保存到Block中。')
+      // 3. 显示成功通知
+      addNotification('success', '终端内容已保存到 Block 中。')
+      
     } catch (err) {
       console.error(err)
       addNotification(
@@ -485,25 +532,9 @@ export function Terminal() {
     )
   }
 
-  // Check if current terminal block has saved content for UI indication
-  const currentSaveInfo = selectedBlock
-    ? getTerminalSaveInfo(selectedBlock)
-    : null
-
   return (
     <div className="flex h-full flex-col">
-      <div className="bg-muted/50 flex items-center justify-between border-b px-4 py-2">
-        <div>
-          <h3 className="text-sm font-medium">Terminal</h3>
-          <p className="text-muted-foreground text-xs">
-            Directory: {currentDirectoryRef.current || '.'}
-            {currentSaveInfo && (
-              <span className="ml-2 text-green-600">
-                • Saved ({currentSaveInfo.lineCount} lines)
-              </span>
-            )}
-          </p>
-        </div>
+      <div className="bg-muted/50 flex items-center justify-end border-b px-4 py-2">
         <button
           onClick={saveTerminalContent}
           disabled={isSaving || !terminalBlockIdRef.current}
@@ -513,7 +544,7 @@ export function Terminal() {
               : 'bg-primary text-primary-foreground hover:bg-primary/90'
           }`}
         >
-          {isSaving ? 'Saving...' : currentSaveInfo ? 'Update Save' : 'Save'}
+          {isSaving ? 'Saving...' : 'Save'}
         </button>
       </div>
       <div className="relative flex-1 bg-black p-2">
