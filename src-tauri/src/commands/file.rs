@@ -5,7 +5,6 @@ use specta::specta;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
-
 /// Bootstrap the editor system for a file.
 ///
 /// If no editors exist, creates a "system" editor and sets it as active.

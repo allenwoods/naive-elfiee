@@ -19,9 +19,20 @@ impl CapabilityRegistry {
         // Register built-in capabilities
         registry.register_builtins();
 
-        // Register extension capabilities
-        registry.register_extensions();
+        registry
+    }
 
+    /// Create a new registry with all capabilities (including extensions) registered.
+    /// 
+    /// This method is used in application initialization where extensions need to be available.
+    /// Extensions are registered here to maintain architectural separation - the core registry
+    /// doesn't know about extensions, but the application layer orchestrates registration.
+    pub fn with_extensions() -> Self {
+        let mut registry = Self::new();
+        
+        // Register extension capabilities at application level
+        registry.register_extensions();
+        
         registry
     }
 
@@ -48,8 +59,12 @@ impl CapabilityRegistry {
         self.register(Arc::new(EditorCreateCapability));
     }
 
-    /// Register all extension capabilities.
+    /// Register extension capabilities at application level.
+    /// 
+    /// This method maintains architectural separation by keeping extension registration
+    /// out of the core registry construction, but available when needed.
     fn register_extensions(&mut self) {
+        // Import at method level to avoid polluting module namespace
         use crate::extensions::markdown::*;
 
         self.register(Arc::new(MarkdownWriteCapability));
@@ -71,7 +86,7 @@ mod tests {
     fn test_registry_initialization() {
         let registry = CapabilityRegistry::new();
 
-        // Verify 6 core capabilities are registered
+        // Verify core capabilities are registered
         assert!(
             registry.get("core.create").is_some(),
             "core.create should be registered"
@@ -95,6 +110,25 @@ mod tests {
         assert!(
             registry.get("core.revoke").is_some(),
             "core.revoke should be registered"
+        );
+    }
+
+    #[test]
+    fn test_registry_with_extensions() {
+        let registry = CapabilityRegistry::with_extensions();
+
+        // Verify core capabilities still work
+        assert!(registry.get("core.create").is_some());
+        assert!(registry.get("core.link").is_some());
+        
+        // Verify extension capabilities are registered
+        assert!(
+            registry.get("markdown.write").is_some(),
+            "markdown.write should be registered"
+        );
+        assert!(
+            registry.get("markdown.read").is_some(),
+            "markdown.read should be registered"
         );
     }
 

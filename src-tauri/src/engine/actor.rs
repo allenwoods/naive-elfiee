@@ -119,7 +119,7 @@ impl ElfileEngineActor {
         event_pool_with_path: EventPoolWithPath,
         mailbox: mpsc::UnboundedReceiver<EngineMessage>,
     ) -> Result<Self, String> {
-        let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
         let mut state = StateProjector::new();
 
         // Replay all events from database to rebuild state
