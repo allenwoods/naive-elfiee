@@ -42,6 +42,9 @@ export const MockResponses = {
   listGrants: (grants: Grant[]) => grants,
   getEditorGrants: (grants: Grant[]) => grants,
   getBlockGrants: (grants: Grant[]) => grants,
+
+  // Terminal operations
+  listBlockFiles: (files: string[]) => files,
 }
 
 /**

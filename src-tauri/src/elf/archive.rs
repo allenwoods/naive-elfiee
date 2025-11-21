@@ -97,9 +97,11 @@ impl ElfArchive {
             std::io::copy(&mut file, &mut zip)?;
         }
 
+
         zip.finish()?;
         Ok(())
     }
+
 
     /// Get the temporary directory path (useful for adding assets)
     pub fn temp_path(&self) -> &Path {

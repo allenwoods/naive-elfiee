@@ -7,6 +7,7 @@ use std::sync::Arc;
 /// This manager provides thread-safe concurrent access to multiple engine actors,
 /// allowing the application to work with multiple .elf files simultaneously.
 /// Each file is identified by a unique file_id.
+#[derive(Clone)]
 pub struct EngineManager {
     /// Map: file_id -> EngineHandle
     engines: Arc<DashMap<String, EngineHandle>>,
