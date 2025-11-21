@@ -94,17 +94,19 @@ impl StateProjector {
                 }
             }
 
-            // Block updates (write, link, unlink, terminal.execute)
+            // Block updates (write, link, unlink, execute)
             _ if cap_id.ends_with(".write")
                 || cap_id.ends_with(".link")
-                || cap_id == "terminal.execute" =>
+                || cap_id.ends_with(".execute") =>
             {
                 if let Some(block) = self.blocks.get_mut(&event.entity) {
                     // Update contents if present
                     if let Some(contents) = event.value.get("contents") {
-                        if cap_id == "terminal.execute" {
+                        if cap_id.ends_with(".execute") {
+                            // Execute capabilities replace the entire contents
                             block.contents = contents.clone();
                         } else if let Some(obj) = block.contents.as_object_mut() {
+                            // Write capabilities merge contents
                             if let Some(new_contents) = contents.as_object() {
                                 for (k, v) in new_contents {
                                     obj.insert(k.clone(), v.clone());
@@ -332,18 +334,18 @@ mod tests {
     }
 
     #[test]
-    fn test_terminal_execute_updates_block_contents() {
+    fn test_execute_capability_updates_block_contents() {
         let mut state = StateProjector::new();
 
-        // Seed terminal block
+        // Seed execution block
         let mut ts_create = StdHashMap::new();
         ts_create.insert("alice".to_string(), 1);
         let create_event = Event::new(
-            "terminal-block".to_string(),
+            "execution-block".to_string(),
             "alice/core.create".to_string(),
             serde_json::json!({
-                "name": "Terminal Block",
-                "type": "terminal",
+                "name": "Execution Block",
+                "type": "executable",
                 "owner": "alice",
                 "contents": {
                     "history": [],
@@ -357,12 +359,12 @@ mod tests {
         );
         state.apply_event(&create_event);
 
-        // Apply terminal.execute event
+        // Apply some.execute event (通用的execute capability)
         let mut ts_exec = StdHashMap::new();
         ts_exec.insert("alice".to_string(), 2);
         let exec_event = Event::new(
-            "terminal-block".to_string(),
-            "alice/terminal.execute".to_string(),
+            "execution-block".to_string(),
+            "alice/some.execute".to_string(),
             serde_json::json!({
                 "contents": {
                     "history": [
@@ -383,8 +385,8 @@ mod tests {
         state.apply_event(&exec_event);
 
         let block = state
-            .get_block("terminal-block")
-            .expect("terminal block should exist");
+            .get_block("execution-block")
+            .expect("execution block should exist");
         let contents = block.contents.as_object().expect("contents should be object");
 
         assert_eq!(

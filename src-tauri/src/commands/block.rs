@@ -32,9 +32,9 @@ pub async fn execute_command(
     // Process command through engine actor
     let events = handle.process_command(cmd.clone()).await?;
 
-    // 检查是否是 terminal.execute 命令，并且需要文件同步
-    if cmd.cap_id == "terminal.execute" && !events.is_empty() {
-        // 检查返回的事件中是否包含需要文件同步的标记
+    // 检查返回的事件中是否包含需要文件同步的标记
+    // 这是一个通用机制，任何capability都可以通过在事件中设置needs_file_sync来触发文件同步
+    if !events.is_empty() {
         for event in &events {
             if let Some(contents) = event.value.get("contents") {
                 if let Some(obj) = contents.as_object() {

@@ -16,11 +16,11 @@ mod file_sync_tests {
     }
 
     #[test]
-    fn test_file_sync_detection_terminal_execute() {
-        // 创建包含 needs_file_sync 标记的事件
+    fn test_file_sync_detection_with_sync_flag() {
+        // 创建包含 needs_file_sync 标记的事件（任何capability都可以使用）
         let events = vec![Event::new(
             "block123".to_string(),
-            "alice/terminal.execute".to_string(),
+            "alice/some.capability".to_string(),
             serde_json::json!({
                 "contents": {
                     "needs_file_sync": true,
@@ -50,11 +50,11 @@ mod file_sync_tests {
         // 创建不包含 needs_file_sync 标记的事件
         let events = vec![Event::new(
             "block123".to_string(),
-            "alice/terminal.execute".to_string(),
+            "alice/some.capability".to_string(),
             serde_json::json!({
                 "contents": {
-                    "history": [],
-                    "current_directory": "."
+                    "data": "some data",
+                    "status": "completed"
                 }
             }),
             timestamp(1),
@@ -80,11 +80,11 @@ mod file_sync_tests {
         // 创建包含 needs_file_sync: false 的事件
         let events = vec![Event::new(
             "block123".to_string(),
-            "alice/terminal.execute".to_string(),
+            "alice/some.capability".to_string(),
             serde_json::json!({
                 "contents": {
                     "needs_file_sync": false,
-                    "history": []
+                    "data": "some data"
                 }
             }),
             timestamp(1),
@@ -109,7 +109,7 @@ mod file_sync_tests {
     fn test_file_sync_command_extraction() {
         let events = vec![Event::new(
             "block123".to_string(),
-            "alice/terminal.execute".to_string(),
+            "alice/some.capability".to_string(),
             serde_json::json!({
                 "contents": {
                     "needs_file_sync": true,
@@ -144,9 +144,9 @@ mod file_sync_tests {
     }
 
     #[test]
-    fn test_non_terminal_execute_no_sync() {
-        // 测试非 terminal.execute 命令不触发文件同步
-        let _events = vec![Event::new(
+    fn test_capability_without_sync_flag() {
+        // 测试没有 needs_file_sync 标记的capability不会触发文件同步
+        let events = vec![Event::new(
             "block123".to_string(),
             "alice/markdown.write".to_string(),
             serde_json::json!({
@@ -157,10 +157,19 @@ mod file_sync_tests {
             timestamp(1),
         )];
 
-        // 模拟命令处理逻辑（只有 terminal.execute 命令才检查文件同步）
-        let should_check_file_sync = "terminal.execute" == "markdown.write";
+        // 检查事件中是否包含文件同步标记（通用检查逻辑）
+        let has_file_sync = events.iter().any(|event| {
+            if let Some(contents) = event.value.get("contents") {
+                if let Some(obj) = contents.as_object() {
+                    return obj.get("needs_file_sync")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                }
+            }
+            false
+        });
 
-        assert!(!should_check_file_sync, "Non-terminal commands should not trigger file sync checks");
+        assert!(!has_file_sync, "Capabilities without sync flag should not trigger file sync");
     }
 
     #[test]
@@ -185,7 +194,7 @@ mod file_sync_tests {
     fn test_malformed_event_value_no_sync() {
         let events = vec![Event::new(
             "block123".to_string(),
-            "alice/terminal.execute".to_string(),
+            "alice/some.capability".to_string(),
             serde_json::json!("malformed_string_value"),
             timestamp(1),
         )];
@@ -213,7 +222,7 @@ mod command_processing_tests {
     fn test_command_id_generation() {
         let cmd = Command::new(
             "alice".to_string(),
-            "terminal.execute".to_string(),
+            "some.capability".to_string(),
             "block123".to_string(),
             serde_json::json!({"command": "ls"}),
         );
