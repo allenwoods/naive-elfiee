@@ -47,7 +47,7 @@ fn test_read_payload_deserialize() {
 
 #[test]
 fn test_read_basic() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.read")
         .expect("terminal.read should be registered");
@@ -160,7 +160,7 @@ fn test_write_payload_deserialize() {
 
 #[test]
 fn test_write_basic() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.write")
         .expect("terminal.write should be registered");
@@ -280,7 +280,7 @@ fn test_execute_payload_deserialize() {
 
 #[test]
 fn test_execute_basic() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -322,7 +322,7 @@ fn test_execute_basic() {
 
 #[test]
 fn test_full_workflow() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let mut block = Block::new(
         "Workflow Test Block".to_string(),
         "terminal".to_string(),
@@ -381,7 +381,7 @@ fn test_full_workflow() {
 
 #[test]
 fn test_execute_pwd_command() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -418,7 +418,7 @@ fn test_execute_pwd_command() {
 
 #[test]
 fn test_execute_command_length_validation() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -450,7 +450,7 @@ fn test_execute_command_length_validation() {
 
 #[test]
 fn test_execute_empty_command() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -486,7 +486,7 @@ fn test_execute_empty_command() {
 
 #[test]
 fn test_execute_without_block() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -509,7 +509,7 @@ fn test_execute_without_block() {
 
 #[test]
 fn test_execute_history_preservation() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -569,7 +569,7 @@ fn test_execute_history_preservation() {
 
 #[test]
 fn test_execute_ls_command() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -614,7 +614,7 @@ fn test_execute_ls_command() {
 
 #[test]
 fn test_execute_echo_command() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -649,7 +649,7 @@ fn test_execute_echo_command() {
 
 #[test]
 fn test_execute_mkdir_command() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -687,7 +687,7 @@ fn test_execute_mkdir_command() {
 
 #[test]
 fn test_execute_touch_command() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -724,7 +724,7 @@ fn test_execute_touch_command() {
 
 #[test]
 fn test_execute_cat_command() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -761,7 +761,7 @@ fn test_execute_cat_command() {
 
 #[test]
 fn test_execute_grep_command() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -797,7 +797,7 @@ fn test_execute_grep_command() {
 
 #[test]
 fn test_execute_find_command() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -836,7 +836,7 @@ fn test_execute_find_command() {
 
 #[test]
 fn test_execute_head_tail_commands() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -879,7 +879,7 @@ fn test_execute_head_tail_commands() {
 
 #[test]
 fn test_execute_multiple_commands_sequence() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -930,7 +930,7 @@ fn test_execute_multiple_commands_sequence() {
 
 #[test]
 fn test_execute_command_with_special_characters() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -966,7 +966,7 @@ fn test_execute_command_with_special_characters() {
 
 #[test]
 fn test_execute_pipe_operations() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1009,7 +1009,7 @@ fn test_execute_pipe_operations() {
 
 #[test]
 fn test_file_operation_detection_mkdir() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1049,7 +1049,7 @@ fn test_file_operation_detection_mkdir() {
 
 #[test]
 fn test_file_operation_detection_touch() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1092,7 +1092,7 @@ fn test_file_operation_detection_touch() {
 
 #[test]
 fn test_file_operation_detection_echo_redirect() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1129,7 +1129,7 @@ fn test_file_operation_detection_echo_redirect() {
 
 #[test]
 fn test_non_file_operation_no_sync_flag() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1277,7 +1277,7 @@ fn test_file_operation_detection_edge_cases() {
 
 #[test]
 fn test_cd_path_resolution() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1321,7 +1321,7 @@ fn test_cd_path_resolution() {
 
 #[test]
 fn test_cd_nonexistent_directory() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1360,7 +1360,7 @@ fn test_cd_nonexistent_directory() {
 
 #[test]
 fn test_execute_command_failed_exit_code() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1398,7 +1398,7 @@ fn test_execute_command_failed_exit_code() {
 
 #[test]
 fn test_file_operation_command_failed_no_sync() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1445,7 +1445,7 @@ fn test_file_operation_command_failed_no_sync() {
 
 #[test]
 fn test_write_empty_payload() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.write")
         .expect("terminal.write should be registered");
@@ -1476,7 +1476,7 @@ fn test_write_empty_payload() {
 
 #[test]
 fn test_write_invalid_payload() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.write")
         .expect("terminal.write should be registered");
@@ -1507,7 +1507,7 @@ fn test_write_invalid_payload() {
 
 #[test]
 fn test_read_without_block() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.read")
         .expect("terminal.read should be registered");
@@ -1528,7 +1528,7 @@ fn test_read_without_block() {
 
 #[test]
 fn test_read_with_block() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.read")
         .expect("terminal.read should be registered");
@@ -1559,7 +1559,7 @@ fn test_read_with_block() {
 
 #[test]
 fn test_execute_command_with_null_bytes() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1587,7 +1587,7 @@ fn test_execute_command_with_null_bytes() {
 
 #[test]
 fn test_execute_command_with_unicode() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1615,7 +1615,7 @@ fn test_execute_command_with_unicode() {
 
 #[test]
 fn test_execute_command_with_extreme_whitespace() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1643,7 +1643,7 @@ fn test_execute_command_with_extreme_whitespace() {
 
 #[test]
 fn test_cd_to_current_directory() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1677,7 +1677,7 @@ fn test_cd_to_current_directory() {
 
 #[test]
 fn test_cd_with_quotes() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1705,7 +1705,7 @@ fn test_cd_with_quotes() {
 
 #[test]
 fn test_multiple_consecutive_spaces() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1733,7 +1733,7 @@ fn test_multiple_consecutive_spaces() {
 
 #[test]
 fn test_write_with_very_large_content() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.write")
         .expect("terminal.write should be registered");
@@ -1764,7 +1764,7 @@ fn test_write_with_very_large_content() {
 
 #[test]
 fn test_write_with_json_object_data() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.write")
         .expect("terminal.write should be registered");
@@ -1794,7 +1794,7 @@ fn test_write_with_json_object_data() {
 
 #[test]
 fn test_write_with_array_data() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.write")
         .expect("terminal.write should be registered");
@@ -1859,7 +1859,7 @@ fn test_file_operation_false_positives() {
 
 #[test]
 fn test_cd_special_characters() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");
@@ -1887,7 +1887,7 @@ fn test_cd_special_characters() {
 
 #[test]
 fn test_pwd_after_nonexistent_cd() {
-    let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
     let cap = registry
         .get("terminal.execute")
         .expect("terminal.execute should be registered");

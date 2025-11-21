@@ -1,7 +1,7 @@
 use crate::models::{Block, Command, Event};
 use crate::state::AppState;
 use specta::specta;
-use tauri::{AppHandle, Emitter, State};
+use tauri::State;
 
 /// Execute a command on a block in the specified file.
 ///
@@ -20,7 +20,6 @@ use tauri::{AppHandle, Emitter, State};
 pub async fn execute_command(
     file_id: String,
     cmd: Command,
-    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<Event>, String> {
     // Get engine handle for this file
@@ -30,69 +29,7 @@ pub async fn execute_command(
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
     // Process command through engine actor
-    let events = handle.process_command(cmd.clone()).await?;
-
-    // 检查返回的事件中是否包含需要文件同步的标记
-    // 这是一个通用机制，任何capability都可以通过在事件中设置needs_file_sync来触发文件同步
-    if !events.is_empty() {
-        for event in &events {
-            if let Some(contents) = event.value.get("contents") {
-                if let Some(obj) = contents.as_object() {
-                    if obj.get("needs_file_sync").and_then(|v| v.as_bool()).unwrap_or(false) {
-                        // 需要进行文件同步，获取 archive 并触发同步
-                        if let Some(file_info) = state.files.get(&file_id) {
-                            let archive = file_info.archive.clone();
-                            let elf_path = file_info.path.clone();
-                            let command = obj.get("file_operation_command")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("unknown")
-                                .to_string();
-                            
-                            // 获取该 file_id 对应的互斥锁，确保同一文件的保存操作串行执行
-                            // 防止多个文件操作快速连续执行时触发并发的 archive.save() 调用
-                            let save_mutex = state.get_file_save_mutex(&file_id);
-                            
-                            // 克隆 AppHandle 和 file_id 用于异步任务中发送事件
-                            let app_handle = app.clone();
-                            let file_id_clone = file_id.clone();
-                            
-                            // 异步触发文件同步，不阻塞命令返回
-                            // 使用互斥锁确保同一 file_id 的保存操作串行执行
-                            tokio::spawn(async move {
-                                // 获取锁，确保同一文件的保存操作不会并发执行
-                                let _guard = save_mutex.lock().await;
-                                
-                                match archive.save(&elf_path) {
-                                    Ok(_) => {
-                                        println!("File sync completed successfully for command: {}", command);
-                                        // 可选：发送成功通知（如果需要）
-                                        // app_handle.emit("file-sync-success", &command).ok();
-                                    }
-                                    Err(e) => {
-                                        let error_msg = format!("文件同步失败: {}", e);
-                                        eprintln!("File sync failed: {}", e);
-                                        
-                                        // 发送错误事件到前端，前端可以显示通知
-                                        if let Err(emit_err) = app_handle.emit("file-sync-error", serde_json::json!({
-                                            "command": command,
-                                            "error": error_msg,
-                                            "file_id": file_id_clone
-                                        })) {
-                                            eprintln!("Failed to emit file-sync-error event: {}", emit_err);
-                                        }
-                                    }
-                                }
-                                // _guard 在这里自动释放，允许下一个保存操作继续
-                            });
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(events)
+    handle.process_command(cmd).await
 }
 
 /// Get a specific block by ID from a file.

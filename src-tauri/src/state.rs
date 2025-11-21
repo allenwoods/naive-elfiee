@@ -15,6 +15,7 @@ pub struct FileInfo {
 ///
 /// This state manages multiple open .elf files and their corresponding engine actors.
 /// Each file has a unique file_id and is managed independently.
+#[derive(Clone)]
 pub struct AppState {
     /// Engine manager for processing commands on .elf files
     pub engine_manager: EngineManager,
@@ -28,9 +29,10 @@ pub struct AppState {
     /// Using DashMap for thread-safe concurrent access
     pub active_editors: Arc<DashMap<String, String>>,
 
-    /// Map of file_id -> Mutex for serializing file save operations
-    /// Prevents race conditions when multiple file operations trigger concurrent archive.save() calls
-    /// Using DashMap for thread-safe concurrent access, Arc<Mutex<()>> for per-file serialization
+    /// Map of file_id -> Mutex for file save operations
+    /// Ensures that file save operations for the same file are serialized
+    /// to prevent race conditions when multiple commands trigger file sync
+    /// Note: Used by file_sync extension, not by core commands
     pub file_save_mutexes: Arc<DashMap<String, Arc<Mutex<()>>>>,
 }
 

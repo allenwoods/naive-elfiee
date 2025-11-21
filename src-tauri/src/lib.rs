@@ -31,11 +31,15 @@ pub fn run() {
                 commands::file::close_file,
                 commands::file::list_open_files,
                 commands::file::get_all_events,
-                // Block operations
+                // Block operations (core)
                 commands::block::execute_command,
                 commands::block::get_block,
                 commands::block::get_all_blocks,
                 commands::block::list_block_files,
+                // Block operations (with file sync)
+                commands::block_with_sync::execute_command_with_sync,
+                commands::block_with_sync::get_block_with_sync,
+                commands::block_with_sync::get_all_blocks_with_sync,
                 // Editor operations
                 commands::editor::create_editor,
                 commands::editor::list_editors,
@@ -88,11 +92,15 @@ pub fn run() {
         commands::file::close_file,
         commands::file::list_open_files,
         commands::file::get_all_events,
-        // Block operations
+        // Block operations (core)
         commands::block::execute_command,
         commands::block::get_block,
         commands::block::get_all_blocks,
         commands::block::list_block_files,
+        // Block operations (with file sync)
+        commands::block_with_sync::execute_command_with_sync,
+        commands::block_with_sync::get_block_with_sync,
+        commands::block_with_sync::get_all_blocks_with_sync,
         // Editor operations
         commands::editor::create_editor,
         commands::editor::list_editors,
