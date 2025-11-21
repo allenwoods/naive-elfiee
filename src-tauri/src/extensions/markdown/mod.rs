@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_markdown_write_capability() {
-        let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
         let cap = registry
             .get("markdown.write")
             .expect("markdown.write should be registered");
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_markdown_read_capability() {
-        let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
         let cap = registry
             .get("markdown.read")
             .expect("markdown.read should be registered");
@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_markdown_write_missing_content_fails() {
-        let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
         let cap = registry.get("markdown.write").unwrap();
 
         let block = Block::new(
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_markdown_read_no_content_fails() {
-        let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
         let cap = registry.get("markdown.read").unwrap();
 
         // Block with empty contents
@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn test_markdown_write_authorization_owner() {
         let grants_table = GrantsTable::new();
-        let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
 
         // Owner is alice
         let block = Block::new(
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn test_markdown_write_authorization_non_owner_with_grant() {
         let mut grants_table = GrantsTable::new();
-        let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
 
         // Owner is alice
         let block = Block::new(
@@ -297,7 +297,7 @@ mod tests {
     #[test]
     fn test_markdown_read_authorization_wildcard() {
         let mut grants_table = GrantsTable::new();
-        let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
 
         // Grant bob wildcard read permission
         grants_table.add_grant(
@@ -334,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_markdown_write_updates_existing_content() {
-        let registry = CapabilityRegistry::new();
+        let registry = CapabilityRegistry::with_extensions();
         let cap = registry.get("markdown.write").unwrap();
 
         // Block with existing content

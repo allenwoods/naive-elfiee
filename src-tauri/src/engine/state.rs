@@ -94,12 +94,19 @@ impl StateProjector {
                 }
             }
 
-            // Block updates (write, link, unlink)
-            _ if cap_id.ends_with(".write") || cap_id.ends_with(".link") => {
+            // Block updates (write, link, unlink, execute)
+            _ if cap_id.ends_with(".write")
+                || cap_id.ends_with(".link")
+                || cap_id.ends_with(".execute") =>
+            {
                 if let Some(block) = self.blocks.get_mut(&event.entity) {
                     // Update contents if present
                     if let Some(contents) = event.value.get("contents") {
-                        if let Some(obj) = block.contents.as_object_mut() {
+                        if cap_id.ends_with(".execute") {
+                            // Execute capabilities replace the entire contents
+                            block.contents = contents.clone();
+                        } else if let Some(obj) = block.contents.as_object_mut() {
+                            // Write capabilities merge contents
                             if let Some(new_contents) = contents.as_object() {
                                 for (k, v) in new_contents {
                                     obj.insert(k.clone(), v.clone());
@@ -324,5 +331,86 @@ mod tests {
 
         // Command based on count 6 is ok (newer)
         assert!(!state.has_conflict("alice", 6));
+    }
+
+    #[test]
+    fn test_execute_capability_updates_block_contents() {
+        let mut state = StateProjector::new();
+
+        // Seed execution block
+        let mut ts_create = StdHashMap::new();
+        ts_create.insert("alice".to_string(), 1);
+        let create_event = Event::new(
+            "execution-block".to_string(),
+            "alice/core.create".to_string(),
+            serde_json::json!({
+                "name": "Execution Block",
+                "type": "executable",
+                "owner": "alice",
+                "contents": {
+                    "history": [],
+                    "current_directory": ".",
+                    "current_path": "D:/workspace/project",
+                    "root_path": "D:/workspace/project"
+                },
+                "children": {}
+            }),
+            ts_create,
+        );
+        state.apply_event(&create_event);
+
+        // Apply some.execute event (通用的execute capability)
+        let mut ts_exec = StdHashMap::new();
+        ts_exec.insert("alice".to_string(), 2);
+        let exec_event = Event::new(
+            "execution-block".to_string(),
+            "alice/some.execute".to_string(),
+            serde_json::json!({
+                "contents": {
+                    "history": [
+                        {
+                            "command": "cd src",
+                            "output": "",
+                            "timestamp": "2025-11-10T00:00:00Z",
+                            "exit_code": 0
+                        }
+                    ],
+                    "current_directory": "src",
+                    "current_path": "D:/workspace/project/src",
+                    "root_path": "D:/workspace/project"
+                }
+            }),
+            ts_exec,
+        );
+        state.apply_event(&exec_event);
+
+        let block = state
+            .get_block("execution-block")
+            .expect("execution block should exist");
+        let contents = block.contents.as_object().expect("contents should be object");
+
+        assert_eq!(
+            contents
+                .get("current_directory")
+                .and_then(|v| v.as_str()),
+            Some("src")
+        );
+        assert_eq!(
+            contents.get("current_path").and_then(|v| v.as_str()),
+            Some("D:/workspace/project/src")
+        );
+        assert_eq!(
+            contents.get("root_path").and_then(|v| v.as_str()),
+            Some("D:/workspace/project")
+        );
+        let history = contents
+            .get("history")
+            .and_then(|v| v.as_array())
+            .expect("history should exist");
+        assert_eq!(history.len(), 1);
+        assert_eq!(
+            history[0].get("command").and_then(|v| v.as_str()),
+            Some("cd src")
+        );
     }
 }
