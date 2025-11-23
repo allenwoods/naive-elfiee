@@ -194,6 +194,72 @@ export const commands = {
     }
   },
   /**
+   * Execute a command with automatic file sync support using decorator pattern.
+   *
+   * 这个命令使用装饰器模式包装原始引擎，添加文件同步能力而不修改核心代码。
+   * 装饰器会：
+   * 1. 调用原始引擎执行命令
+   * 2. 检查返回事件中的 needs_file_sync 标志
+   * 3. 如果需要，自动触发文件保存
+   *
+   * # Arguments
+   * * `file_id` - 文件唯一标识
+   * * `cmd` - 要执行的命令
+   * * `app` - Tauri应用句柄（用于发送事件）
+   * * `state` - 应用状态
+   *
+   * # Returns
+   * * `Ok(events)` - 命令执行产生的事件
+   * * `Err(message)` - 错误描述
+   */
+  async executeCommandWithSync(
+    fileId: string,
+    cmd: Command
+  ): Promise<Result<Event[], string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('execute_command_with_sync', { fileId, cmd }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Get a block using the file sync wrapper (for consistency).
+   *
+   * 虽然获取块不需要文件同步，但提供统一接口
+   */
+  async getBlockWithSync(
+    fileId: string,
+    blockId: string
+  ): Promise<Result<Block, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('get_block_with_sync', { fileId, blockId }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Get all blocks using the file sync wrapper (for consistency).
+   */
+  async getAllBlocksWithSync(fileId: string): Promise<Result<Block[], string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('get_all_blocks_with_sync', { fileId }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * Create a new editor for the specified file.
    *
    * This generates a Command with editor.create capability and processes it through
