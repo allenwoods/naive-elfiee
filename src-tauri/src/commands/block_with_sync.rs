@@ -37,6 +37,8 @@ pub async fn execute_command_with_sync(
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
     // 使用装饰器模式包装引擎，添加文件同步能力
+    // Note: Clone is cheap - AppState only contains Arc<...> fields,
+    // so .clone() only duplicates Arc pointers, not the underlying data
     let app_state = state.inner().clone();
     let sync_wrapper = FileSyncService::wrap_engine_with_app(
         engine_handle,
@@ -52,6 +54,9 @@ pub async fn execute_command_with_sync(
 /// Get a block using the file sync wrapper (for consistency).
 ///
 /// 虽然获取块不需要文件同步，但提供统一接口
+///
+/// Note: Read operations don't trigger file sync, but we provide this interface
+/// for API consistency and potential future use (e.g., read-triggered cache updates).
 #[tauri::command]
 #[specta]
 pub async fn get_block_with_sync(
@@ -67,6 +72,7 @@ pub async fn get_block_with_sync(
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
     // 使用装饰器包装（虽然读取操作不需要同步）
+    // Note: Clone is cheap - only clones Arc pointers, not underlying data
     let app_state = state.inner().clone();
     let sync_wrapper = FileSyncService::wrap_engine_with_app(
         engine_handle,
@@ -83,6 +89,9 @@ pub async fn get_block_with_sync(
 }
 
 /// Get all blocks using the file sync wrapper (for consistency).
+///
+/// Note: Read operations don't trigger file sync, but we provide this interface
+/// for API consistency and potential future use (e.g., read-triggered cache updates).
 #[tauri::command]
 #[specta]
 pub async fn get_all_blocks_with_sync(
@@ -97,6 +106,7 @@ pub async fn get_all_blocks_with_sync(
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
     // 使用装饰器包装
+    // Note: Clone is cheap - only clones Arc pointers, not underlying data
     let app_state = state.inner().clone();
     let sync_wrapper = FileSyncService::wrap_engine_with_app(
         engine_handle,

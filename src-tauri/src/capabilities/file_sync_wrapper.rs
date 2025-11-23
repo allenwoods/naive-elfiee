@@ -110,47 +110,52 @@ impl FileSyncEngineWrapper {
         let app_handle = self.app.clone();
         let file_id_clone = self.file_id.clone();
 
-        // 异步执行文件同步（不阻塞命令处理）
-        tokio::spawn(async move {
+        // 同步执行文件保存以确保数据持久化
+        // Note: We await the save operation to ensure durability before command returns.
+        // This prevents data loss if the application shuts down between command completion
+        // and save completion. The save operation is protected by a mutex to prevent
+        // concurrent saves of the same file.
+        let save_result = {
             let _guard = save_mutex.lock().await;
+            archive.save(&elf_path)
+        };
 
-            match archive.save(&elf_path) {
-                Ok(_) => {
-                    println!("File sync completed successfully for command: {}", command);
+        match save_result {
+            Ok(_) => {
+                println!("File sync completed successfully for command: {}", command);
 
-                    // 发送成功事件到前端
-                    if let Some(app) = app_handle {
-                        if let Err(e) = app.emit(
-                            "file-sync-success",
-                            serde_json::json!({
-                                "command": command,
-                                "file_id": file_id_clone
-                            }),
-                        ) {
-                            eprintln!("Failed to emit file-sync-success event: {}", e);
-                        }
-                    }
-                }
-                Err(e) => {
-                    let error_msg = format!("文件同步失败: {}", e);
-                    eprintln!("File sync failed: {}", e);
-
-                    // 发送错误事件到前端
-                    if let Some(app) = app_handle {
-                        if let Err(emit_err) = app.emit(
-                            "file-sync-error",
-                            serde_json::json!({
-                                "command": command,
-                                "error": error_msg,
-                                "file_id": file_id_clone
-                            }),
-                        ) {
-                            eprintln!("Failed to emit file-sync-error event: {}", emit_err);
-                        }
+                // 发送成功事件到前端
+                if let Some(app) = app_handle {
+                    if let Err(e) = app.emit(
+                        "file-sync-success",
+                        serde_json::json!({
+                            "command": command,
+                            "file_id": file_id_clone
+                        }),
+                    ) {
+                        eprintln!("Failed to emit file-sync-success event: {}", e);
                     }
                 }
             }
-        });
+            Err(e) => {
+                let error_msg = format!("文件同步失败: {}", e);
+                eprintln!("File sync failed: {}", e);
+
+                // 发送错误事件到前端
+                if let Some(app) = app_handle {
+                    if let Err(emit_err) = app.emit(
+                        "file-sync-error",
+                        serde_json::json!({
+                            "command": command,
+                            "error": error_msg,
+                            "file_id": file_id_clone
+                        }),
+                    ) {
+                        eprintln!("Failed to emit file-sync-error event: {}", emit_err);
+                    }
+                }
+            }
+        }
     }
 
     /// 从事件中提取命令信息
