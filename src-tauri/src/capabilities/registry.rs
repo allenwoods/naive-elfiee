@@ -25,6 +25,16 @@ impl CapabilityRegistry {
         registry
     }
 
+    /// Backwards-compatible helper used by older tests.
+    ///
+    /// Some tests call `with_extensions()` explicitly to emphasize that
+    /// extension capabilities must be part of the registry. The current
+    /// implementation already registers them in `new()`, so we just
+    /// delegate to `new()` here.
+    pub fn with_extensions() -> Self {
+        Self::new()
+    }
+
     /// Register a capability handler.
     pub fn register(&mut self, handler: Arc<dyn CapabilityHandler>) {
         self.handlers.insert(handler.cap_id().to_string(), handler);
@@ -51,9 +61,13 @@ impl CapabilityRegistry {
     /// Register all extension capabilities.
     fn register_extensions(&mut self) {
         use crate::extensions::markdown::*;
+        use crate::extensions::terminal::*;
 
         self.register(Arc::new(MarkdownWriteCapability));
         self.register(Arc::new(MarkdownReadCapability));
+        self.register(Arc::new(TerminalReadCapability));
+        self.register(Arc::new(TerminalWriteCapability));
+        self.register(Arc::new(TerminalExecuteCapability));
     }
 }
 
