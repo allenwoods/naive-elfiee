@@ -386,6 +386,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // Getters
   getActiveFile: () => {
     const { activeFileId, files } = get()
+    console.log('[AppStore] getActiveFile:', activeFileId, files)
     return activeFileId ? files.get(activeFileId) || null : null
   },
 

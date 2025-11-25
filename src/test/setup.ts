@@ -24,6 +24,14 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   message: vi.fn(),
 }))
 
+// Mock @tauri-apps/plugin-fs
+vi.mock('@tauri-apps/plugin-fs', () => ({
+  writeTextFile: vi.fn(),
+  readTextFile: vi.fn(),
+  exists: vi.fn(),
+  mkdir: vi.fn(),
+}))
+
 // jsdom doesn't come with a WebCrypto implementation
 // Configure WebCrypto polyfill for Tauri mocking
 Object.defineProperty(window, 'crypto', {
