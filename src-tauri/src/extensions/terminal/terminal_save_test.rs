@@ -263,7 +263,7 @@ mod tests {
         assert!(!contents.contains_key("current_directory"));
     }
 
-    // 注意：移除 latest_snapshot_block_id 相关测试，因为新需求不再创建 Markdown Block
+    // Note: Removed latest_snapshot_block_id related tests as new requirement no longer creates Markdown Block
     // #[test] - REMOVED: test_no_error_when_only_latest_snapshot_block_id_provided
 
     #[test]
@@ -390,9 +390,9 @@ Hello World
             contents.get("current_path").unwrap().as_str().unwrap(),
             "/current/path"
         );
-        
-        // 注意：不再检查 latest_snapshot_block_id，因为新需求不再创建 Markdown Block
-        
+
+        // Note: No longer checking latest_snapshot_block_id as new requirement no longer creates Markdown Block
+
         // Verify original fields are still saved
         assert_eq!(
             contents.get("saved_content").unwrap().as_str().unwrap(),

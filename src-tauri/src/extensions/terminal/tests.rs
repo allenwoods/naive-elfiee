@@ -209,7 +209,7 @@ fn test_write_save_operation_preserves_snapshot_metadata() {
         "alice".to_string(),
     );
 
-    // 预置历史，确保保存操作不会覆盖历史
+    // Pre-populate history to ensure save operation doesn't overwrite it
     block.contents = serde_json::json!({
         "history": [
             {
@@ -255,7 +255,7 @@ fn test_write_save_operation_preserves_snapshot_metadata() {
         "snapshot-block-123"
     );
 
-    // 历史记录应保持不变
+    // History should remain unchanged
     let history = contents.get("history").unwrap().as_array().unwrap();
     assert_eq!(history.len(), 1, "Save should not append to history");
     assert_eq!(history[0]["command"], "echo 'old'");
@@ -1123,7 +1123,7 @@ fn test_execute_pipe_operations() {
 }
 
 // ============================================
-// 文件操作检测测试 - 新需求
+// File Operation Detection Tests - New Requirement
 // ============================================
 
 #[test]
@@ -1157,7 +1157,7 @@ fn test_file_operation_detection_mkdir() {
     let events = result.unwrap();
     let contents = events[0].value.get("contents").unwrap();
     
-    // 检查是否标记了需要文件同步
+    // Check if file sync flag was set
     assert!(contents.get("needs_file_sync").is_some());
     assert_eq!(contents.get("needs_file_sync").unwrap().as_bool(), Some(true));
     assert_eq!(
@@ -1200,7 +1200,7 @@ fn test_file_operation_detection_touch() {
     let events = result.unwrap();
     let contents = events[0].value.get("contents").unwrap();
     
-    // 检查是否标记了需要文件同步
+    // Check if file sync flag was set
     assert!(contents.get("needs_file_sync").is_some());
     assert_eq!(contents.get("needs_file_sync").unwrap().as_bool(), Some(true));
     assert_eq!(
@@ -1237,7 +1237,7 @@ fn test_file_operation_detection_echo_redirect() {
     let events = result.unwrap();
     let contents = events[0].value.get("contents").unwrap();
     
-    // 检查是否标记了需要文件同步
+    // Check if file sync flag was set
     assert!(contents.get("needs_file_sync").is_some());
     assert_eq!(contents.get("needs_file_sync").unwrap().as_bool(), Some(true));
     assert_eq!(
@@ -1276,24 +1276,24 @@ fn test_non_file_operation_no_sync_flag() {
     let contents_obj = contents
         .as_object()
         .expect("contents should be an object");
-    
-    // 非文件操作命令不应该标记需要文件同步
+
+    // Non-file operation commands should not be flagged for file sync
     assert!(!contents_obj.contains_key("needs_file_sync"));
     assert!(!contents_obj.contains_key("file_operation_command"));
 }
 
 // ============================================
-// 文件操作检测函数详细测试
+// Detailed File Operation Detection Function Tests
 // ============================================
 
 #[test]
 fn test_file_operation_detection_comprehensive() {
     use crate::extensions::terminal::terminal_execute::is_file_operation_command;
-    
-    // 测试各种文件操作命令
+
+    // Test various file operation commands
     let file_ops = vec![
         "mkdir test_dir",
-        "MKDIR test_dir", // 大小写不敏感
+        "MKDIR test_dir", // case insensitive
         "touch file.txt",
         "rm file.txt",
         "rmdir directory",
@@ -1305,9 +1305,9 @@ fn test_file_operation_detection_comprehensive() {
         "chmod 755 file.txt",
         "chown user:group file.txt",
         "chgrp group file.txt",
-        "echo \"content\" > file.txt",    // 重定向输出
-        "echo \"content\" >> file.txt",   // 追加输出
-        "cat input.txt > output.txt",    // 管道重定向
+        "echo \"content\" > file.txt",    // redirect output
+        "echo \"content\" >> file.txt",   // append output
+        "cat input.txt > output.txt",    // pipe redirect
     ];
     
     for cmd in file_ops {
@@ -1319,13 +1319,13 @@ fn test_file_operation_detection_comprehensive() {
 #[test]
 fn test_file_operation_detection_windows_commands() {
     use crate::extensions::terminal::terminal_execute::is_file_operation_command;
-    
-    // Windows 特定命令（只在 Windows 平台测试）
+
+    // Windows-specific commands (only tested on Windows platform)
     #[cfg(target_os = "windows")]
     {
         let windows_ops = vec![
             "del file.txt",
-            "DEL file.txt", // 大小写不敏感
+            "DEL file.txt", // case insensitive
             "move old.txt new.txt",
             "copy source.txt dest.txt",
             "md test_dir",
@@ -1343,23 +1343,23 @@ fn test_file_operation_detection_windows_commands() {
 #[test]
 fn test_file_operation_detection_non_file_commands() {
     use crate::extensions::terminal::terminal_execute::is_file_operation_command;
-    
-    // 非文件操作命令
+
+    // Non-file operation commands
     let non_file_ops = vec![
-        "echo hello world",      // 普通 echo（无重定向）
-        "ls -la",               // 列出文件但不修改
-        "pwd",                  // 显示路径
-        "cd directory",         // 切换目录
-        "ps aux",               // 进程列表
-        "grep pattern file.txt", // 搜索但不修改
-        "cat file.txt",         // 读取但不修改
-        "head -n 10 file.txt",  // 读取但不修改
-        "tail -f file.txt",     // 读取但不修改
-        "find . -name '*.txt'", // 搜索但不修改
-        "history",              // 命令历史
-        "whoami",               // 用户信息
-        "date",                 // 显示日期
-        "uptime",               // 系统信息
+        "echo hello world",      // plain echo (no redirection)
+        "ls -la",               // list files but don't modify
+        "pwd",                  // show path
+        "cd directory",         // change directory
+        "ps aux",               // process list
+        "grep pattern file.txt", // search but don't modify
+        "cat file.txt",         // read but don't modify
+        "head -n 10 file.txt",  // read but don't modify
+        "tail -f file.txt",     // read but don't modify
+        "find . -name '*.txt'", // search but don't modify
+        "history",              // command history
+        "whoami",               // user information
+        "date",                 // show date
+        "uptime",               // system information
     ];
     
     for cmd in non_file_ops {
@@ -1371,27 +1371,27 @@ fn test_file_operation_detection_non_file_commands() {
 #[test]
 fn test_file_operation_detection_edge_cases() {
     use crate::extensions::terminal::terminal_execute::is_file_operation_command;
-    
-    // 边界情况
+
+    // Edge cases
     assert!(!is_file_operation_command(""), "Empty command should not be file operation");
     assert!(!is_file_operation_command("   "), "Whitespace command should not be file operation");
     assert!(!is_file_operation_command("mkdirtest"), "mkdirtest is not a complete mkdir command");
     assert!(is_file_operation_command("mkdir test"), "mkdir with argument should be detected");
     assert!(is_file_operation_command("  mkdir  test  "), "mkdir with extra whitespace should be detected");
-    
-    // 复杂管道命令
-    assert!(is_file_operation_command("ls -la | grep test > output.txt"), 
+
+    // Complex pipe commands
+    assert!(is_file_operation_command("ls -la | grep test > output.txt"),
             "Pipe with file redirection should be detected");
-    assert!(!is_file_operation_command("ls -la | grep test"), 
+    assert!(!is_file_operation_command("ls -la | grep test"),
             "Pipe without file redirection should NOT be detected");
-    
-    // 命令链（当前实现不支持复杂命令链检测，只检查直接的命令）
-    assert!(!is_file_operation_command("echo test && mkdir dir"), 
+
+    // Command chains (current implementation doesn't support complex chain detection, only checks direct commands)
+    assert!(!is_file_operation_command("echo test && mkdir dir"),
             "Command chain detection not implemented in current version");
 }
 
 // ============================================
-// CD 命令专项测试
+// CD Command Specific Tests
 // ============================================
 
 #[test]
@@ -1406,8 +1406,8 @@ fn test_cd_path_resolution() {
         "terminal".to_string(),
         "alice".to_string(),
     );
-    
-    // 设置初始状态
+
+    // Set initial state
     block.contents = serde_json::json!({
         "root_path": "/tmp/test",
         "current_path": "/tmp/test",
@@ -1415,7 +1415,7 @@ fn test_cd_path_resolution() {
         "history": []
     });
 
-    // 测试 cd 到相对路径
+    // Test cd to relative path
     let cmd = Command::new(
         "alice".to_string(),
         "terminal.execute".to_string(),
@@ -1430,8 +1430,8 @@ fn test_cd_path_resolution() {
 
     let events = result.unwrap();
     let contents = events[0].value.get("contents").unwrap();
-    
-    // cd .. 应该被限制在 root_path 内
+
+    // cd .. should be restricted within root_path
     assert_eq!(
         contents.get("current_directory").unwrap().as_str().unwrap(),
         "."
@@ -1469,12 +1469,12 @@ fn test_cd_nonexistent_directory() {
     
     assert_eq!(history.len(), 1);
     assert_eq!(history[0]["command"], "cd nonexistent_directory_12345");
-    assert_eq!(history[0]["exit_code"], 1); // 应该失败
+    assert_eq!(history[0]["exit_code"], 1); // should fail
     assert!(history[0]["output"].as_str().unwrap().contains("No such file or directory"));
 }
 
 // ============================================
-// 错误处理和边界条件测试
+// Error Handling and Boundary Condition Tests
 // ============================================
 
 #[test]
@@ -1490,13 +1490,13 @@ fn test_execute_command_failed_exit_code() {
         "alice".to_string(),
     );
 
-    // 测试一个会失败的命令
+    // Test a command that will fail
     let cmd = Command::new(
         "alice".to_string(),
         "terminal.execute".to_string(),
         block.block_id.clone(),
         serde_json::json!({
-            "command": "false"  // 总是返回错误码1
+            "command": "false"  // always returns exit code 1
         }),
     );
 
@@ -1508,8 +1508,8 @@ fn test_execute_command_failed_exit_code() {
     let contents_obj = contents
         .as_object()
         .expect("contents should be an object");
-    
-    // 文件操作失败时不应该标记为需要同步
+
+    // Failed file operations should not be marked for sync
     assert!(
         !contents_obj.contains_key("needs_file_sync"),
             "Failed commands should not trigger file sync");
@@ -1528,7 +1528,7 @@ fn test_file_operation_command_failed_no_sync() {
         "alice".to_string(),
     );
 
-    // 测试一个会失败的文件操作命令
+    // Test a file operation command that will fail
     let cmd = Command::new(
         "alice".to_string(),
         "terminal.execute".to_string(),
@@ -1547,11 +1547,11 @@ fn test_file_operation_command_failed_no_sync() {
         .as_object()
         .expect("contents should be an object");
     let history = contents.get("history").unwrap().as_array().unwrap();
-    
-    // 检查命令失败
+
+    // Check that command failed
     assert_ne!(history[0]["exit_code"], 0);
-    
-    // 失败的文件操作不应该触发文件同步
+
+    // Failed file operations should not trigger file sync
     assert!(
         !contents_obj.contains_key("needs_file_sync"),
             "Failed file operations should not trigger sync");
@@ -1559,7 +1559,7 @@ fn test_file_operation_command_failed_no_sync() {
 }
 
 // ============================================
-// Terminal Write 详细测试
+// Terminal Write Detailed Tests
 // ============================================
 
 #[test]
@@ -1579,7 +1579,7 @@ fn test_write_empty_payload() {
         "alice".to_string(),
         "terminal.write".to_string(),
         block.block_id.clone(),
-        serde_json::json!({}), // 空载荷
+        serde_json::json!({}), // empty payload
     );
 
     let result = cap.handler(&cmd, Some(&block));
@@ -1587,8 +1587,8 @@ fn test_write_empty_payload() {
 
     let events = result.unwrap();
     assert_eq!(events.len(), 1);
-    
-    // 空载荷应该不做任何修改，只是保留原有内容
+
+    // Empty payload should not make any modifications, just preserve existing content
     let contents = events[0].value.get("contents").unwrap();
     assert!(contents.is_object());
 }
@@ -1689,7 +1689,7 @@ fn test_execute_command_with_null_bytes() {
         "alice".to_string(),
     );
 
-    // 包含空字节的命令（可能导致安全问题）
+    // Command containing null bytes (may cause security issues)
     let cmd = Command::new(
         "alice".to_string(),
         "terminal.execute".to_string(),
@@ -1717,7 +1717,7 @@ fn test_execute_command_with_unicode() {
         "alice".to_string(),
     );
 
-    // Unicode 字符命令
+    // Unicode character command
     let cmd = Command::new(
         "alice".to_string(),
         "terminal.execute".to_string(),
@@ -1745,7 +1745,7 @@ fn test_execute_command_with_extreme_whitespace() {
         "alice".to_string(),
     );
 
-    // 极端空白字符
+    // Extreme whitespace characters
     let cmd = Command::new(
         "alice".to_string(),
         "terminal.execute".to_string(),
@@ -1835,7 +1835,7 @@ fn test_multiple_consecutive_spaces() {
         "alice".to_string(),
     );
 
-    // 多个连续空格
+    // Multiple consecutive spaces
     let cmd = Command::new(
         "alice".to_string(),
         "terminal.execute".to_string(),
@@ -1863,7 +1863,7 @@ fn test_write_with_very_large_content() {
         "alice".to_string(),
     );
 
-    // 生成非常大的内容（但仍在合理范围内）
+    // Generate very large content (but still within reasonable limits)
     let large_content = "A".repeat(50000);
     let cmd = Command::new(
         "alice".to_string(),
@@ -1894,7 +1894,7 @@ fn test_write_with_json_object_data() {
         "alice".to_string(),
     );
 
-    // JSON 对象作为数据
+    // JSON object as data
     let cmd = Command::new(
         "alice".to_string(),
         "terminal.write".to_string(),
@@ -1924,7 +1924,7 @@ fn test_write_with_array_data() {
         "alice".to_string(),
     );
 
-    // 数组作为数据
+    // Array as data
     let cmd = Command::new(
         "alice".to_string(),
         "terminal.write".to_string(),
@@ -1944,8 +1944,8 @@ fn test_write_with_array_data() {
 #[test]
 fn test_execute_with_mixed_slash_paths() {
     use crate::extensions::terminal::terminal_execute::is_file_operation_command;
-    
-    // 测试混合斜杠路径
+
+    // Test mixed slash paths
     assert!(is_file_operation_command("mkdir test\\dir/subdir"));
     assert!(is_file_operation_command("touch /home/user\\file.txt"));
     assert!(is_file_operation_command("rm path/to\\file.txt"));
@@ -1954,8 +1954,8 @@ fn test_execute_with_mixed_slash_paths() {
 #[test]
 fn test_file_operation_detection_with_arguments() {
     use crate::extensions::terminal::terminal_execute::is_file_operation_command;
-    
-    // 带参数的文件操作命令
+
+    // File operation commands with arguments
     assert!(is_file_operation_command("mkdir -p test/dir"));
     assert!(is_file_operation_command("rm -rf olddir"));
     assert!(is_file_operation_command("cp -r source dest"));
@@ -1968,8 +1968,8 @@ fn test_file_operation_detection_with_arguments() {
 #[test]
 fn test_file_operation_false_positives() {
     use crate::extensions::terminal::terminal_execute::is_file_operation_command;
-    
-    // 确保非文件操作命令不被误判
+
+    // Ensure non-file operation commands are not falsely detected
     assert!(!is_file_operation_command("echo 'mkdir test'"));
     assert!(!is_file_operation_command("grep 'rm file' document.txt"));
     assert!(!is_file_operation_command("ps aux | grep vim"));
@@ -1989,7 +1989,7 @@ fn test_cd_special_characters() {
         "alice".to_string(),
     );
 
-    // cd 带特殊字符的路径
+    // cd with special characters in path
     let cmd = Command::new(
         "alice".to_string(),
         "terminal.execute".to_string(),
@@ -2017,7 +2017,7 @@ fn test_pwd_after_nonexistent_cd() {
         "alice".to_string(),
     );
 
-    // 首先尝试 cd 到不存在的目录
+    // First try to cd to a non-existent directory
     let cd_cmd = Command::new(
         "alice".to_string(),
         "terminal.execute".to_string(),
@@ -2030,13 +2030,13 @@ fn test_pwd_after_nonexistent_cd() {
     
     let cd_events = cd_result.unwrap();
     if !cd_events.is_empty() {
-        // 更新 block 内容
+        // Update block contents
         if let Some(contents) = cd_events[0].value.get("contents") {
             block.contents = contents.clone();
         }
     }
 
-    // 然后执行 pwd
+    // Then execute pwd
     let pwd_cmd = Command::new(
         "alice".to_string(),
         "terminal.execute".to_string(),

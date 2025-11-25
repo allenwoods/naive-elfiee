@@ -7,28 +7,28 @@ use std::process::Stdio;
 
 use super::TerminalExecutePayload;
 
-/// 检测命令是否为文件操作相关命令
-/// 
-/// 文件操作命令包括：
-/// - 创建文件/目录: mkdir, touch, echo > file, cat > file, vi/vim newfile
-/// - 编辑文件: vi, vim, nano, echo >> file  
-/// - 删除文件: rm, rmdir
-/// - 移动/复制文件: mv, cp
-/// - 修改文件权限: chmod, chown
+/// Detects whether a command is file operation-related
+///
+/// File operation commands include:
+/// - Create files/directories: mkdir, touch, echo > file, cat > file, vi/vim newfile
+/// - Edit files: vi, vim, nano, echo >> file
+/// - Delete files: rm, rmdir
+/// - Move/copy files: mv, cp
+/// - Modify file permissions: chmod, chown
 pub(crate) fn is_file_operation_command(command: &str) -> bool {
     let cmd_lower = command.trim().to_lowercase();
-    
-    // Windows 和 Unix 通用的文件操作命令
+
+    // Common file operation commands for both Windows and Unix
     let file_ops = [
         "mkdir", "touch", "rm", "rmdir", "mv", "cp",
         "vi", "vim", "nano", "chmod", "chown", "chgrp"
     ];
-    
-    // Windows 特定命令
+
+    // Windows-specific commands
     #[cfg(target_os = "windows")]
     let windows_ops = ["del", "move", "copy", "type", "md", "rd"];
-    
-    // 检查基本命令（确保是完整单词，不是部分匹配）
+
+    // Check basic commands (ensure complete word match, not partial)
     if file_ops.iter().any(|op| {
         cmd_lower.starts_with(op) && (
             cmd_lower.len() == op.len() || 
@@ -37,24 +37,24 @@ pub(crate) fn is_file_operation_command(command: &str) -> bool {
     }) {
         return true;
     }
-    
-    // Windows 特定检查（确保是完整单词，不是部分匹配）
+
+    // Windows-specific check (ensure complete word match, not partial)
     #[cfg(target_os = "windows")]
     if windows_ops.iter().any(|op| {
         cmd_lower.starts_with(op) && (
-            cmd_lower.len() == op.len() || 
+            cmd_lower.len() == op.len() ||
             cmd_lower.chars().nth(op.len()).map_or(false, |c| c.is_whitespace())
         )
     }) {
         return true;
     }
-    
-    // 检查重定向操作 (echo > file, cat > file, echo >> file)
+
+    // Check for redirection operations (echo > file, cat > file, echo >> file)
     if cmd_lower.contains(" > ") || cmd_lower.contains(" >> ") {
         return true;
     }
-    
-    // 检查管道到文件的操作
+
+    // Check for pipe to file operations
     if cmd_lower.contains(" | ") && (cmd_lower.contains(" > ") || cmd_lower.contains(" >> ")) {
         return true;
     }
@@ -231,7 +231,7 @@ fn handle_terminal_execute(cmd: &Command, block: Option<&Block>) -> CapResult<Ve
     // Append to history
     history.push(history_entry);
 
-    // 检测是否为文件操作命令，如果是则需要标记需要同步到 .elf 文件
+    // Detect if this is a file operation command; if so, mark for sync to .elf file
     let is_save_operation = is_file_operation_command(&payload.command);
 
     // Preserve existing contents and update history and current_directory
@@ -255,7 +255,7 @@ fn handle_terminal_execute(cmd: &Command, block: Option<&Block>) -> CapResult<Ve
         serde_json::json!(root_path.to_string_lossy()),
     );
 
-    // 如果是成功的文件操作，添加标记以便 Engine Actor 可以检测到
+    // If this is a successful file operation, add flag for Engine Actor to detect
     if is_save_operation && exit_code == 0 {
         new_contents.insert(
             "needs_file_sync".to_string(),
