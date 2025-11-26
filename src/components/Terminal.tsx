@@ -4,36 +4,13 @@ import { FitAddon } from '@xterm/addon-fit'
 import { useAppStore } from '@/lib/app-store'
 import { TauriClient } from '@/lib/tauri-client'
 import type { Block } from '@/lib/tauri-client'
+import { listen } from '@tauri-apps/api/event'
 import '@xterm/xterm/css/xterm.css'
 
 const TERMINAL_THEME = {
   background: '#000000',
   foreground: '#00ff00',
   cursor: '#00ff00',
-}
-
-function writeTerminalOutput(term: XTermTerminal, text: string) {
-  const normalized = text.replace(/\r\n/g, '\n')
-  const stripped = normalized.replace(
-    // eslint-disable-next-line no-control-regex
-    /\u001b\[[0-9;?]*[ -/]*[@-~]/g,
-    ''
-  )
-  const cleaned = stripped.replace(
-    // eslint-disable-next-line no-control-regex
-    /[^\t\n\x20-\x7E]/g,
-    ''
-  )
-  if (!cleaned.trim()) return
-  cleaned.split('\n').forEach((line) => term.writeln(line))
-}
-
-function writePrompt(term: XTermTerminal, directory: string) {
-  const dir = (directory || '.').replace(/\\/g, '/')
-  if (term.buffer.active.cursorX !== 0) {
-    term.write('\r\n')
-  }
-  term.write(`${dir} $ `)
 }
 
 // Helper function to check if a terminal block has saved content
@@ -55,7 +32,6 @@ function getTerminalSaveInfo(block: Block) {
     hasContent: true,
     savedContent: contents.saved_content,
     savedAt: contents.saved_at ? new Date(contents.saved_at) : null,
-    currentDirectory: contents.current_directory || '.',
     contentLength: contents.saved_content.length,
     lineCount: contents.saved_content.split('\n').length,
   }
@@ -75,9 +51,7 @@ export function Terminal() {
   const xtermRef = useRef<XTermTerminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const terminalBlockIdRef = useRef<string | null>(null)
-  const currentDirectoryRef = useRef<string>('.')
-
-  // 移除Markdown快照相关的状态管理 - 不再需要
+  const ptyInitializedRef = useRef<boolean>(false)
 
   const [isInitializing, setIsInitializing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -101,7 +75,7 @@ export function Terminal() {
     }
   }, [activeFileId, selectedBlock, getActiveFile, selectBlock])
 
-  // Initialise terminal
+  // Initialize terminal with PTY
   useEffect(() => {
     if (!activeFileId || !selectedBlock) {
       return
@@ -114,6 +88,7 @@ export function Terminal() {
 
     let disposeData: { dispose: () => void } | null = null
     let resizeListener: (() => void) | null = null
+    let ptyOutputListener: (() => void) | null = null
     let cancelled = false
 
     const setup = async () => {
@@ -162,6 +137,15 @@ export function Terminal() {
 
       const handleResize = () => {
         safeFit()
+        // Also notify PTY of resize
+        if (terminalBlockIdRef.current && fitAddon) {
+          const dims = fitAddon.proposeDimensions()
+          if (dims) {
+            TauriClient.terminal
+              .resizePty(terminalBlockIdRef.current, dims.rows, dims.cols)
+              .catch((err) => console.error('PTY resize failed:', err))
+          }
+        }
       }
       window.addEventListener('resize', handleResize)
       resizeListener = () => window.removeEventListener('resize', handleResize)
@@ -171,8 +155,6 @@ export function Terminal() {
       let terminalBlock = blocks.find((b) => b.block_type === 'terminal')
 
       if (!terminalBlock) {
-        // This should not happen as we check for selectedBlock above,
-        // but guard against edge cases
         term.writeln('Error: No terminal block found.')
         setIsInitializing(false)
         return
@@ -180,54 +162,16 @@ export function Terminal() {
 
       terminalBlockIdRef.current = terminalBlock.block_id
 
-      let initialDirectory = '.'
-      let blockDir: string | null = null
-      let shouldSetRootPath = false
-
-      if (
-        terminalBlock.contents &&
-        typeof terminalBlock.contents === 'object'
-      ) {
-        const contents = terminalBlock.contents as any
-
-        // First check for _block_dir (injected by backend)
-        if (contents._block_dir && typeof contents._block_dir === 'string') {
-          blockDir = contents._block_dir
-          // For display in prompt, use current_directory if available, otherwise "."
-          initialDirectory = contents.current_directory || '.'
-
-          // Always ensure root_path is set to _block_dir for consistency
-          if (
-            !contents.root_path ||
-            contents.root_path !== contents._block_dir
-          ) {
-            shouldSetRootPath = true
-          }
-        }
-        // Fallback to current_directory if _block_dir is not available
-        else if (contents.current_directory) {
-          initialDirectory = contents.current_directory
-        }
-      }
-      currentDirectoryRef.current = initialDirectory
-
-      // If we need to set the root_path to the block directory, do it now
-      if (shouldSetRootPath && blockDir) {
-        try {
-          const editor = getActiveEditor(activeFileId)
-          await TauriClient.terminal.writeToTerminal(
-            activeFileId,
-            terminalBlock.block_id,
-            {
-              root_path: blockDir,
-              current_path: blockDir,
-              current_directory: '.',
-            },
-            editor?.editor_id || 'default-editor'
-          )
-        } catch (error) {
-          console.warn('Failed to set terminal root path:', error)
-        }
+      // Fetch the block again to ensure _block_dir is injected by the backend
+      // The backend injects _block_dir at runtime when a block is retrieved
+      try {
+        terminalBlock = await TauriClient.block.getBlock(
+          activeFileId,
+          terminalBlock.block_id
+        )
+      } catch (err) {
+        console.warn('Failed to refetch block:', err)
+        // Continue with existing block data
       }
 
       // Check if there's saved terminal content to restore
@@ -247,164 +191,74 @@ export function Terminal() {
         // Display the saved content line by line
         const lines = saveInfo.savedContent.split('\n')
         lines.forEach((line: string) => {
-          if (line.trim()) {
-            // Skip empty lines
-            term.writeln(line)
-          }
+          term.writeln(line)
         })
 
         term.writeln('')
-        term.writeln('=== Continue Session ===')
-      } else {
-        // Default welcome message for new terminal
-        term.writeln('Welcome to Elfiee Terminal!')
-        if (blockDir) {
-          term.writeln(`Block directory: ${blockDir}`)
-          term.writeln(`Working directory: ${initialDirectory}`)
-        } else {
-          term.writeln(`Current directory: ${initialDirectory}`)
-        }
-        term.writeln('Type any command to execute.')
+        term.writeln('=== Starting New Session ===')
+        term.writeln('')
       }
 
-      writePrompt(term, initialDirectory)
+      // Listen for PTY output
+      const unlistenPty = await listen('pty-out', (event: any) => {
+        const payload = event.payload as { data: string; block_id: string }
+        if (payload.block_id === terminalBlockIdRef.current) {
+          // Decode Base64 properly for binary data
+          try {
+            // Decode Base64 to binary string
+            const binaryString = atob(payload.data)
+            // Convert to Uint8Array
+            const bytes = new Uint8Array(binaryString.length)
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i)
+            }
+            // Write directly as Uint8Array (xterm.js handles it)
+            term.write(bytes)
+          } catch (err) {
+            console.error('Failed to decode PTY output:', err)
+          }
+        }
+      })
+      ptyOutputListener = () => unlistenPty()
 
-      // Show command history if available (but don't duplicate if we restored content)
-      if (!saveInfo) {
-        const history = await TauriClient.terminal.getTerminalHistory(
-          activeFileId,
-          terminalBlock.block_id
+      // Initialize PTY session
+      try {
+        const editor = getActiveEditor(activeFileId)
+        const dims = fitAddon.proposeDimensions()
+
+        // Get working directory from block contents (injected by backend at runtime)
+        const blockContents = terminalBlock.contents as any
+        console.log('[Terminal] Block contents:', blockContents)
+        const workingDir = blockContents?._block_dir as string | undefined
+        console.log('[Terminal] Working directory:', workingDir)
+
+        if (workingDir) {
+          term.writeln(`Block directory: ${workingDir}`)
+        }
+
+        await TauriClient.terminal.initTerminal(
+          terminalBlock.block_id,
+          editor?.editor_id || 'default-editor',
+          dims?.rows || 24,
+          dims?.cols || 80,
+          workingDir // Pass working directory to PTY
         )
 
-        if (history.length > 0) {
-          term.writeln('')
-          term.writeln('--- Command History ---')
-          history.forEach((entry) => {
-            term.writeln(`$ ${entry.command}`)
-            if (entry.output) {
-              writeTerminalOutput(term, entry.output)
-            }
-            if (entry.exit_code !== 0) {
-              term.writeln(`(exit code ${entry.exit_code})`)
-            }
-            term.writeln('')
-          })
-          writePrompt(term, currentDirectoryRef.current)
-          requestAnimationFrame(() => {
-            safeFit()
-          })
-        }
+        ptyInitializedRef.current = true
+        term.writeln('PTY session initialized.')
+      } catch (err) {
+        term.writeln(`Failed to initialize PTY: ${err}`)
+        setIsInitializing(false)
+        return
       }
 
-      let inputBuffer = ''
-      let executing = false
-
-      const runCommand = async (command: string) => {
-        if (!command) {
-          writePrompt(term, currentDirectoryRef.current)
-          return
-        }
-
-        const blockId = terminalBlockIdRef.current
-        if (!blockId) {
-          term.writeln('Terminal not ready.')
-          writePrompt(term, currentDirectoryRef.current)
-          return
-        }
-
-        const editor = getActiveEditor(activeFileId)
-        if (!editor) {
-          term.writeln('Error: no active editor.')
-          writePrompt(term, currentDirectoryRef.current)
-          return
-        }
-
-        try {
-          await TauriClient.terminal.executeCommand(
-            activeFileId,
-            blockId,
-            command,
-            editor.editor_id
-          )
-
-          const state = await TauriClient.terminal.getTerminalState(
-            activeFileId,
-            blockId
-          )
-
-          currentDirectoryRef.current = state.currentDirectory || '.'
-
-          if (state.history.length > 0) {
-            const latestEntry = state.history[state.history.length - 1]
-            const normalizedCommand = latestEntry.command.trim().toLowerCase()
-
-            if (latestEntry.exit_code !== 0) {
-              term.writeln('[command failed]')
-              term.writeln(`Exit code: ${latestEntry.exit_code}`)
-            } else if (latestEntry.output && latestEntry.output.trim()) {
-              writeTerminalOutput(term, latestEntry.output)
-            } else if (!normalizedCommand.startsWith('cd')) {
-              term.writeln('[command completed]')
-            }
-          }
-        } catch (err) {
-          term.writeln(
-            `Error: ${err instanceof Error ? err.message : String(err)}`
-          )
-        } finally {
-          writePrompt(term, currentDirectoryRef.current)
-          requestAnimationFrame(() => {
-            safeFit()
-          })
-        }
-      }
-
+      // Handle user input - send directly to PTY
       disposeData = term.onData((data) => {
-        if (executing) {
-          return
-        }
-        const code = data.charCodeAt(0)
+        if (!ptyInitializedRef.current || !terminalBlockIdRef.current) return
 
-        if (code === 13) {
-          term.write('\r\n')
-          executing = true
-          const command = inputBuffer.trim()
-          inputBuffer = ''
-          runCommand(command).finally(() => {
-            executing = false
-          })
-          return
-        }
-
-        if (code === 127) {
-          if (inputBuffer.length > 0) {
-            inputBuffer = inputBuffer.slice(0, -1)
-            term.write('\b \b')
-          }
-          return
-        }
-
-        if (code === 3) {
-          term.write('^C')
-          term.write('\r\n')
-          inputBuffer = ''
-          writePrompt(term, currentDirectoryRef.current)
-          requestAnimationFrame(() => safeFit())
-          return
-        }
-
-        if (code === 12) {
-          term.clear()
-          writePrompt(term, currentDirectoryRef.current)
-          inputBuffer = ''
-          requestAnimationFrame(() => safeFit())
-          return
-        }
-
-        if (data >= ' ' && data <= '~') {
-          inputBuffer += data
-          term.write(data)
-        }
+        TauriClient.terminal
+          .writeToPty(terminalBlockIdRef.current, data)
+          .catch((err) => console.error('PTY write failed:', err))
       })
 
       if (!cancelled) {
@@ -416,8 +270,10 @@ export function Terminal() {
 
     return () => {
       cancelled = true
+      ptyInitializedRef.current = false
       if (disposeData) disposeData.dispose()
       if (resizeListener) resizeListener()
+      if (ptyOutputListener) ptyOutputListener()
       if (xtermRef.current) {
         try {
           xtermRef.current.dispose()
@@ -457,11 +313,10 @@ export function Terminal() {
     setIsSaving(true)
 
     try {
-      // 1. 获取当前terminal的可视化内容
+      // 获取terminal缓冲区内容
       const buffer = term.buffer.active
       const terminalLines: string[] = []
 
-      // 提取terminal缓冲区中的所有行
       for (let i = 0; i < buffer.length; i++) {
         const line = buffer.getLine(i)
         if (line) {
@@ -469,26 +324,16 @@ export function Terminal() {
         }
       }
 
-      // 合并为完整的terminal内容文本
       const terminalContent = terminalLines.join('\n')
 
-      // 2. 保存terminal内容到Terminal Block（仅此一步）
-      const saveCmd = {
-        cmd_id: crypto.randomUUID(),
-        editor_id: editor.editor_id,
-        cap_id: 'terminal.write',
-        block_id: terminalBlockIdRef.current,
-        payload: {
-          saved_content: terminalContent,
-          saved_at: new Date().toISOString(),
-          current_directory: currentDirectoryRef.current,
-        },
-        timestamp: new Date().toISOString(),
-      }
+      // 保存到 block
+      await TauriClient.terminal.saveSession(
+        activeFileId,
+        terminalBlockIdRef.current,
+        terminalContent,
+        editor.editor_id
+      )
 
-      await TauriClient.block.executeCommand(activeFileId, saveCmd)
-
-      // 3. 显示成功通知
       addNotification('success', '终端内容已保存到 Block 中。')
     } catch (err) {
       console.error(err)

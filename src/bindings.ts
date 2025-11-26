@@ -394,6 +394,54 @@ export const commands = {
       else return { status: 'error', error: e as any }
     }
   },
+  /**
+   * Initialize a new PTY session for a block.
+   */
+  async asyncInitTerminal(
+    payload: TerminalInitPayload
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('async_init_terminal', { payload }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Write data to the PTY.
+   */
+  async writeToPty(
+    payload: TerminalWritePayload
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('write_to_pty', { payload }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Resize the PTY.
+   */
+  async resizePty(
+    payload: TerminalResizePayload
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('resize_pty', { payload }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
 }
 
 /** user-defined events **/
@@ -544,63 +592,34 @@ export type RevokePayload = {
    */
   target_block?: string
 }
-/**
- * Payload for TerminalExecute
- *
- * Executes a command in the terminal and stores the result in history.
- *
- * Fields:
- * - command: The command string to execute
- */
-export type TerminalExecutePayload = {
-  /**
-   * The command to execute
-   */
-  command: string
+export type TerminalInitPayload = {
+  cols: number
+  rows: number
+  block_id: string
+  editor_id: string
+  cwd: string | null
+}
+export type TerminalResizePayload = {
+  cols: number
+  rows: number
+  block_id: string
 }
 /**
- * Payload for TerminalRead
+ * Payload for terminal.save capability
  *
- * Used for querying terminal state and history. Currently no parameters needed
- * as it returns the entire terminal state.
+ * This payload is used to save terminal content (buffer snapshot) to a terminal block.
  */
-export type TerminalReadPayload = Record<string, never>
-/**
- * Payload for TerminalWrite
- *
- * Used for writing content directly to the terminal without executing commands,
- * or for saving the entire terminal buffer content to the block.
- */
-export type TerminalWritePayload = {
+export type TerminalSavePayload = {
   /**
-   * Content to write to the terminal. Can be text or any JSON value.
+   * The terminal content to save (typically from xterm.js buffer)
    */
-  data: JsonValue | null
+  saved_content: string
   /**
-   * Saved terminal content (for save functionality)
+   * Timestamp when the content was saved
    */
-  saved_content: string | null
-  /**
-   * Timestamp when content was saved
-   */
-  saved_at: string | null
-  /**
-   * Current directory when content was saved
-   */
-  current_directory: string | null
-  /**
-   * Root path for the terminal session
-   */
-  root_path: string | null
-  /**
-   * Current absolute path
-   */
-  current_path: string | null
-  /**
-   * Latest Markdown snapshot block ID (for Save to Markdown functionality)
-   */
-  latest_snapshot_block_id: string | null
+  saved_at: string
 }
+export type TerminalWritePayload = { data: string; block_id: string }
 /**
  * Payload for core.unlink capability
  *

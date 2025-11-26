@@ -16,7 +16,9 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState::new());
+        .plugin(tauri_plugin_dialog::init())
+        .manage(AppState::new())
+        .manage(extensions::terminal::pty::TerminalState::new());
 
     // Generate TypeScript bindings in debug mode
     #[cfg(debug_assertions)]
@@ -44,6 +46,10 @@ pub fn run() {
                 commands::editor::list_grants,
                 commands::editor::get_editor_grants,
                 commands::editor::get_block_grants,
+                // Terminal operations
+                extensions::terminal::pty::async_init_terminal,
+                extensions::terminal::pty::write_to_pty,
+                extensions::terminal::pty::resize_pty,
 
             ])
             // Explicitly export payload types for frontend type generation
@@ -52,9 +58,7 @@ pub fn run() {
             // NOTE: When adding a new extension with payload types, register them here.
             // TODO: Consider automating this with a macro if extensions grow beyond ~10
             // Core payload types (used by builtin capabilities)
-                                    .typ::<extensions::terminal::TerminalWritePayload>()
-.typ::<extensions::terminal::TerminalReadPayload>()
-.typ::<models::CreateBlockPayload>()
+            .typ::<models::CreateBlockPayload>()
             .typ::<models::LinkBlockPayload>()
             .typ::<models::UnlinkBlockPayload>()
             .typ::<models::GrantPayload>()
@@ -62,7 +66,10 @@ pub fn run() {
             .typ::<models::EditorCreatePayload>()
             // Extension payload types
             .typ::<extensions::markdown::MarkdownWritePayload>()
-            .typ::<extensions::terminal::TerminalExecutePayload>();
+            .typ::<extensions::terminal::TerminalSavePayload>()
+            .typ::<extensions::terminal::pty::TerminalInitPayload>()
+            .typ::<extensions::terminal::pty::TerminalWritePayload>()
+            .typ::<extensions::terminal::pty::TerminalResizePayload>();
 
         // Export TypeScript bindings on app startup
         #[cfg(debug_assertions)]
@@ -100,6 +107,12 @@ pub fn run() {
         commands::editor::list_grants,
         commands::editor::get_editor_grants,
         commands::editor::get_block_grants,
+        commands::editor::get_editor_grants,
+        commands::editor::get_block_grants,
+        // Terminal operations
+        extensions::terminal::pty::async_init_terminal,
+        extensions::terminal::pty::write_to_pty,
+        extensions::terminal::pty::resize_pty,
     ]);
 
     builder

@@ -63,11 +63,12 @@ impl CapabilityRegistry {
         use crate::extensions::markdown::*;
         use crate::extensions::terminal::*;
 
+        // Markdown extension
         self.register(Arc::new(MarkdownWriteCapability));
         self.register(Arc::new(MarkdownReadCapability));
-        self.register(Arc::new(TerminalReadCapability));
-        self.register(Arc::new(TerminalWriteCapability));
-        self.register(Arc::new(TerminalExecuteCapability));
+
+        // Terminal extension
+        self.register(Arc::new(TerminalSaveCapability));
     }
 }
 
@@ -109,6 +110,20 @@ mod tests {
         assert!(
             registry.get("core.revoke").is_some(),
             "core.revoke should be registered"
+        );
+
+        // Verify extension capabilities are registered
+        assert!(
+            registry.get("markdown.write").is_some(),
+            "markdown.write should be registered"
+        );
+        assert!(
+            registry.get("markdown.read").is_some(),
+            "markdown.read should be registered"
+        );
+        assert!(
+            registry.get("terminal.save").is_some(),
+            "terminal.save should be registered"
         );
     }
 

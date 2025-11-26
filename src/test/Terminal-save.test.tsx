@@ -1,15 +1,14 @@
 /**
- * Terminal Save Functionality Tests
+ * Terminal PTY Integration Tests
  *
- * Tests for the new terminal save functionality that saves terminal buffer content
- * to block contents and restores it when the block is selected.
+ * Tests for the new PTY-based terminal functionality.
  *
  * Features tested:
- * - Terminal buffer content extraction and save to block contents
- * - Recovery of saved content when selecting terminal block
- * - UI status indicators for saved content
- * - getTerminalSaveInfo helper function
- * - terminal.write capability with saved_content payload
+ * - PTY session initialization
+ * - User input handling via writeToPty
+ * - PTY output via pty-out events
+ * - Terminal resize handling
+ * - Save/restore session functionality
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -18,16 +17,14 @@ import userEvent from '@testing-library/user-event'
 import { Terminal } from '@/components/Terminal'
 import type { Block, Editor } from '@/bindings'
 
-// 当前 Mock Terminal 实例（便于断言 writeln / write 等行为）
+// Mock Terminal instance
 let currentTerminal: any = null
-// 通过可配置的 buffer 行数组来模拟终端缓冲区内容
 let terminalBufferLines: string[] = []
 
 const setTerminalBufferLines = (lines: string[]) => {
   terminalBufferLines = [...lines]
 }
 
-// 创建与 xterm 行缓冲结构类似的对象，帮助 save 逻辑提取文本
 const createTerminalBuffer = () => ({
   active: {
     cursorX: 0,
@@ -41,7 +38,6 @@ const createTerminalBuffer = () => ({
 })
 
 vi.mock('@xterm/xterm', () => {
-  // 自定义 MockTerminal，模拟 new Terminal() 场景及相关方法
   class MockTerminal {
     open: ReturnType<typeof vi.fn>
     writeln: ReturnType<typeof vi.fn>
@@ -73,14 +69,21 @@ vi.mock('@xterm/xterm', () => {
 vi.mock('@xterm/addon-fit', () => {
   class MockFitAddon {
     fit: ReturnType<typeof vi.fn>
+    proposeDimensions: ReturnType<typeof vi.fn>
 
     constructor() {
       this.fit = vi.fn()
+      this.proposeDimensions = vi.fn(() => ({ rows: 24, cols: 80 }))
     }
   }
 
   return { FitAddon: MockFitAddon }
 })
+
+// Mock Tauri event listener
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(() => Promise.resolve(() => {})),
+}))
 
 vi.mock('@/lib/tauri-client', () => ({
   TauriClient: {
@@ -89,8 +92,10 @@ vi.mock('@/lib/tauri-client', () => ({
       getAllBlocks: vi.fn(),
     },
     terminal: {
-      getTerminalHistory: vi.fn(),
-      getTerminalState: vi.fn(),
+      initTerminal: vi.fn(),
+      writeToPty: vi.fn(),
+      resizePty: vi.fn(),
+      saveSession: vi.fn(),
     },
   },
 }))
@@ -108,13 +113,13 @@ vi.mock('@/lib/app-store', () => ({
   useAppStore: () => mockAppStore,
 }))
 
-describe('Terminal Save Functionality', () => {
+describe('Terminal PTY Functionality', () => {
   const mockEditor: Editor = {
     editor_id: 'test-editor',
     name: 'Test Editor',
   }
 
-  const mockTerminalBlockWithoutSave: Block = {
+  const mockTerminalBlock: Block = {
     block_id: 'terminal-block-1',
     name: 'Terminal Block',
     block_type: 'terminal',
@@ -124,45 +129,39 @@ describe('Terminal Save Functionality', () => {
   }
 
   const mockTerminalBlockWithSave: Block = {
-    block_id: 'terminal-block-2',
-    name: 'Saved Terminal Block',
-    block_type: 'terminal',
+    ...mockTerminalBlock,
     contents: {
       saved_content:
-        'Welcome to Elfiee Terminal!\nCurrent directory: .\n$ ls\nfile1.txt  file2.txt\n$ pwd\n/home/user',
+        'Welcome to Elfiee Terminal!\\n$ ls\\nfile1.txt  file2.txt',
       saved_at: '2024-01-15T14:30:25.123Z',
-      current_directory: '/home/user',
     },
-    children: {},
-    owner: 'test-editor',
   }
 
-  let mockExecuteCommand: ReturnType<typeof vi.fn>
+  let mockInitTerminal: ReturnType<typeof vi.fn>
+  let mockWriteToPty: ReturnType<typeof vi.fn>
+  let mockResizePty: ReturnType<typeof vi.fn>
+  let mockSaveSession: ReturnType<typeof vi.fn>
   let mockGetAllBlocks: ReturnType<typeof vi.fn>
-  let mockGetTerminalHistory: ReturnType<typeof vi.fn>
-  let mockGetTerminalState: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
     currentTerminal = null
     setTerminalBufferLines([])
 
     const { TauriClient } = await import('@/lib/tauri-client')
-    mockExecuteCommand = vi.mocked(TauriClient.block.executeCommand)
+    mockInitTerminal = vi.mocked(TauriClient.terminal.initTerminal)
+    mockWriteToPty = vi.mocked(TauriClient.terminal.writeToPty)
+    mockResizePty = vi.mocked(TauriClient.terminal.resizePty)
+    mockSaveSession = vi.mocked(TauriClient.terminal.saveSession)
     mockGetAllBlocks = vi.mocked(TauriClient.block.getAllBlocks)
-    mockGetTerminalHistory = vi.mocked(TauriClient.terminal.getTerminalHistory)
-    mockGetTerminalState = vi.mocked(TauriClient.terminal.getTerminalState)
 
     vi.clearAllMocks()
     mockAppStore.getActiveEditor.mockReturnValue(mockEditor)
-    mockAppStore.getSelectedBlock.mockReturnValue(mockTerminalBlockWithoutSave)
-    mockGetAllBlocks.mockResolvedValue([mockTerminalBlockWithoutSave])
-    mockGetTerminalHistory.mockResolvedValue([])
-    mockGetTerminalState.mockResolvedValue({
-      history: [],
-      currentDirectory: '.',
-      contents: {},
-    })
-    mockExecuteCommand.mockResolvedValue([])
+    mockAppStore.getSelectedBlock.mockReturnValue(mockTerminalBlock)
+    mockGetAllBlocks.mockResolvedValue([mockTerminalBlock])
+    mockInitTerminal.mockResolvedValue(undefined)
+    mockWriteToPty.mockResolvedValue(undefined)
+    mockResizePty.mockResolvedValue(undefined)
+    mockSaveSession.mockResolvedValue([])
   })
 
   afterEach(() => {
@@ -170,142 +169,56 @@ describe('Terminal Save Functionality', () => {
   })
 
   const waitForTerminalInstance = async () => {
-    // 等待 Terminal 组件初始化完成并挂载 xterm 实例
     await waitFor(() => {
       expect(currentTerminal).not.toBeNull()
     })
     return currentTerminal!
   }
 
-  describe('getTerminalSaveInfo helper function', () => {
-    // 通过组件行为间接验证内部 getTerminalSaveInfo 的逻辑
-    it('should detect block without saved content', async () => {
+  describe('PTY Initialization', () => {
+    it('should initialize PTY session on mount', async () => {
       render(<Terminal />)
 
-      const saveButton = await screen.findByRole('button', { name: /save/i })
-      expect(saveButton).toHaveTextContent('Save')
-      expect(saveButton).not.toHaveTextContent('Update Save')
-      expect(screen.queryByText(/• Saved/)).not.toBeInTheDocument()
-    })
-
-    it('should detect block with saved content', async () => {
-      mockAppStore.getSelectedBlock.mockReturnValue(mockTerminalBlockWithSave)
-      mockGetAllBlocks.mockResolvedValue([mockTerminalBlockWithSave])
-
-      render(<Terminal />)
-
-      // 简化后的实现：统一显示 "Save" 按钮，不再区分 "Update Save"
-      const button = await screen.findByRole('button', { name: /save/i })
-      expect(button).toHaveTextContent('Save')
-      // 注意：Terminal 组件中不再显示保存状态信息
-    })
-
-    it('should handle invalid saved content', async () => {
-      const invalidBlock: Block = {
-        ...mockTerminalBlockWithoutSave,
-        contents: {
-          saved_content: '',
-          saved_at: '2024-01-15T14:30:25.123Z',
-        },
-      }
-      mockAppStore.getSelectedBlock.mockReturnValue(invalidBlock)
-
-      render(<Terminal />)
-
-      const saveButton = await screen.findByRole('button', { name: /save/i })
-      expect(saveButton).toHaveTextContent('Save')
-    })
-  })
-
-  describe('Save Operation', () => {
-    it('should extract terminal buffer content and save to block', async () => {
-      setTerminalBufferLines([
-        'Welcome to Elfiee Terminal!',
-        'Current directory: .',
-        'Type any command to execute.',
-        '. $ ls',
-        'file1.txt  file2.txt',
-      ])
-      const user = userEvent.setup()
-
-      render(<Terminal />)
-
-      const saveButton = await screen.findByRole('button', { name: /save/i })
-      await user.click(saveButton)
+      await waitForTerminalInstance()
 
       await waitFor(() => {
-        expect(mockExecuteCommand).toHaveBeenCalledWith(
-          'test-file-id',
-          expect.objectContaining({
-            cap_id: 'terminal.write',
-            block_id: 'terminal-block-1',
-            editor_id: 'test-editor',
-            payload: expect.objectContaining({
-              saved_content: expect.stringContaining(
-                'Welcome to Elfiee Terminal!'
-              ),
-              saved_at: expect.any(String),
-              current_directory: '.',
-            }),
-          })
-        )
-      })
-
-      expect(mockAppStore.addNotification).toHaveBeenCalledWith(
-        'success',
-        '终端内容已保存到 Block 中。'
-      )
-    })
-
-    it('should show error when no terminal block exists', async () => {
-      mockAppStore.getSelectedBlock.mockReturnValue(null)
-
-      render(<Terminal />)
-
-      expect(
-        await screen.findByText('终端需要Terminal Block')
-      ).toBeInTheDocument()
-      expect(
-        screen.queryByRole('button', { name: /save/i })
-      ).not.toBeInTheDocument()
-    })
-
-    it('should show error when no active editor', async () => {
-      mockAppStore.getActiveEditor.mockReturnValue(null)
-      const user = userEvent.setup()
-
-      render(<Terminal />)
-
-      const saveButton = await screen.findByRole('button', { name: /save/i })
-      await user.click(saveButton)
-
-      await waitFor(() => {
-        expect(mockAppStore.addNotification).toHaveBeenCalledWith(
-          'error',
-          '没有活跃的编辑器。'
+        expect(mockInitTerminal).toHaveBeenCalledWith(
+          'terminal-block-1',
+          'test-editor',
+          24,
+          80
         )
       })
     })
 
-    it('should handle save operation failure', async () => {
-      mockExecuteCommand.mockRejectedValueOnce(new Error('Network error'))
-      const user = userEvent.setup()
+    it('should display initialization loading state', async () => {
+      render(<Terminal />)
+
+      expect(screen.getByText('Initialising terminal...')).toBeInTheDocument()
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText('Initialising terminal...')
+        ).not.toBeInTheDocument()
+      })
+    })
+
+    it('should handle PTY initialization failure', async () => {
+      mockInitTerminal.mockRejectedValueOnce(new Error('PTY init failed'))
 
       render(<Terminal />)
 
-      const saveButton = await screen.findByRole('button', { name: /save/i })
-      await user.click(saveButton)
+      const terminal = await waitForTerminalInstance()
 
       await waitFor(() => {
-        expect(mockAppStore.addNotification).toHaveBeenCalledWith(
-          'error',
-          '保存终端内容失败: Network error'
+        expect(terminal.writeln).toHaveBeenCalledWith(
+          expect.stringContaining('Failed to initialize PTY')
         )
       })
     })
   })
 
-  describe('Content Recovery', () => {
+  describe('Session Restore', () => {
     it('should restore saved terminal content on initialization', async () => {
       mockAppStore.getSelectedBlock.mockReturnValue(mockTerminalBlockWithSave)
       mockGetAllBlocks.mockResolvedValue([mockTerminalBlockWithSave])
@@ -323,105 +236,79 @@ describe('Terminal Save Functionality', () => {
       const calls = terminal.writeln.mock.calls.map(
         (callArgs: unknown[]) => callArgs[0] as string
       )
-      const savedAtCall = calls.find((value: string) =>
-        value.startsWith('Saved at:')
-      )
-      expect(savedAtCall).toBeDefined()
-      const contentStatsCall = calls.find((value: string) =>
-        value.startsWith('Content: 6 lines')
-      )
-      expect(contentStatsCall).toBeDefined()
-
       expect(calls).toEqual(
         expect.arrayContaining([
-          'Welcome to Elfiee Terminal!',
-          'Current directory: .',
-          '$ ls',
-          'file1.txt  file2.txt',
-          '$ pwd',
-          '/home/user',
-          '=== Continue Session ===',
+          expect.stringContaining('Welcome to Elfiee Terminal!'),
+          expect.stringContaining('=== Starting New Session ==='),
         ])
       )
     })
 
-    it('should show fresh terminal when no saved content', async () => {
+    it('should start fresh session when no saved content', async () => {
       render(<Terminal />)
 
       const terminal = await waitForTerminalInstance()
 
       await waitFor(() =>
         expect(terminal.writeln).toHaveBeenCalledWith(
-          'Welcome to Elfiee Terminal!'
+          'PTY session initialized.'
         )
-      )
-      expect(terminal.writeln).toHaveBeenCalledWith('Current directory: .')
-      expect(terminal.writeln).toHaveBeenCalledWith(
-        'Type any command to execute.'
       )
       expect(terminal.writeln).not.toHaveBeenCalledWith(
         '=== Restored Terminal Session ==='
       )
     })
-
-    it('should handle malformed saved content gracefully', async () => {
-      const malformedBlock: Block = {
-        ...mockTerminalBlockWithSave,
-        contents: {
-          saved_content: null,
-          saved_at: 'invalid-date',
-        },
-      }
-      mockAppStore.getSelectedBlock.mockReturnValue(malformedBlock)
-      mockGetAllBlocks.mockResolvedValue([malformedBlock])
-
-      render(<Terminal />)
-
-      const terminal = await waitForTerminalInstance()
-
-      await waitFor(() =>
-        expect(terminal.writeln).toHaveBeenCalledWith(
-          'Welcome to Elfiee Terminal!'
-        )
-      )
-    })
   })
 
-  describe('UI Status Indicators', () => {
-    // 验证顶栏状态展示（目录、保存提示、按钮文案等）
-    it('should show saved status in directory info', async () => {
-      mockAppStore.getSelectedBlock.mockReturnValue(mockTerminalBlockWithSave)
-      mockGetAllBlocks.mockResolvedValue([mockTerminalBlockWithSave])
+  describe('Save Functionality', () => {
+    it('should save terminal buffer content', async () => {
+      setTerminalBufferLines([
+        'Welcome to Elfiee Terminal!',
+        'PTY session initialized.',
+        '$ ls',
+        'file1.txt  file2.txt',
+      ])
+      const user = userEvent.setup()
 
       render(<Terminal />)
 
-      // 简化后的实现：Terminal 组件不再显示保存状态信息
-      // 只验证按钮存在且显示 "Save"
-      const button = await screen.findByRole('button', { name: /save/i })
-      expect(button).toHaveTextContent('Save')
+      const saveButton = await screen.findByRole('button', { name: /save/i })
+      await user.click(saveButton)
+
+      await waitFor(() => {
+        expect(mockSaveSession).toHaveBeenCalledWith(
+          'test-file-id',
+          'terminal-block-1',
+          expect.stringContaining('Welcome to Elfiee Terminal!'),
+          'test-editor'
+        )
+      })
+
+      expect(mockAppStore.addNotification).toHaveBeenCalledWith(
+        'success',
+        '终端内容已保存到 Block 中。'
+      )
     })
 
-    it('should show "Save" button for saved content', async () => {
-      mockAppStore.getSelectedBlock.mockReturnValue(mockTerminalBlockWithSave)
-      mockGetAllBlocks.mockResolvedValue([mockTerminalBlockWithSave])
+    it('should handle save failure', async () => {
+      mockSaveSession.mockRejectedValueOnce(new Error('Save failed'))
+      const user = userEvent.setup()
 
       render(<Terminal />)
 
-      // 简化后的实现：统一显示 "Save" 按钮，不再区分 "Update Save"
-      const button = await screen.findByRole('button', { name: /save/i })
-      expect(button).toHaveTextContent('Save')
-    })
+      const saveButton = await screen.findByRole('button', { name: /save/i })
+      await user.click(saveButton)
 
-    it('should show "Save" button for unsaved content', async () => {
-      render(<Terminal />)
-
-      const button = await screen.findByRole('button', { name: /save/i })
-      expect(button).toHaveTextContent('Save')
-      expect(button).not.toHaveTextContent('Update Save')
+      await waitFor(() => {
+        expect(mockAppStore.addNotification).toHaveBeenCalledWith(
+          'error',
+          '保存终端内容失败: Save failed'
+        )
+      })
     })
 
     it('should disable save button while saving', async () => {
-      mockExecuteCommand.mockImplementationOnce(
+      mockSaveSession.mockImplementationOnce(
         () => new Promise((resolve) => setTimeout(() => resolve([]), 100))
       )
       const user = userEvent.setup()
@@ -437,57 +324,32 @@ describe('Terminal Save Functionality', () => {
     })
   })
 
-  describe('Integration with terminal.write capability', () => {
-    it('should call terminal.write with correct payload structure', async () => {
-      setTerminalBufferLines(['. $ echo hello', 'hello'])
-      const user = userEvent.setup()
+  describe('No Terminal Block', () => {
+    it('should show error when no terminal block selected', async () => {
+      mockAppStore.getSelectedBlock.mockReturnValue(null)
 
       render(<Terminal />)
 
-      const saveButton = await screen.findByRole('button', { name: /save/i })
-      await user.click(saveButton)
-
-      await waitFor(() => {
-        expect(mockExecuteCommand).toHaveBeenCalledWith(
-          'test-file-id',
-          expect.objectContaining({
-            cmd_id: expect.any(String),
-            editor_id: 'test-editor',
-            cap_id: 'terminal.write',
-            block_id: 'terminal-block-1',
-            payload: expect.objectContaining({
-              saved_content: expect.any(String),
-              saved_at: expect.stringMatching(
-                /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/
-              ),
-              current_directory: '.',
-            }),
-            timestamp: expect.any(String),
-          })
-        )
-      })
+      expect(
+        await screen.findByText('终端需要Terminal Block')
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /save/i })
+      ).not.toBeInTheDocument()
     })
 
-    it('should extract multi-line terminal content correctly', async () => {
-      setTerminalBufferLines([
-        '. $ echo "Hello World"',
-        'Hello World',
-        '. $ ls -la',
-      ])
-      const user = userEvent.setup()
+    it('should show error when selected block is not terminal type', async () => {
+      const markdownBlock: Block = {
+        ...mockTerminalBlock,
+        block_type: 'markdown',
+      }
+      mockAppStore.getSelectedBlock.mockReturnValue(markdownBlock)
 
       render(<Terminal />)
 
-      const saveButton = await screen.findByRole('button', { name: /save/i })
-      await user.click(saveButton)
-
-      await waitFor(() => {
-        const call = mockExecuteCommand.mock.calls[0]
-        const payload = call[1].payload
-        expect(payload.saved_content).toContain('. $ echo "Hello World"')
-        expect(payload.saved_content).toContain('Hello World')
-        expect(payload.saved_content).toContain('. $ ls -la')
-      })
+      expect(
+        await screen.findByText('终端需要Terminal Block')
+      ).toBeInTheDocument()
     })
   })
 })
