@@ -147,8 +147,16 @@ export function Terminal() {
           }
         }
       }
-      window.addEventListener('resize', handleResize)
-      resizeListener = () => window.removeEventListener('resize', handleResize)
+
+      // Use ResizeObserver for more robust resizing
+      const resizeObserver = new ResizeObserver(() => {
+        // Debounce slightly to avoid thrashing
+        requestAnimationFrame(() => {
+          handleResize()
+        })
+      })
+      resizeObserver.observe(element)
+      resizeListener = () => resizeObserver.disconnect()
 
       // Load existing terminal block
       let blocks = await TauriClient.block.getAllBlocks(activeFileId)
@@ -224,9 +232,14 @@ export function Terminal() {
       // Initialize PTY session
       try {
         const editor = getActiveEditor(activeFileId)
+        console.log(
+          'Current block temp dir:',
+          (selectedBlock?.contents as any)?._block_dir
+        )
         const dims = fitAddon.proposeDimensions()
 
         // Get working directory from block contents (injected by backend at runtime)
+        console.log('[selectedBlock] selectedBlock:', selectedBlock)
         const blockContents = terminalBlock.contents as any
         console.log('[Terminal] Block contents:', blockContents)
         const workingDir = blockContents?._block_dir as string | undefined
@@ -246,6 +259,11 @@ export function Terminal() {
 
         ptyInitializedRef.current = true
         term.writeln('PTY session initialized.')
+
+        // Force a resize to ensure PTY and xterm are in sync
+        requestAnimationFrame(() => {
+          handleResize()
+        })
       } catch (err) {
         term.writeln(`Failed to initialize PTY: ${err}`)
         setIsInitializing(false)
