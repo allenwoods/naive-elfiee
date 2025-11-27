@@ -171,8 +171,7 @@ impl ElfileEngineActor {
                 }
                 EngineMessage::GetBlock { block_id, response } => {
                     let mut block = self.state.get_block(&block_id).cloned();
-                    
-                   
+
                     if let Some(ref mut b) = block {
                         self.inject_block_dir_if_possible(b);
                     }
@@ -180,10 +179,11 @@ impl ElfileEngineActor {
                 }
                 EngineMessage::GetAllBlocks { response } => {
                     let mut blocks = self.state.blocks.clone();
-                    
+
                     self.with_temp_dir(|temp_dir| {
                         for block in blocks.values_mut() {
-                            let _ = inject_block_dir(temp_dir, &block.block_id, &mut block.contents);
+                            let _ =
+                                inject_block_dir(temp_dir, &block.block_id, &mut block.contents);
                         }
                     });
                     let _ = response.send(blocks);
@@ -815,7 +815,7 @@ mod tests {
         let temp_dir = tempfile::TempDir::new().unwrap();
         let db_path = temp_dir.path().join("events.db");
         let event_pool = EventStore::create(db_path.to_str().unwrap()).await.unwrap();
-        
+
         let handle = spawn_engine("test_file".to_string(), event_pool.clone())
             .await
             .expect("Failed to spawn engine");
@@ -846,7 +846,7 @@ mod tests {
         // Verify _block_dir is injected
         let contents = block.contents.as_object().unwrap();
         assert!(contents.contains_key("_block_dir"));
-        
+
         let block_dir = contents.get("_block_dir").unwrap().as_str().unwrap();
         assert!(std::path::Path::new(block_dir).exists());
         assert!(block_dir.contains(block_id));
