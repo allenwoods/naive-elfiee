@@ -6,23 +6,13 @@
  */
 
 import { describe, it, expect, beforeAll, vi } from 'vitest'
+import { setupCommandMocks } from '@/test/mock-tauri-invoke'
+import { createMockEvent } from '@/test/setup'
 
-// Mock Tauri APIs
-vi.mock('@tauri-apps/plugin-dialog', () => {
-  console.log('Mock factory running for @tauri-apps/plugin-dialog')
-  return {
-    save: vi.fn().mockResolvedValue('/tmp/test-terminal.elf'),
-    open: vi.fn(),
-  }
-})
-
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}))
-
+// Mock Tauri APIs - the global mock from setup.ts should be sufficient
+// We just need to configure it in beforeAll
 import { TauriClient } from '@/lib/tauri-client'
 import { invoke } from '@tauri-apps/api/core'
-import { save } from '@tauri-apps/plugin-dialog'
 
 describe('Terminal PTY Integration', () => {
   let fileId: string
@@ -30,20 +20,25 @@ describe('Terminal PTY Integration', () => {
   let terminalBlockId: string
 
   beforeAll(async () => {
-    // Mock file dialog to return a test path
+    // Import and configure save mock - must be done dynamically
+    const { save } = await import('@tauri-apps/plugin-dialog')
     vi.mocked(save).mockResolvedValue('/tmp/test-terminal.elf')
 
     // Mock the backend commands to return successful results
-    vi.mocked(invoke)
-      .mockResolvedValueOnce('test-file-id') // createFile
-      .mockResolvedValueOnce({
+    setupCommandMocks({
+      createFile: 'test-file-id',
+      createEditor: {
         editor_id: 'test-editor-id',
         name: 'test-editor',
-      }) // createEditor
-      .mockResolvedValueOnce(undefined) // setActiveEditor
-      .mockResolvedValueOnce([
-        { entity: 'test-terminal-block-id', event_id: 'test-event-1' },
-      ]) // createBlock
+      },
+      setActiveEditor: null,
+      executeCommand: [
+        createMockEvent({
+          entity: 'test-terminal-block-id',
+          event_id: 'test-event-1',
+        }),
+      ],
+    })
 
     // Create test file
     const createFileId = await TauriClient.file.createFile()

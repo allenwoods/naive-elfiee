@@ -82,7 +82,7 @@ vi.mock('@xterm/addon-fit', () => {
 
 // Mock Tauri event listener
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(() => Promise.resolve(() => {})),
+  listen: vi.fn(() => Promise.resolve(() => { })),
 }))
 
 vi.mock('@/lib/tauri-client', () => ({
@@ -90,6 +90,7 @@ vi.mock('@/lib/tauri-client', () => ({
     block: {
       executeCommand: vi.fn(),
       getAllBlocks: vi.fn(),
+      getBlock: vi.fn(),
     },
     terminal: {
       initTerminal: vi.fn(),
@@ -142,6 +143,7 @@ describe('Terminal PTY Functionality', () => {
   let mockResizePty: ReturnType<typeof vi.fn>
   let mockSaveSession: ReturnType<typeof vi.fn>
   let mockGetAllBlocks: ReturnType<typeof vi.fn>
+  let mockGetBlock: ReturnType<typeof vi.fn>
 
   beforeEach(async () => {
     currentTerminal = null
@@ -153,11 +155,13 @@ describe('Terminal PTY Functionality', () => {
     mockResizePty = vi.mocked(TauriClient.terminal.resizePty)
     mockSaveSession = vi.mocked(TauriClient.terminal.saveSession)
     mockGetAllBlocks = vi.mocked(TauriClient.block.getAllBlocks)
+    mockGetBlock = vi.mocked(TauriClient.block.getBlock)
 
     vi.clearAllMocks()
     mockAppStore.getActiveEditor.mockReturnValue(mockEditor)
     mockAppStore.getSelectedBlock.mockReturnValue(mockTerminalBlock)
     mockGetAllBlocks.mockResolvedValue([mockTerminalBlock])
+    mockGetBlock.mockResolvedValue(mockTerminalBlock)
     mockInitTerminal.mockResolvedValue(undefined)
     mockWriteToPty.mockResolvedValue(undefined)
     mockResizePty.mockResolvedValue(undefined)
@@ -186,7 +190,8 @@ describe('Terminal PTY Functionality', () => {
           'terminal-block-1',
           'test-editor',
           24,
-          80
+          80,
+          undefined // Optional cwd parameter
         )
       })
     })
@@ -222,6 +227,7 @@ describe('Terminal PTY Functionality', () => {
     it('should restore saved terminal content on initialization', async () => {
       mockAppStore.getSelectedBlock.mockReturnValue(mockTerminalBlockWithSave)
       mockGetAllBlocks.mockResolvedValue([mockTerminalBlockWithSave])
+      mockGetBlock.mockResolvedValue(mockTerminalBlockWithSave)
 
       render(<Terminal />)
 
