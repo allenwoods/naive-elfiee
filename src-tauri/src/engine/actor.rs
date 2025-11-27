@@ -110,6 +110,28 @@ pub struct ElfileEngineActor {
 }
 
 impl ElfileEngineActor {
+    /// Execute closure with temp dir derived from event pool path, if available.
+    fn with_temp_dir<F>(&self, mut f: F)
+    where
+        F: FnMut(&Path),
+    {
+        if let Some(temp_dir) = self
+            .event_pool_with_path
+            .db_path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+        {
+            f(temp_dir);
+        }
+    }
+
+    /// Inject _block_dir for a specific block when temp dir is available.
+    fn inject_block_dir_if_possible(&self, block: &mut Block) {
+        self.with_temp_dir(|temp_dir| {
+            let _ = inject_block_dir(temp_dir, &block.block_id, &mut block.contents);
+        });
+    }
+
     /// Create a new engine actor for a file.
     ///
     /// This initializes the actor by replaying all events from the database
@@ -150,35 +172,20 @@ impl ElfileEngineActor {
                 EngineMessage::GetBlock { block_id, response } => {
                     let mut block = self.state.get_block(&block_id).cloned();
                     
-                    // Inject _block_dir (runtime only)
+                   
                     if let Some(ref mut b) = block {
-                        if let Some(temp_dir) = self
-                            .event_pool_with_path
-                            .db_path
-                            .parent()
-                            .filter(|p| !p.as_os_str().is_empty())
-                        {
-                            let _ = inject_block_dir(temp_dir, &b.block_id, &mut b.contents);
-                        }
+                        self.inject_block_dir_if_possible(b);
                     }
-                    
                     let _ = response.send(block);
                 }
                 EngineMessage::GetAllBlocks { response } => {
                     let mut blocks = self.state.blocks.clone();
                     
-                    // Inject _block_dir for all blocks
-                    if let Some(temp_dir) = self
-                        .event_pool_with_path
-                        .db_path
-                        .parent()
-                        .filter(|p| !p.as_os_str().is_empty())
-                    {
+                    self.with_temp_dir(|temp_dir| {
                         for block in blocks.values_mut() {
                             let _ = inject_block_dir(temp_dir, &block.block_id, &mut block.contents);
                         }
-                    }
-                    
+                    });
                     let _ = response.send(blocks);
                 }
                 EngineMessage::GetAllEditors { response } => {
@@ -798,6 +805,51 @@ mod tests {
         assert_eq!(block.name, "Test Block");
         assert_eq!(block.block_type, "markdown");
         assert_eq!(block.owner, "alice");
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_engine_get_block_injects_dir() {
+        // Use a real temp directory to test injection logic
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("events.db");
+        let event_pool = EventStore::create(db_path.to_str().unwrap()).await.unwrap();
+        
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+            .await
+            .expect("Failed to spawn engine");
+
+        // Create a block
+        let create_cmd = Command::new(
+            "alice".to_string(),
+            "core.create".to_string(),
+            "".to_string(),
+            serde_json::json!({
+                "name": "Test Block",
+                "block_type": "markdown"
+            }),
+        );
+
+        let events = handle
+            .process_command(create_cmd)
+            .await
+            .expect("Failed to create block");
+        let block_id = &events[0].entity;
+
+        // Get the block
+        let block = handle
+            .get_block(block_id.clone())
+            .await
+            .expect("Block should exist");
+
+        // Verify _block_dir is injected
+        let contents = block.contents.as_object().unwrap();
+        assert!(contents.contains_key("_block_dir"));
+        
+        let block_dir = contents.get("_block_dir").unwrap().as_str().unwrap();
+        assert!(std::path::Path::new(block_dir).exists());
+        assert!(block_dir.contains(block_id));
 
         handle.shutdown().await;
     }
