@@ -148,11 +148,37 @@ impl ElfileEngineActor {
                     let _ = response.send(result);
                 }
                 EngineMessage::GetBlock { block_id, response } => {
-                    let block = self.state.get_block(&block_id).cloned();
+                    let mut block = self.state.get_block(&block_id).cloned();
+                    
+                    // Inject _block_dir (runtime only)
+                    if let Some(ref mut b) = block {
+                        if let Some(temp_dir) = self
+                            .event_pool_with_path
+                            .db_path
+                            .parent()
+                            .filter(|p| !p.as_os_str().is_empty())
+                        {
+                            let _ = inject_block_dir(temp_dir, &b.block_id, &mut b.contents);
+                        }
+                    }
+                    
                     let _ = response.send(block);
                 }
                 EngineMessage::GetAllBlocks { response } => {
-                    let blocks = self.state.blocks.clone();
+                    let mut blocks = self.state.blocks.clone();
+                    
+                    // Inject _block_dir for all blocks
+                    if let Some(temp_dir) = self
+                        .event_pool_with_path
+                        .db_path
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                    {
+                        for block in blocks.values_mut() {
+                            let _ = inject_block_dir(temp_dir, &block.block_id, &mut block.contents);
+                        }
+                    }
+                    
                     let _ = response.send(blocks);
                 }
                 EngineMessage::GetAllEditors { response } => {
