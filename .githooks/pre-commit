@@ -27,11 +27,19 @@ if ! git diff --quiet --ignore-submodules --; then
     fi
 fi
 
-echo "🛠  Running make fmt before commit..."
+echo "🛠  Running make fmt (backend) before commit..."
 
 if ! make fmt >"$LOG_FILE" 2>&1; then
     cat "$LOG_FILE"
     echo "❌ make fmt failed. Please fix the issues above."
+    exit 1
+fi
+
+echo "🧹  Running pnpm format (frontend) before commit..."
+
+if ! pnpm format >"$LOG_FILE" 2>&1; then
+    cat "$LOG_FILE"
+    echo "❌ pnpm format failed. Please fix the issues above."
     exit 1
 fi
 
