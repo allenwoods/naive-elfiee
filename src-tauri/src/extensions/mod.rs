@@ -6,4 +6,6 @@
 /// ## Available Extensions
 ///
 /// - `markdown`: Read and write markdown content to markdown blocks
+/// - `terminal`: Execute terminal commands and record them in terminal blocks
 pub mod markdown;
+pub mod terminal;
