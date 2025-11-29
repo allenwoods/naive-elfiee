@@ -50,10 +50,20 @@ impl CapabilityRegistry {
 
     /// Register all extension capabilities.
     fn register_extensions(&mut self) {
+        use crate::extensions::directory::*;
+
         use crate::extensions::markdown::*;
 
         self.register(Arc::new(MarkdownWriteCapability));
         self.register(Arc::new(MarkdownReadCapability));
+        self.register(Arc::new(DirectoryListCapability));
+        self.register(Arc::new(DirectoryCreateCapability));
+        self.register(Arc::new(DirectoryDeleteCapability));
+        self.register(Arc::new(DirectoryRenameCapability));
+        self.register(Arc::new(DirectoryRefreshCapability));
+        self.register(Arc::new(DirectoryWatchCapability));
+        self.register(Arc::new(DirectorySearchCapability));
+        self.register(Arc::new(DirectoryRootCapability));
     }
 }
 
