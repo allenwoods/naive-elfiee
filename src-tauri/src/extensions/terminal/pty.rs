@@ -43,6 +43,8 @@ pub struct TerminalResizePayload {
 pub struct TerminalSession {
     pub writer: Box<dyn Write + Send>,
     pub master: Box<dyn portable_pty::MasterPty + Send>,
+    /// Channel to signal the reader thread to stop
+    pub shutdown_tx: std::sync::mpsc::Sender<()>,
 }
 
 pub struct TerminalState {
@@ -170,6 +172,9 @@ pub async fn async_init_terminal(
         .take_writer()
         .map_err(|e| format!("Failed to take writer: {}", e))?;
 
+    // Create shutdown channel for thread cleanup
+    let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
+
     // Store session
     {
         let mut sessions = state.sessions.lock().unwrap();
@@ -178,6 +183,7 @@ pub async fn async_init_terminal(
             TerminalSession {
                 writer,
                 master: pair.master,
+                shutdown_tx,
             },
         );
     }
@@ -189,6 +195,11 @@ pub async fn async_init_terminal(
     thread::spawn(move || {
         let mut buffer = [0u8; 1024];
         loop {
+            // Check for shutdown signal (non-blocking)
+            if shutdown_rx.try_recv().is_ok() {
+                break;
+            }
+
             match reader.read(&mut buffer) {
                 Ok(n) if n > 0 => {
                     let data = &buffer[..n];
@@ -282,10 +293,26 @@ pub async fn resize_pty(
 #[specta]
 pub async fn close_terminal_session(
     state: State<'_, TerminalState>,
+    app_state: State<'_, AppState>,
+    file_id: String,
     block_id: String,
+    editor_id: String,
 ) -> Result<(), String> {
+    // Verify permissions using capability system
+    check_terminal_permission(
+        &app_state,
+        &file_id,
+        &editor_id,
+        &block_id,
+        "terminal.close",
+    )
+    .await?;
+
     let mut sessions = state.sessions.lock().unwrap();
     if let Some(session) = sessions.remove(&block_id) {
+        // Signal the reader thread to stop
+        let _ = session.shutdown_tx.send(());
+
         // Dropping the session will drop the master PTY, which should terminate the child process
         drop(session);
     }

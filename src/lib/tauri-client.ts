@@ -691,10 +691,20 @@ export class TerminalOperations {
 
   /**
    * Close PTY session
+   * @param fileId - File ID (required for permission checking)
    * @param blockId - Terminal block ID
+   * @param editorId - Editor ID (required for permission checking)
    */
-  static async closeTerminal(blockId: string): Promise<void> {
-    const result = await commands.closeTerminalSession(blockId)
+  static async closeTerminal(
+    fileId: string,
+    blockId: string,
+    editorId: string
+  ): Promise<void> {
+    const result = await commands.closeTerminalSession(
+      fileId,
+      blockId,
+      editorId
+    )
     if (result.status === 'error') {
       throw new Error(result.error)
     }

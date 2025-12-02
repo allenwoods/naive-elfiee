@@ -317,9 +317,14 @@ export function Terminal() {
       fitAddonRef.current = null
 
       // Clean up PTY session in backend
-      if (terminalBlockIdRef.current) {
+      if (terminalBlockIdRef.current && activeFileId) {
+        const editor = getActiveEditor(activeFileId)
         TauriClient.terminal
-          .closeTerminal(terminalBlockIdRef.current)
+          .closeTerminal(
+            activeFileId,
+            terminalBlockIdRef.current,
+            editor?.editor_id || 'default-editor'
+          )
           .catch((err) =>
             console.error('Failed to close terminal session:', err)
           )
