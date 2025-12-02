@@ -28,7 +28,10 @@ fn handle_terminal_save(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<E
         serde_json::Map::new()
     };
 
-    new_contents.insert("saved_content".to_string(), serde_json::json!(payload.saved_content));
+    new_contents.insert(
+        "saved_content".to_string(),
+        serde_json::json!(payload.saved_content),
+    );
     new_contents.insert("saved_at".to_string(), serde_json::json!(payload.saved_at));
 
     // Create event

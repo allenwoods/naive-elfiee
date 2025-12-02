@@ -141,8 +141,15 @@ export function Terminal() {
         if (terminalBlockIdRef.current && fitAddon) {
           const dims = fitAddon.proposeDimensions()
           if (dims) {
+            const currentEditor = getActiveEditor(activeFileId)
             TauriClient.terminal
-              .resizePty(terminalBlockIdRef.current, dims.rows, dims.cols)
+              .resizePty(
+                activeFileId,
+                terminalBlockIdRef.current,
+                currentEditor?.editor_id || 'default-editor',
+                dims.rows,
+                dims.cols
+              )
               .catch((err) => console.error('PTY resize failed:', err))
           }
         }
@@ -250,6 +257,7 @@ export function Terminal() {
         }
 
         await TauriClient.terminal.initTerminal(
+          activeFileId,
           terminalBlock.block_id,
           editor?.editor_id || 'default-editor',
           dims?.rows || 24,
@@ -274,8 +282,14 @@ export function Terminal() {
       disposeData = term.onData((data) => {
         if (!ptyInitializedRef.current || !terminalBlockIdRef.current) return
 
+        const currentEditor = getActiveEditor(activeFileId)
         TauriClient.terminal
-          .writeToPty(terminalBlockIdRef.current, data)
+          .writeToPty(
+            activeFileId,
+            terminalBlockIdRef.current,
+            currentEditor?.editor_id || 'default-editor',
+            data
+          )
           .catch((err) => console.error('PTY write failed:', err))
       })
 

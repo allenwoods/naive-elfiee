@@ -50,7 +50,6 @@ pub fn run() {
                 extensions::terminal::pty::async_init_terminal,
                 extensions::terminal::pty::write_to_pty,
                 extensions::terminal::pty::resize_pty,
-
             ])
             // Explicitly export payload types for frontend type generation
             // These types are used inside Command.payload but not in Tauri command signatures,

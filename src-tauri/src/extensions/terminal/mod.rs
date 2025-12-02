@@ -1,7 +1,6 @@
 /// Terminal Extension
 ///
 /// PTY-based terminal implementation using portable-pty
-
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
