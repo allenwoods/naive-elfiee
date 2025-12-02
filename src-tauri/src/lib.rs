@@ -16,7 +16,6 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
         .manage(extensions::terminal::pty::TerminalState::new());
 
@@ -105,8 +104,6 @@ pub fn run() {
         commands::editor::get_active_editor,
         // Grant operations
         commands::editor::list_grants,
-        commands::editor::get_editor_grants,
-        commands::editor::get_block_grants,
         commands::editor::get_editor_grants,
         commands::editor::get_block_grants,
         // Terminal operations
