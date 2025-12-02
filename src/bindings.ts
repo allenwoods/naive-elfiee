@@ -442,6 +442,20 @@ export const commands = {
       else return { status: 'error', error: e as any }
     }
   },
+  /**
+   * Close a PTY session.
+   */
+  async closeTerminalSession(blockId: string): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('close_terminal_session', { blockId }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
 }
 
 /** user-defined events **/
@@ -597,12 +611,15 @@ export type TerminalInitPayload = {
   rows: number
   block_id: string
   editor_id: string
+  file_id: string
   cwd: string | null
 }
 export type TerminalResizePayload = {
   cols: number
   rows: number
   block_id: string
+  file_id: string
+  editor_id: string
 }
 /**
  * Payload for terminal.save capability
@@ -619,7 +636,12 @@ export type TerminalSavePayload = {
    */
   saved_at: string
 }
-export type TerminalWritePayload = { data: string; block_id: string }
+export type TerminalWritePayload = {
+  data: string
+  block_id: string
+  file_id: string
+  editor_id: string
+}
 /**
  * Payload for core.unlink capability
  *

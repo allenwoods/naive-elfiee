@@ -688,6 +688,17 @@ export class TerminalOperations {
     )
     return await BlockOperations.executeCommand(fileId, cmd)
   }
+
+  /**
+   * Close PTY session
+   * @param blockId - Terminal block ID
+   */
+  static async closeTerminal(blockId: string): Promise<void> {
+    const result = await commands.closeTerminalSession(blockId)
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+  }
 }
 
 /**

@@ -276,3 +276,18 @@ pub async fn resize_pty(
 
     Ok(())
 }
+
+/// Close a PTY session.
+#[tauri::command]
+#[specta]
+pub async fn close_terminal_session(
+    state: State<'_, TerminalState>,
+    block_id: String,
+) -> Result<(), String> {
+    let mut sessions = state.sessions.lock().unwrap();
+    if let Some(session) = sessions.remove(&block_id) {
+        // Dropping the session will drop the master PTY, which should terminate the child process
+        drop(session);
+    }
+    Ok(())
+}

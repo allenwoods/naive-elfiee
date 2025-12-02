@@ -315,6 +315,16 @@ export function Terminal() {
         xtermRef.current = null
       }
       fitAddonRef.current = null
+
+      // Clean up PTY session in backend
+      if (terminalBlockIdRef.current) {
+        TauriClient.terminal
+          .closeTerminal(terminalBlockIdRef.current)
+          .catch((err) =>
+            console.error('Failed to close terminal session:', err)
+          )
+      }
+
       terminalBlockIdRef.current = null
     }
   }, [activeFileId, selectedBlock, getActiveEditor, selectBlock])
