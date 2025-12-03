@@ -74,6 +74,7 @@ describe('Terminal PTY Integration', () => {
     const testCwd = '/tmp/test-cwd'
     await expect(
       TauriClient.terminal.initTerminal(
+        fileId,
         terminalBlockId,
         editorId,
         24,
@@ -84,6 +85,7 @@ describe('Terminal PTY Integration', () => {
 
     expect(invoke).toHaveBeenCalledWith('async_init_terminal', {
       payload: {
+        file_id: fileId,
         block_id: terminalBlockId,
         editor_id: editorId,
         rows: 24,
@@ -97,11 +99,18 @@ describe('Terminal PTY Integration', () => {
     vi.mocked(invoke).mockResolvedValueOnce(null)
 
     await expect(
-      TauriClient.terminal.initTerminal(terminalBlockId, editorId, 24, 80)
+      TauriClient.terminal.initTerminal(
+        fileId,
+        terminalBlockId,
+        editorId,
+        24,
+        80
+      )
     ).resolves.toBeUndefined()
 
     expect(invoke).toHaveBeenCalledWith('async_init_terminal', {
       payload: {
+        file_id: fileId,
         block_id: terminalBlockId,
         editor_id: editorId,
         rows: 24,
@@ -115,12 +124,14 @@ describe('Terminal PTY Integration', () => {
     vi.mocked(invoke).mockResolvedValueOnce(null)
 
     await expect(
-      TauriClient.terminal.writeToPty(terminalBlockId, 'ls\n')
+      TauriClient.terminal.writeToPty(fileId, terminalBlockId, editorId, 'ls\n')
     ).resolves.toBeUndefined()
 
     expect(invoke).toHaveBeenCalledWith('write_to_pty', {
       payload: {
+        file_id: fileId,
         block_id: terminalBlockId,
+        editor_id: editorId,
         data: 'ls\n',
       },
     })
@@ -130,12 +141,14 @@ describe('Terminal PTY Integration', () => {
     vi.mocked(invoke).mockResolvedValueOnce(null)
 
     await expect(
-      TauriClient.terminal.resizePty(terminalBlockId, 30, 100)
+      TauriClient.terminal.resizePty(fileId, terminalBlockId, editorId, 30, 100)
     ).resolves.toBeUndefined()
 
     expect(invoke).toHaveBeenCalledWith('resize_pty', {
       payload: {
+        file_id: fileId,
         block_id: terminalBlockId,
+        editor_id: editorId,
         rows: 30,
         cols: 100,
       },
@@ -177,7 +190,13 @@ describe('Terminal PTY Integration', () => {
     vi.mocked(invoke).mockRejectedValueOnce('PTY initialization failed')
 
     await expect(
-      TauriClient.terminal.initTerminal(terminalBlockId, editorId, 24, 80)
+      TauriClient.terminal.initTerminal(
+        fileId,
+        terminalBlockId,
+        editorId,
+        24,
+        80
+      )
     ).rejects.toThrow('PTY initialization failed')
   })
 })

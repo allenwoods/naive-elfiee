@@ -97,6 +97,7 @@ vi.mock('@/lib/tauri-client', () => ({
       writeToPty: vi.fn(),
       resizePty: vi.fn(),
       saveSession: vi.fn(),
+      closeTerminal: vi.fn(),
     },
   },
 }))
@@ -142,6 +143,7 @@ describe('Terminal PTY Functionality', () => {
   let mockWriteToPty: ReturnType<typeof vi.fn>
   let mockResizePty: ReturnType<typeof vi.fn>
   let mockSaveSession: ReturnType<typeof vi.fn>
+  let mockCloseTerminal: ReturnType<typeof vi.fn>
   let mockGetAllBlocks: ReturnType<typeof vi.fn>
   let mockGetBlock: ReturnType<typeof vi.fn>
 
@@ -154,6 +156,7 @@ describe('Terminal PTY Functionality', () => {
     mockWriteToPty = vi.mocked(TauriClient.terminal.writeToPty)
     mockResizePty = vi.mocked(TauriClient.terminal.resizePty)
     mockSaveSession = vi.mocked(TauriClient.terminal.saveSession)
+    mockCloseTerminal = vi.mocked(TauriClient.terminal.closeTerminal)
     mockGetAllBlocks = vi.mocked(TauriClient.block.getAllBlocks)
     mockGetBlock = vi.mocked(TauriClient.block.getBlock)
 
@@ -166,6 +169,7 @@ describe('Terminal PTY Functionality', () => {
     mockWriteToPty.mockResolvedValue(undefined)
     mockResizePty.mockResolvedValue(undefined)
     mockSaveSession.mockResolvedValue([])
+    mockCloseTerminal.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -187,6 +191,7 @@ describe('Terminal PTY Functionality', () => {
 
       await waitFor(() => {
         expect(mockInitTerminal).toHaveBeenCalledWith(
+          'test-file-id',
           'terminal-block-1',
           'test-editor',
           24,

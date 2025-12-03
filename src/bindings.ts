@@ -445,11 +445,19 @@ export const commands = {
   /**
    * Close a PTY session.
    */
-  async closeTerminalSession(blockId: string): Promise<Result<null, string>> {
+  async closeTerminalSession(
+    fileId: string,
+    blockId: string,
+    editorId: string
+  ): Promise<Result<null, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('close_terminal_session', { blockId }),
+        data: await TAURI_INVOKE('close_terminal_session', {
+          file_id: fileId,
+          block_id: blockId,
+          editor_id: editorId,
+        }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
