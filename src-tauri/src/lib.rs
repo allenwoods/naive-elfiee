@@ -16,7 +16,8 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(AppState::new());
+        .manage(AppState::new())
+        .manage(extensions::terminal::pty::TerminalState::new());
 
     // Generate TypeScript bindings in debug mode
     #[cfg(debug_assertions)]
@@ -30,7 +31,7 @@ pub fn run() {
                 commands::file::close_file,
                 commands::file::list_open_files,
                 commands::file::get_all_events,
-                // Block operations
+                // Block operations (core)
                 commands::block::execute_command,
                 commands::block::get_block,
                 commands::block::get_all_blocks,
@@ -44,6 +45,11 @@ pub fn run() {
                 commands::editor::list_grants,
                 commands::editor::get_editor_grants,
                 commands::editor::get_block_grants,
+                // Terminal operations
+                extensions::terminal::pty::async_init_terminal,
+                extensions::terminal::pty::write_to_pty,
+                extensions::terminal::pty::resize_pty,
+                extensions::terminal::pty::close_terminal_session,
             ])
             // Explicitly export payload types for frontend type generation
             // These types are used inside Command.payload but not in Tauri command signatures,
@@ -58,7 +64,11 @@ pub fn run() {
             .typ::<models::RevokePayload>()
             .typ::<models::EditorCreatePayload>()
             // Extension payload types
-            .typ::<extensions::markdown::MarkdownWritePayload>();
+            .typ::<extensions::markdown::MarkdownWritePayload>()
+            .typ::<extensions::terminal::TerminalSavePayload>()
+            .typ::<extensions::terminal::pty::TerminalInitPayload>()
+            .typ::<extensions::terminal::pty::TerminalWritePayload>()
+            .typ::<extensions::terminal::pty::TerminalResizePayload>();
 
         // Export TypeScript bindings on app startup
         #[cfg(debug_assertions)]
@@ -82,7 +92,7 @@ pub fn run() {
         commands::file::close_file,
         commands::file::list_open_files,
         commands::file::get_all_events,
-        // Block operations
+        // Block operations (core)
         commands::block::execute_command,
         commands::block::get_block,
         commands::block::get_all_blocks,
@@ -96,6 +106,11 @@ pub fn run() {
         commands::editor::list_grants,
         commands::editor::get_editor_grants,
         commands::editor::get_block_grants,
+        // Terminal operations
+        extensions::terminal::pty::async_init_terminal,
+        extensions::terminal::pty::write_to_pty,
+        extensions::terminal::pty::resize_pty,
+        extensions::terminal::pty::close_terminal_session,
     ]);
 
     builder

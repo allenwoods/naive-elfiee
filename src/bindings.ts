@@ -394,6 +394,76 @@ export const commands = {
       else return { status: 'error', error: e as any }
     }
   },
+  /**
+   * Initialize a new PTY session for a block.
+   */
+  async asyncInitTerminal(
+    payload: TerminalInitPayload
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('async_init_terminal', { payload }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Write data to the PTY.
+   */
+  async writeToPty(
+    payload: TerminalWritePayload
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('write_to_pty', { payload }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Resize the PTY.
+   */
+  async resizePty(
+    payload: TerminalResizePayload
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('resize_pty', { payload }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Close a PTY session.
+   */
+  async closeTerminalSession(
+    fileId: string,
+    blockId: string,
+    editorId: string
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('close_terminal_session', {
+          file_id: fileId,
+          block_id: blockId,
+          editor_id: editorId,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
 }
 
 /** user-defined events **/
@@ -543,6 +613,42 @@ export type RevokePayload = {
    * The block ID to revoke access from, or "*" for all blocks (wildcard)
    */
   target_block?: string
+}
+export type TerminalInitPayload = {
+  cols: number
+  rows: number
+  block_id: string
+  editor_id: string
+  file_id: string
+  cwd: string | null
+}
+export type TerminalResizePayload = {
+  cols: number
+  rows: number
+  block_id: string
+  file_id: string
+  editor_id: string
+}
+/**
+ * Payload for terminal.save capability
+ *
+ * This payload is used to save terminal content (buffer snapshot) to a terminal block.
+ */
+export type TerminalSavePayload = {
+  /**
+   * The terminal content to save (typically from xterm.js buffer)
+   */
+  saved_content: string
+  /**
+   * Timestamp when the content was saved
+   */
+  saved_at: string
+}
+export type TerminalWritePayload = {
+  data: string
+  block_id: string
+  file_id: string
+  editor_id: string
 }
 /**
  * Payload for core.unlink capability

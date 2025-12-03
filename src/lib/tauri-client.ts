@@ -6,6 +6,7 @@
  */
 
 import { open, save } from '@tauri-apps/plugin-dialog'
+
 import {
   commands,
   type Block,
@@ -19,8 +20,8 @@ import {
   type UnlinkBlockPayload,
   type GrantPayload,
   type RevokePayload,
+  type TerminalSavePayload,
 } from '@/bindings'
-
 /**
  * Default editor ID for single-user MVP
  */
@@ -43,6 +44,16 @@ export interface UpdateMetadataPayload {
 }
 
 /**
+ * Terminal command history entry
+ */
+export interface TerminalCommandEntry {
+  command: string
+  output: string
+  timestamp: string
+  exit_code: number
+}
+
+/**
  * File Operations
  */
 export class FileOperations {
@@ -59,12 +70,14 @@ export class FileOperations {
         },
       ],
     })
+    console.log('[TauriClient] save returned:', filePath)
 
     if (!filePath) {
       return null
     }
 
     const result = await commands.createFile(filePath)
+    console.log('[TauriClient] commands.createFile returned:', result)
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -92,6 +105,9 @@ export class FileOperations {
     }
 
     const result = await commands.openFile(filePath)
+    const listOpenFiles = await commands.listOpenFiles()
+    console.log('[TauriClient] listOpenFiles:', listOpenFiles)
+    console.log('[TauriClient] openFile result:', result)
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -209,6 +225,24 @@ export class BlockOperations {
    */
   static async getAllBlocks(fileId: string): Promise<Block[]> {
     const result = await commands.getAllBlocks(fileId)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * List files in a block's asset directory
+   * @param fileId - Unique identifier of the file
+   * @param blockId - Unique identifier of the block
+   * @returns List of file and directory names
+   */
+  static async listBlockFiles(
+    fileId: string,
+    blockId: string
+  ): Promise<string[]> {
+    const result = await commands.listBlockFiles(fileId, blockId)
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -545,12 +579,146 @@ export class EditorOperations {
 }
 
 /**
+ * Terminal Operations (PTY-based)
+ */
+export class TerminalOperations {
+  /**
+   * Initialize a PTY session for a terminal block
+   * @param fileId - File ID (required for permission checking)
+   * @param blockId - Terminal block ID
+   * @param editorId - Editor ID
+   * @param rows - Terminal rows
+   * @param cols - Terminal columns
+   * @param cwd - Optional working directory
+   */
+  static async initTerminal(
+    fileId: string,
+    blockId: string,
+    editorId: string,
+    rows: number,
+    cols: number,
+    cwd?: string
+  ): Promise<void> {
+    const result = await commands.asyncInitTerminal({
+      file_id: fileId,
+      block_id: blockId,
+      editor_id: editorId,
+      rows,
+      cols,
+      cwd: cwd || null,
+    })
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Write data to PTY
+   * @param fileId - File ID (required for permission checking)
+   * @param blockId - Terminal block ID
+   * @param editorId - Editor ID (required for permission checking)
+   * @param data - Data to write (user input)
+   */
+  static async writeToPty(
+    fileId: string,
+    blockId: string,
+    editorId: string,
+    data: string
+  ): Promise<void> {
+    const result = await commands.writeToPty({
+      file_id: fileId,
+      block_id: blockId,
+      editor_id: editorId,
+      data,
+    })
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Resize PTY
+   * @param fileId - File ID (required for permission checking)
+   * @param blockId - Terminal block ID
+   * @param editorId - Editor ID (required for permission checking)
+   * @param rows - New terminal rows
+   * @param cols - New terminal columns
+   */
+  static async resizePty(
+    fileId: string,
+    blockId: string,
+    editorId: string,
+    rows: number,
+    cols: number
+  ): Promise<void> {
+    const result = await commands.resizePty({
+      file_id: fileId,
+      block_id: blockId,
+      editor_id: editorId,
+      rows,
+      cols,
+    })
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Save terminal session content to block
+   * @param fileId - File ID
+   * @param blockId - Terminal block ID
+   * @param content - Terminal buffer content
+   * @param editorId - Editor ID
+   */
+  static async saveSession(
+    fileId: string,
+    blockId: string,
+    content: string,
+    editorId: string = DEFAULT_EDITOR_ID
+  ): Promise<Event[]> {
+    const payload: TerminalSavePayload = {
+      saved_content: content,
+      saved_at: new Date().toISOString(),
+    }
+    const cmd = createCommand(
+      editorId,
+      'terminal.save',
+      blockId,
+      payload as unknown as JsonValue
+    )
+    return await BlockOperations.executeCommand(fileId, cmd)
+  }
+
+  /**
+   * Close PTY session
+   * @param fileId - File ID (required for permission checking)
+   * @param blockId - Terminal block ID
+   * @param editorId - Editor ID (required for permission checking)
+   */
+  static async closeTerminal(
+    fileId: string,
+    blockId: string,
+    editorId: string
+  ): Promise<void> {
+    const result = await commands.closeTerminalSession(
+      fileId,
+      blockId,
+      editorId
+    )
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+  }
+}
+
+/**
  * Combined API client
  */
 export const TauriClient = {
   file: FileOperations,
   block: BlockOperations,
   editor: EditorOperations,
+  terminal: TerminalOperations,
 }
 
 // Re-export types from bindings for convenience
