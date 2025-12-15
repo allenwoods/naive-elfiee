@@ -126,10 +126,7 @@ export class BlockOperations {
     }
   }
 
-  static async executeCommand(
-    fileId: string,
-    cmd: Command
-  ): Promise<Event[]> {
+  static async executeCommand(fileId: string, cmd: Command): Promise<Event[]> {
     const result = await commands.executeCommand(fileId, cmd)
     if (result.status === 'ok') {
       return result.data
@@ -189,10 +186,7 @@ export class BlockOperations {
  * Editor Operations
  */
 export class EditorOperations {
-  static async createEditor(
-    fileId: string,
-    name: string
-  ): Promise<Editor> {
+  static async createEditor(fileId: string, name: string): Promise<Editor> {
     const result = await commands.createEditor(fileId, name)
     if (result.status === 'ok') {
       return result.data
@@ -210,10 +204,7 @@ export class EditorOperations {
     }
   }
 
-  static async getEditor(
-    fileId: string,
-    editorId: string
-  ): Promise<Editor> {
+  static async getEditor(fileId: string, editorId: string): Promise<Editor> {
     const result = await commands.getEditor(fileId, editorId)
     if (result.status === 'ok') {
       return result.data
@@ -327,4 +318,3 @@ export const TauriClient = {
   block: BlockOperations,
   editor: EditorOperations,
 }
-

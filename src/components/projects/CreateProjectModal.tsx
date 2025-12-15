@@ -1,20 +1,22 @@
-import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
-import { LocationBreadcrumb } from "./LocationBreadcrumb";
-import { cn } from "@/lib/utils";
+import { useState, useEffect } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Loader2 } from 'lucide-react'
+import { LocationBreadcrumb } from './LocationBreadcrumb'
+import { cn } from '@/lib/utils'
 
 interface CreateProjectModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreate: (project: {
-    name: string;
-    description: string;
-  }) => void;
-  existingNames: string[];
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreate: (project: { name: string; description: string }) => void
+  existingNames: string[]
 }
 
 export const CreateProjectModal = ({
@@ -23,56 +25,58 @@ export const CreateProjectModal = ({
   onCreate,
   existingNames,
 }: CreateProjectModalProps) => {
-  const [projectName, setProjectName] = useState("");
-  const [description, setDescription] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [nameError, setNameError] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState('')
+  const [description, setDescription] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
+  const [nameError, setNameError] = useState<string | null>(null)
 
   // Reset state when modal opens
   useEffect(() => {
     if (open) {
-      setProjectName("");
-      setDescription("");
-      setIsCreating(false);
-      setNameError(null);
+      setProjectName('')
+      setDescription('')
+      setIsCreating(false)
+      setNameError(null)
     }
-  }, [open]);
+  }, [open])
 
   // Validate name on change
   useEffect(() => {
     if (projectName.trim()) {
-      const normalizedInput = projectName.trim().toLowerCase();
-      const isDuplicate = existingNames.some((name) => name.toLowerCase() === normalizedInput);
+      const normalizedInput = projectName.trim().toLowerCase()
+      const isDuplicate = existingNames.some(
+        (name) => name.toLowerCase() === normalizedInput
+      )
       if (isDuplicate) {
-        setNameError("Project name already exists, please modify.");
+        setNameError('Project name already exists, please modify.')
       } else {
-        setNameError(null);
+        setNameError(null)
       }
     } else {
-      setNameError(null);
+      setNameError(null)
     }
-  }, [projectName, existingNames]);
+  }, [projectName, existingNames])
 
   const handleClose = () => {
-    onOpenChange(false);
-  };
+    onOpenChange(false)
+  }
 
   const handleCreate = async () => {
-    if (!projectName.trim() || nameError) return;
+    if (!projectName.trim() || nameError) return
 
-    setIsCreating(true);
+    setIsCreating(true)
     // Mock creation delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
     onCreate({
       name: projectName.trim(),
       description: description.trim(),
-    });
+    })
 
-    handleClose();
-  };
+    handleClose()
+  }
 
-  const isValid = projectName.trim() && !nameError;
+  const isValid = projectName.trim() && !nameError
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -84,16 +88,20 @@ export const CreateProjectModal = ({
         <div className="space-y-5 py-4">
           {/* Project Name */}
           <div>
-            <label className="text-sm font-medium mb-2 block">
+            <label className="mb-2 block text-sm font-medium">
               Project Name <span className="text-destructive">*</span>
             </label>
             <Input
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
               placeholder="e.g., User Onboarding"
-              className={cn(nameError && "border-destructive focus-visible:ring-destructive")}
+              className={cn(
+                nameError && 'border-destructive focus-visible:ring-destructive'
+              )}
             />
-            {nameError && <p className="text-sm text-destructive mt-1">{nameError}</p>}
+            {nameError && (
+              <p className="text-destructive mt-1 text-sm">{nameError}</p>
+            )}
           </div>
 
           {/* Location */}
@@ -101,8 +109,9 @@ export const CreateProjectModal = ({
 
           {/* Description */}
           <div>
-            <label className="text-sm font-medium mb-2 block">
-              Description <span className="text-muted-foreground">(Optional)</span>
+            <label className="mb-2 block text-sm font-medium">
+              Description{' '}
+              <span className="text-muted-foreground">(Optional)</span>
             </label>
             <Textarea
               value={description}
@@ -124,16 +133,16 @@ export const CreateProjectModal = ({
             >
               {isCreating ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Creating...
                 </>
               ) : (
-                "Create Project"
+                'Create Project'
               )}
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  );
-};
+  )
+}

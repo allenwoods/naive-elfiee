@@ -104,26 +104,30 @@ All colors MUST be HSL.
   .bento-card {
     @apply rounded-[24px] transition-transform duration-200;
   }
-  
+
   .bento-card-hover {
-    @apply hover:scale-[1.02] cursor-pointer;
+    @apply cursor-pointer hover:scale-[1.02];
   }
-  
+
   .metric-number {
-    @apply text-5xl md:text-6xl font-bold leading-none;
+    @apply text-5xl leading-none font-bold md:text-6xl;
   }
-  
+
   .metric-label {
-    @apply text-sm font-medium text-muted-foreground uppercase tracking-wide;
+    @apply text-muted-foreground text-sm font-medium tracking-wide uppercase;
   }
 
   /* Highlight fade animation for new/duplicated projects */
   @keyframes highlight-fade {
     0% {
-      box-shadow: 0 0 0 3px hsl(16 100% 50% / 0.5), 0 0 20px hsl(16 100% 50% / 0.3);
+      box-shadow:
+        0 0 0 3px hsl(16 100% 50% / 0.5),
+        0 0 20px hsl(16 100% 50% / 0.3);
     }
     100% {
-      box-shadow: 0 0 0 0px hsl(16 100% 50% / 0), 0 0 0px hsl(16 100% 50% / 0);
+      box-shadow:
+        0 0 0 0px hsl(16 100% 50% / 0),
+        0 0 0px hsl(16 100% 50% / 0);
     }
   }
 

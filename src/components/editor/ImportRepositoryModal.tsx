@@ -1,147 +1,187 @@
-import { useState, useRef } from "react";
-import { X, Upload, Search, Github, FolderOpen, Clock, File, FolderUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { useState, useRef } from 'react'
+import {
+  X,
+  Upload,
+  Search,
+  Github,
+  FolderOpen,
+  Clock,
+  File,
+  FolderUp,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 
 interface ImportRepositoryModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onImport: (name: string, source: string) => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onImport: (name: string, source: string) => void
 }
 
-type TabType = "local" | "agentour" | "github";
+type TabType = 'local' | 'agentour' | 'github'
 
 // Mock Agentour projects
 const mockAgentourProjects = [
-  { id: "ag-1", name: "elfiee-backend", owner: "elfiee-team", updatedAt: "2 hours ago" },
-  { id: "ag-2", name: "payment-service", owner: "elfiee-team", updatedAt: "1 day ago" },
-  { id: "ag-3", name: "user-auth", owner: "elfiee-team", updatedAt: "3 days ago" },
-  { id: "ag-4", name: "notification-hub", owner: "ops-team", updatedAt: "1 week ago" },
-];
+  {
+    id: 'ag-1',
+    name: 'elfiee-backend',
+    owner: 'elfiee-team',
+    updatedAt: '2 hours ago',
+  },
+  {
+    id: 'ag-2',
+    name: 'payment-service',
+    owner: 'elfiee-team',
+    updatedAt: '1 day ago',
+  },
+  {
+    id: 'ag-3',
+    name: 'user-auth',
+    owner: 'elfiee-team',
+    updatedAt: '3 days ago',
+  },
+  {
+    id: 'ag-4',
+    name: 'notification-hub',
+    owner: 'ops-team',
+    updatedAt: '1 week ago',
+  },
+]
 
-export const ImportRepositoryModal = ({ open, onOpenChange, onImport }: ImportRepositoryModalProps) => {
-  const [activeTab, setActiveTab] = useState<TabType>("local");
-  const [selectedAgentourProject, setSelectedAgentourProject] = useState<string | null>(null);
-  const [githubUrl, setGithubUrl] = useState("");
-  const [githubBranch, setGithubBranch] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isDragging, setIsDragging] = useState(false);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
+export const ImportRepositoryModal = ({
+  open,
+  onOpenChange,
+  onImport,
+}: ImportRepositoryModalProps) => {
+  const [activeTab, setActiveTab] = useState<TabType>('local')
+  const [selectedAgentourProject, setSelectedAgentourProject] = useState<
+    string | null
+  >(null)
+  const [githubUrl, setGithubUrl] = useState('')
+  const [githubBranch, setGithubBranch] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
 
-  if (!open) return null;
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
+
+  if (!open) return null
 
   const handleImport = () => {
-    if (activeTab === "agentour" && selectedAgentourProject) {
-      const project = mockAgentourProjects.find((p) => p.id === selectedAgentourProject);
+    if (activeTab === 'agentour' && selectedAgentourProject) {
+      const project = mockAgentourProjects.find(
+        (p) => p.id === selectedAgentourProject
+      )
       if (project) {
-        onImport(project.name, "Agentour");
-        onOpenChange(false);
-        resetState();
+        onImport(project.name, 'Agentour')
+        onOpenChange(false)
+        resetState()
       }
-    } else if (activeTab === "github" && githubUrl) {
-      const repoName = githubUrl.split("/").pop()?.replace(".git", "") || "github-repo";
-      onImport(repoName, "GitHub");
-      onOpenChange(false);
-      resetState();
-    } else if (activeTab === "local") {
-      onImport("local-folder", "Local");
-      onOpenChange(false);
-      resetState();
+    } else if (activeTab === 'github' && githubUrl) {
+      const repoName =
+        githubUrl.split('/').pop()?.replace('.git', '') || 'github-repo'
+      onImport(repoName, 'GitHub')
+      onOpenChange(false)
+      resetState()
+    } else if (activeTab === 'local') {
+      onImport('local-folder', 'Local')
+      onOpenChange(false)
+      resetState()
     }
-  };
+  }
 
   const resetState = () => {
-    setSelectedAgentourProject(null);
-    setGithubUrl("");
-    setGithubBranch("");
-    setSearchQuery("");
-    setActiveTab("local");
-  };
+    setSelectedAgentourProject(null)
+    setGithubUrl('')
+    setGithubBranch('')
+    setSearchQuery('')
+    setActiveTab('local')
+  }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+    const files = e.target.files
     if (files && files.length > 0) {
-      const name = files[0].name;
-      onImport(name, "Local File");
-      onOpenChange(false);
-      resetState();
+      const name = files[0].name
+      onImport(name, 'Local File')
+      onOpenChange(false)
+      resetState()
     }
-  };
+  }
 
   const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+    const files = e.target.files
     if (files && files.length > 0) {
       // Get the folder name from the first file's path
-      const folderName = files[0].webkitRelativePath.split("/")[0];
-      onImport(folderName, "Local Folder");
-      onOpenChange(false);
-      resetState();
+      const folderName = files[0].webkitRelativePath.split('/')[0]
+      onImport(folderName, 'Local Folder')
+      onOpenChange(false)
+      resetState()
     }
-  };
+  }
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
+    e.preventDefault()
+    setIsDragging(true)
+  }
 
   const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
+    e.preventDefault()
+    setIsDragging(false)
+  }
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const items = e.dataTransfer.items;
+    e.preventDefault()
+    setIsDragging(false)
+    const items = e.dataTransfer.items
     if (items && items.length > 0) {
-      const item = items[0];
-      if (item.kind === "file") {
-        const entry = item.webkitGetAsEntry?.();
-        const name = entry?.name || "dropped-item";
-        onImport(name, entry?.isDirectory ? "Local Folder" : "Local File");
-        onOpenChange(false);
-        resetState();
+      const item = items[0]
+      if (item.kind === 'file') {
+        const entry = item.webkitGetAsEntry?.()
+        const name = entry?.name || 'dropped-item'
+        onImport(name, entry?.isDirectory ? 'Local Folder' : 'Local File')
+        onOpenChange(false)
+        resetState()
       }
     }
-  };
+  }
 
   const filteredProjects = mockAgentourProjects.filter((p) =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  )
 
   const canImport =
-    (activeTab === "agentour" && selectedAgentourProject) ||
-    (activeTab === "github" && githubUrl.trim()) ||
-    activeTab === "local";
+    (activeTab === 'agentour' && selectedAgentourProject) ||
+    (activeTab === 'github' && githubUrl.trim()) ||
+    activeTab === 'local'
 
   const tabs: { id: TabType; label: string; disabled?: boolean }[] = [
-    { id: "local", label: "Local" },
-    { id: "agentour", label: "Agentour", disabled: true },
-    { id: "github", label: "GitHub", disabled: true },
-  ];
+    { id: 'local', label: 'Local' },
+    { id: 'agentour', label: 'Agentour', disabled: true },
+    { id: 'github', label: 'GitHub', disabled: true },
+  ]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-background rounded-xl shadow-2xl w-[520px] max-w-[95vw] overflow-hidden">
+      <div className="bg-background w-[520px] max-w-[95vw] overflow-hidden rounded-xl shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <h2 className="text-lg font-semibold text-foreground">Import Repository</h2>
+        <div className="border-border flex items-center justify-between border-b px-6 py-4">
+          <h2 className="text-foreground text-lg font-semibold">
+            Import Repository
+          </h2>
           <button
             onClick={() => {
-              onOpenChange(false);
-              resetState();
+              onOpenChange(false)
+              resetState()
             }}
-            className="w-8 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Tabs Navigation */}
-        <div className="px-6 pt-4 border-b border-border">
+        <div className="border-border border-b px-6 pt-4">
           <div className="flex gap-6">
             {tabs.map((tab) => (
               <button
@@ -149,22 +189,22 @@ export const ImportRepositoryModal = ({ open, onOpenChange, onImport }: ImportRe
                 onClick={() => !tab.disabled && setActiveTab(tab.id)}
                 disabled={tab.disabled}
                 className={cn(
-                  "pb-3 text-sm font-medium transition-colors relative flex items-center gap-1.5",
+                  'relative flex items-center gap-1.5 pb-3 text-sm font-medium transition-colors',
                   tab.disabled
-                    ? "text-gray-300 cursor-not-allowed"
+                    ? 'cursor-not-allowed text-gray-300'
                     : activeTab === tab.id
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? 'text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 {tab.label}
                 {tab.disabled && (
-                  <span className="text-[10px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded">
+                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-400">
                     Coming Soon
                   </span>
                 )}
                 {activeTab === tab.id && !tab.disabled && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground" />
+                  <div className="bg-foreground absolute right-0 bottom-0 left-0 h-0.5" />
                 )}
               </button>
             ))}
@@ -172,39 +212,39 @@ export const ImportRepositoryModal = ({ open, onOpenChange, onImport }: ImportRe
         </div>
 
         {/* Content Area */}
-        <div className="p-6 min-h-[280px]">
+        <div className="min-h-[280px] p-6">
           {/* Local Tab */}
-          {activeTab === "local" && (
-            <div className="h-full flex flex-col items-center justify-center">
+          {activeTab === 'local' && (
+            <div className="flex h-full flex-col items-center justify-center">
               {/* Drop Zone */}
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={cn(
-                  "border-2 border-dashed rounded-lg h-40 w-full flex flex-col items-center justify-center transition-colors",
+                  'flex h-40 w-full flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors',
                   isDragging
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground"
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-muted-foreground'
                 )}
               >
-                <FolderOpen className="w-10 h-10 mb-3 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mb-1">
+                <FolderOpen className="text-muted-foreground mb-3 h-10 w-10" />
+                <p className="text-muted-foreground mb-1 text-sm">
                   Drag files or folders here
                 </p>
-                <p className="text-xs text-muted-foreground/70">
+                <p className="text-muted-foreground/70 text-xs">
                   Or use the buttons below to browse
                 </p>
               </div>
 
               {/* Upload Buttons */}
-              <div className="flex gap-3 mt-4 w-full">
+              <div className="mt-4 flex w-full gap-3">
                 <Button
                   variant="outline"
                   className="flex-1"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <File className="w-4 h-4 mr-2" />
+                  <File className="mr-2 h-4 w-4" />
                   Upload File
                 </Button>
                 <Button
@@ -212,7 +252,7 @@ export const ImportRepositoryModal = ({ open, onOpenChange, onImport }: ImportRe
                   className="flex-1"
                   onClick={() => folderInputRef.current?.click()}
                 >
-                  <FolderUp className="w-4 h-4 mr-2" />
+                  <FolderUp className="mr-2 h-4 w-4" />
                   Upload Folder
                 </Button>
               </div>
@@ -229,48 +269,51 @@ export const ImportRepositoryModal = ({ open, onOpenChange, onImport }: ImportRe
                 type="file"
                 className="hidden"
                 onChange={handleFolderSelect}
-                {...({ webkitdirectory: "true", directory: "" } as React.InputHTMLAttributes<HTMLInputElement>)}
+                {...({
+                  webkitdirectory: 'true',
+                  directory: '',
+                } as React.InputHTMLAttributes<HTMLInputElement>)}
               />
             </div>
           )}
 
           {/* Agentour Tab */}
-          {activeTab === "agentour" && (
+          {activeTab === 'agentour' && (
             <div className="space-y-4">
               {/* Search */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
                 <Input
                   placeholder="Search projects..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 border-border focus:border-foreground focus:ring-0"
+                  className="border-border focus:border-foreground pl-9 focus:ring-0"
                 />
               </div>
 
               {/* Project List */}
-              <div className="space-y-1 max-h-[200px] overflow-y-auto">
+              <div className="max-h-[200px] space-y-1 overflow-y-auto">
                 {filteredProjects.map((project) => (
                   <div
                     key={project.id}
                     onClick={() => setSelectedAgentourProject(project.id)}
                     className={cn(
-                      "flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors border",
+                      'flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors',
                       selectedAgentourProject === project.id
-                        ? "bg-orange-50 border-orange-200"
-                        : "border-transparent hover:bg-muted/50"
+                        ? 'border-orange-200 bg-orange-50'
+                        : 'hover:bg-muted/50 border-transparent'
                     )}
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground truncate text-sm font-medium">
                         {project.name}
                       </p>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="text-muted-foreground truncate text-xs">
                         {project.owner}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0 ml-2">
-                      <Clock className="w-3 h-3" />
+                    <div className="text-muted-foreground ml-2 flex flex-shrink-0 items-center gap-1 text-xs">
+                      <Clock className="h-3 w-3" />
                       <span>{project.updatedAt}</span>
                     </div>
                   </div>
@@ -280,16 +323,16 @@ export const ImportRepositoryModal = ({ open, onOpenChange, onImport }: ImportRe
           )}
 
           {/* GitHub Tab */}
-          {activeTab === "github" && (
+          {activeTab === 'github' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 mb-4 text-muted-foreground">
-                <Github className="w-5 h-5" />
+              <div className="text-muted-foreground mb-4 flex items-center gap-2">
+                <Github className="h-5 w-5" />
                 <span className="text-sm">Connect to a GitHub repository</span>
               </div>
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">
+                  <label className="text-foreground mb-1.5 block text-sm font-medium">
                     Repository URL
                   </label>
                   <Input
@@ -301,8 +344,11 @@ export const ImportRepositoryModal = ({ open, onOpenChange, onImport }: ImportRe
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-1.5 block">
-                    Branch Name <span className="text-muted-foreground font-normal">(Optional)</span>
+                  <label className="text-foreground mb-1.5 block text-sm font-medium">
+                    Branch Name{' '}
+                    <span className="text-muted-foreground font-normal">
+                      (Optional)
+                    </span>
                   </label>
                   <Input
                     placeholder="main"
@@ -317,12 +363,12 @@ export const ImportRepositoryModal = ({ open, onOpenChange, onImport }: ImportRe
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-muted/30">
+        <div className="border-border bg-muted/30 flex items-center justify-end gap-3 border-t px-6 py-4">
           <Button
             variant="ghost"
             onClick={() => {
-              onOpenChange(false);
-              resetState();
+              onOpenChange(false)
+              resetState()
             }}
           >
             Cancel
@@ -332,11 +378,11 @@ export const ImportRepositoryModal = ({ open, onOpenChange, onImport }: ImportRe
             disabled={!canImport}
             className="bg-foreground text-background hover:bg-foreground/90"
           >
-            <Upload className="w-4 h-4 mr-2" />
+            <Upload className="mr-2 h-4 w-4" />
             Import
           </Button>
         </div>
       </div>
     </div>
-  );
-};
+  )
+}

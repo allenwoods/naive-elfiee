@@ -1,38 +1,42 @@
-import { useState } from "react";
+import { useState } from 'react'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Loader2 } from 'lucide-react'
 
 interface InviteModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  projectName: string;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  projectName: string
 }
 
-export const InviteModal = ({ open, onOpenChange, projectName }: InviteModalProps) => {
-  const [email, setEmail] = useState("");
-  const [isSending, setIsSending] = useState(false);
+export const InviteModal = ({
+  open,
+  onOpenChange,
+  projectName,
+}: InviteModalProps) => {
+  const [email, setEmail] = useState('')
+  const [isSending, setIsSending] = useState(false)
 
   const handleClose = () => {
-    setEmail("");
-    setIsSending(false);
-    onOpenChange(false);
-  };
+    setEmail('')
+    setIsSending(false)
+    onOpenChange(false)
+  }
 
   const handleSendInvite = async () => {
-    if (!email.trim()) return;
-    setIsSending(true);
+    if (!email.trim()) return
+    setIsSending(true)
     // Mock delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    handleClose();
-  };
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    handleClose()
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -42,7 +46,9 @@ export const InviteModal = ({ open, onOpenChange, projectName }: InviteModalProp
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div>
-            <label className="text-sm font-medium mb-2 block">Email or Name</label>
+            <label className="mb-2 block text-sm font-medium">
+              Email or Name
+            </label>
             <Input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -62,15 +68,15 @@ export const InviteModal = ({ open, onOpenChange, projectName }: InviteModalProp
           >
             {isSending ? (
               <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Sending...
               </>
             ) : (
-              "Send Invite"
+              'Send Invite'
             )}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-};
+  )
+}

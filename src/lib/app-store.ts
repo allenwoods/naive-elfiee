@@ -35,8 +35,16 @@ interface AppStore {
 
   // Block operations
   loadBlocks: (fileId: string) => Promise<void>
-  createBlock: (fileId: string, name: string, blockType: string) => Promise<void>
-  updateBlock: (fileId: string, blockId: string, content: string) => Promise<void>
+  createBlock: (
+    fileId: string,
+    name: string,
+    blockType: string
+  ) => Promise<void>
+  updateBlock: (
+    fileId: string,
+    blockId: string,
+    content: string
+  ) => Promise<void>
   deleteBlock: (fileId: string, blockId: string) => Promise<void>
   selectBlock: (blockId: string | null) => void
   getBlock: (fileId: string, blockId: string) => Block | undefined
@@ -83,7 +91,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null })
       const fileId = await TauriClient.file.openFile(path)
-      
+
       const files = new Map(get().files)
       files.set(fileId, {
         fileId,
@@ -93,18 +101,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
         events: [],
         activeEditorId: null,
       })
-      
+
       set({ files, currentFileId: fileId })
-      
+
       // Load initial data
       await get().loadBlocks(fileId)
       await get().loadEditors(fileId)
       await get().loadGrants(fileId)
       await get().loadEvents(fileId)
-      
+
       toast.success('File opened successfully')
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       set({ error: errorMessage })
       toast.error(`Failed to open file: ${errorMessage}`)
     } finally {
@@ -116,7 +125,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       set({ isLoading: true, error: null })
       const fileId = await TauriClient.file.createFile(path)
-      
+
       const files = new Map(get().files)
       files.set(fileId, {
         fileId,
@@ -126,11 +135,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
         events: [],
         activeEditorId: null,
       })
-      
+
       set({ files, currentFileId: fileId })
       toast.success('File created successfully')
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       set({ error: errorMessage })
       toast.error(`Failed to create file: ${errorMessage}`)
     } finally {
@@ -143,12 +153,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await TauriClient.file.closeFile(fileId)
       const files = new Map(get().files)
       files.delete(fileId)
-      
-      const currentFileId = get().currentFileId === fileId ? null : get().currentFileId
+
+      const currentFileId =
+        get().currentFileId === fileId ? null : get().currentFileId
       set({ files, currentFileId })
       toast.success('File closed')
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to close file: ${errorMessage}`)
     }
   },
@@ -168,7 +180,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ files })
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to load blocks: ${errorMessage}`)
     }
   },
@@ -178,12 +191,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ isLoading: true, error: null })
       const activeEditor = get().getActiveEditor(fileId)
       const editorId = activeEditor?.editor_id || 'default-editor'
-      
+
       await TauriClient.block.createBlock(fileId, name, blockType, editorId)
       await get().loadBlocks(fileId)
       toast.success('Block created')
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to create block: ${errorMessage}`)
     } finally {
       set({ isLoading: false })
@@ -195,12 +209,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ isLoading: true, error: null })
       const activeEditor = get().getActiveEditor(fileId)
       const editorId = activeEditor?.editor_id || 'default-editor'
-      
+
       await TauriClient.block.writeBlock(fileId, blockId, content, editorId)
       await get().loadBlocks(fileId)
       await get().loadEvents(fileId)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to update block: ${errorMessage}`)
     } finally {
       set({ isLoading: false })
@@ -212,16 +227,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ isLoading: true, error: null })
       const activeEditor = get().getActiveEditor(fileId)
       const editorId = activeEditor?.editor_id || 'default-editor'
-      
+
       await TauriClient.block.deleteBlock(fileId, blockId, editorId)
       await get().loadBlocks(fileId)
-      
+
       if (get().selectedBlockId === blockId) {
         set({ selectedBlockId: null })
       }
       toast.success('Block deleted')
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to delete block: ${errorMessage}`)
     } finally {
       set({ isLoading: false })
@@ -234,7 +250,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   getBlock: (fileId: string, blockId: string) => {
     const fileState = get().files.get(fileId)
-    return fileState?.blocks.find(b => b.block_id === blockId)
+    return fileState?.blocks.find((b) => b.block_id === blockId)
   },
 
   getBlocks: (fileId: string) => {
@@ -247,7 +263,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       const editors = await TauriClient.editor.listEditors(fileId)
       const activeEditorId = await TauriClient.editor.getActiveEditor(fileId)
-      
+
       const files = new Map(get().files)
       const fileState = files.get(fileId)
       if (fileState) {
@@ -255,7 +271,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ files })
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to load editors: ${errorMessage}`)
     }
   },
@@ -266,7 +283,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await get().loadEditors(fileId)
       toast.success('Editor created')
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to create editor: ${errorMessage}`)
     }
   },
@@ -281,7 +299,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ files })
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to set active editor: ${errorMessage}`)
     }
   },
@@ -289,7 +308,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   getActiveEditor: (fileId: string) => {
     const fileState = get().files.get(fileId)
     if (!fileState?.activeEditorId) return undefined
-    return fileState.editors.find(e => e.editor_id === fileState.activeEditorId)
+    return fileState.editors.find(
+      (e) => e.editor_id === fileState.activeEditorId
+    )
   },
 
   getEditors: (fileId: string) => {
@@ -308,7 +329,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ files })
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to load grants: ${errorMessage}`)
     }
   },
@@ -323,7 +345,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ isLoading: true, error: null })
       const activeEditor = get().getActiveEditor(fileId)
       const editorId = activeEditor?.editor_id || 'default-editor'
-      
+
       await TauriClient.editor.grantCapability(
         fileId,
         targetEditor,
@@ -333,7 +355,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       )
       await get().loadGrants(fileId)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to grant capability: ${errorMessage}`)
     } finally {
       set({ isLoading: false })
@@ -350,7 +373,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ isLoading: true, error: null })
       const activeEditor = get().getActiveEditor(fileId)
       const editorId = activeEditor?.editor_id || 'default-editor'
-      
+
       await TauriClient.editor.revokeCapability(
         fileId,
         targetEditor,
@@ -360,7 +383,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       )
       await get().loadGrants(fileId)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to revoke capability: ${errorMessage}`)
     } finally {
       set({ isLoading: false })
@@ -383,7 +407,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ files })
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       toast.error(`Failed to load events: ${errorMessage}`)
     }
   },
@@ -393,4 +418,3 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return fileState?.events || []
   },
 }))
-
