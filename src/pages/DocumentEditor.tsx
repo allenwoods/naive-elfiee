@@ -1,7 +1,7 @@
 import { Sidebar } from '@/components/dashboard/Sidebar'
 import { FilePanel } from '@/components/editor/FilePanel'
 import { EditorCanvas } from '@/components/editor/EditorCanvas'
-import { ContextPanel } from '@/components/editor/ContextPanel'
+import ContextPanel from '@/components/editor/ContextPanel'
 import { Menu } from 'lucide-react'
 import { useState } from 'react'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
