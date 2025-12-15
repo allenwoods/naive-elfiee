@@ -1,0 +1,288 @@
+import { useState } from "react";
+import { ChevronDown, ChevronRight, Folder, FileText, Plus, Upload, FilePlus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useEditorStore, ImportedFile, Document } from "@/lib/mockStore";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
+
+// --- Components ---
+
+const FileNode = ({ node, depth = 0 }: { node: ImportedFile; depth?: number }) => {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <div>
+      <div
+        className={cn(
+          "flex items-center gap-2 px-3 py-1.5 cursor-pointer rounded-lg transition-colors hover:bg-card/50 text-foreground"
+        )}
+        style={{ paddingLeft: `${12 + depth * 16}px` }}
+        onClick={() => node.type === "folder" && setIsOpen(!isOpen)}
+      >
+        {node.type === "folder" ? (
+          <>
+            {isOpen ? (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            )}
+            <Folder className="w-4 h-4 text-muted-foreground" />
+          </>
+        ) : (
+          <>
+            <span className="w-4" />
+            <FileText className="w-4 h-4 text-muted-foreground" />
+          </>
+        )}
+        <span className="text-sm truncate">{node.name}</span>
+      </div>
+
+      {node.type === "folder" &&
+        isOpen &&
+        node.children?.map((child) => <FileNode key={child.id} node={child} depth={depth + 1} />)}
+    </div>
+  );
+};
+
+const DocumentNode = ({ doc, depth = 0 }: { doc: Document; depth?: number }) => {
+  const [isOpen, setIsOpen] = useState(true);
+  const { activeDocumentId, setActiveDocument } = useEditorStore();
+  const isActive = activeDocumentId === doc.id;
+
+  return (
+    <div>
+      <div
+        className={cn(
+          "flex items-center gap-2 px-3 py-1.5 cursor-pointer rounded-lg transition-colors",
+          isActive ? "bg-card text-accent font-medium" : "hover:bg-card/50 text-foreground"
+        )}
+        style={{ paddingLeft: `${12 + depth * 16}px` }}
+        onClick={() => {
+          if (doc.type === "folder") {
+            setIsOpen(!isOpen);
+          } else {
+            setActiveDocument(doc.id);
+          }
+        }}
+      >
+        {doc.type === "folder" ? (
+          <>
+            {isOpen ? (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            )}
+            <Folder className="w-4 h-4 text-muted-foreground" />
+          </>
+        ) : (
+          <>
+            <span className="w-4" />
+            <FileText
+              className={cn("w-4 h-4", isActive ? "text-accent" : "text-muted-foreground")}
+            />
+          </>
+        )}
+        <span className="text-sm truncate">{doc.name}</span>
+      </div>
+
+      {doc.type === "folder" &&
+        isOpen &&
+        doc.children?.map((child) => <DocumentNode key={child.id} doc={child} depth={depth + 1} />)}
+    </div>
+  );
+};
+
+const ImportDialog = () => {
+  const [open, setOpen] = useState(false);
+  const [path, setPath] = useState("");
+  const { importFile } = useEditorStore();
+
+  const handleImport = () => {
+    if (!path) return;
+
+    // Mock import logic
+    const name = path.split(/[/\\]/).pop() || "unknown";
+    const isFile = name.includes(".");
+
+    importFile({
+      id: `imported-${Date.now()}`,
+      name,
+      type: isFile ? "file" : "folder",
+      path,
+      children: isFile
+        ? undefined
+        : [
+            {
+              id: `child-${Date.now()}`,
+              name: "example.ts",
+              type: "file",
+              path: `${path}/example.ts`,
+            },
+          ],
+    });
+
+    toast.success(`Imported ${name}`);
+    setOpen(false);
+    setPath("");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+          <Plus className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Import File or Folder</DialogTitle>
+          <DialogDescription>
+            Enter the local path to import. This is a mock action.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="path">Path</Label>
+            <Input
+              id="path"
+              value={path}
+              onChange={(e) => setPath(e.target.value)}
+              placeholder="/path/to/file"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handleImport}>Import</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const CreateDocDialog = () => {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [type, setType] = useState<"markdown" | "folder">("markdown");
+  const { createDocument } = useEditorStore();
+
+  const handleCreate = () => {
+    if (!name) return;
+    createDocument(null, name, type); // Always create at root for prototype
+    toast.success(`Created ${name}`);
+    setOpen(false);
+    setName("");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
+          <Plus className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create New Document</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Document Name"
+            />
+          </div>
+          <div className="flex gap-4">
+            <Button
+              variant={type === "markdown" ? "default" : "outline"}
+              onClick={() => setType("markdown")}
+              size="sm"
+            >
+              Markdown
+            </Button>
+            <Button
+              variant={type === "folder" ? "default" : "outline"}
+              onClick={() => setType("folder")}
+              size="sm"
+            >
+              Folder
+            </Button>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handleCreate}>Create</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// --- Main Component ---
+
+export const ProjectExplorer = ({ activeProjectId }: { activeProjectId?: string }) => {
+  const { project } = useEditorStore();
+
+  return (
+    <aside className="w-[250px] bg-secondary/50 border-r border-border flex flex-col h-full">
+      {/* Header */}
+      <div className="p-4 border-b border-border">
+        <p className="text-xs text-muted-foreground mb-1">Project</p>
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 truncate">
+          <Folder className="w-4 h-4 text-accent" />
+          {project.name}
+        </h2>
+      </div>
+
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="py-2">
+          {/* Imported Files Section */}
+          <div className="px-3 mb-4">
+            <div className="flex items-center justify-between mb-2 px-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Imported
+              </span>
+              <ImportDialog />
+            </div>
+            <div className="space-y-1">
+              {project.importedFiles.map((file) => (
+                <FileNode key={file.id} node={file} />
+              ))}
+            </div>
+          </div>
+
+          <Separator className="my-2" />
+
+          {/* Outline/Documents Section */}
+          <div className="px-3">
+            <div className="flex items-center justify-between mb-2 px-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Outline
+              </span>
+              <CreateDocDialog />
+            </div>
+            <div className="space-y-1">
+              {project.documents.map((doc) => (
+                <DocumentNode key={doc.id} doc={doc} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </ScrollArea>
+    </aside>
+  );
+};
