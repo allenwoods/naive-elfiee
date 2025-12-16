@@ -1,38 +1,33 @@
-/**
- * Custom Toaster Component
- *
- * Integrates Sonner with our app-store notification system
- */
-
-import { useEffect } from 'react'
-import { toast } from 'sonner'
-import { useAppStore } from '@/lib/app-store'
+import { useToast } from '@/hooks/use-toast'
+import {
+  Toast,
+  ToastClose,
+  ToastDescription,
+  ToastProvider,
+  ToastTitle,
+  ToastViewport,
+} from '@/components/ui/toast'
 
 export function Toaster() {
-  const { notifications, removeNotification } = useAppStore()
+  const { toasts } = useToast()
 
-  useEffect(() => {
-    // Get the latest notification that hasn't been shown yet
-    const latestNotification = notifications[notifications.length - 1]
-
-    if (latestNotification) {
-      // Show toast based on type
-      const toastId =
-        latestNotification.type === 'error'
-          ? toast.error(latestNotification.message)
-          : latestNotification.type === 'warning'
-            ? toast.warning(latestNotification.message)
-            : latestNotification.type === 'info'
-              ? toast.info(latestNotification.message)
-              : toast.success(latestNotification.message)
-
-      // Remove the notification from store after showing
-      // Use a small delay to ensure the toast is displayed
-      setTimeout(() => {
-        removeNotification(latestNotification.id)
-      }, 100)
-    }
-  }, [notifications, removeNotification])
-
-  return null
+  return (
+    <ToastProvider>
+      {toasts.map(function ({ id, title, description, action, ...props }) {
+        return (
+          <Toast key={id} {...props}>
+            <div className="grid gap-1">
+              {title && <ToastTitle>{title}</ToastTitle>}
+              {description && (
+                <ToastDescription>{description}</ToastDescription>
+              )}
+            </div>
+            {action}
+            <ToastClose />
+          </Toast>
+        )
+      })}
+      <ToastViewport />
+    </ToastProvider>
+  )
 }
