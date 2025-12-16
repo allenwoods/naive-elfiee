@@ -11,11 +11,16 @@ import { Textarea } from '@/components/ui/textarea'
 import { Loader2 } from 'lucide-react'
 import { LocationBreadcrumb } from './LocationBreadcrumb'
 import { cn } from '@/lib/utils'
+import { save } from '@tauri-apps/plugin-dialog'
 
 interface CreateProjectModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (project: { name: string; description: string }) => void
+  onCreate: (project: {
+    name: string
+    description: string
+    path: string
+  }) => void
   existingNames: string[]
 }
 
@@ -27,6 +32,7 @@ export const CreateProjectModal = ({
 }: CreateProjectModalProps) => {
   const [projectName, setProjectName] = useState('')
   const [description, setDescription] = useState('')
+  const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
 
@@ -35,6 +41,7 @@ export const CreateProjectModal = ({
     if (open) {
       setProjectName('')
       setDescription('')
+      setSelectedPath(null)
       setIsCreating(false)
       setNameError(null)
     }
@@ -61,22 +68,40 @@ export const CreateProjectModal = ({
     onOpenChange(false)
   }
 
+  const handleSelectPath = async () => {
+    const sanitizedName = projectName.trim().toLowerCase().replace(/\s+/g, '-')
+    const defaultPath = sanitizedName ? `${sanitizedName}.elf` : 'project.elf'
+
+    const filePath = await save({
+      defaultPath,
+      filters: [
+        {
+          name: 'Elfiee Project',
+          extensions: ['elf'],
+        },
+      ],
+    })
+
+    if (filePath) {
+      setSelectedPath(filePath)
+    }
+  }
+
   const handleCreate = async () => {
-    if (!projectName.trim() || nameError) return
+    if (!projectName.trim() || nameError || !selectedPath) return
 
     setIsCreating(true)
-    // Mock creation delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
 
     onCreate({
       name: projectName.trim(),
       description: description.trim(),
+      path: selectedPath,
     })
 
     handleClose()
   }
 
-  const isValid = projectName.trim() && !nameError
+  const isValid = projectName.trim() && !nameError && selectedPath
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -100,12 +125,16 @@ export const CreateProjectModal = ({
               )}
             />
             {nameError && (
-              <p className="text-destructive mt-1 text-sm">{nameError}</p>
+              <p className="mt-1 text-sm text-destructive">{nameError}</p>
             )}
           </div>
 
           {/* Location */}
-          <LocationBreadcrumb projectName={projectName} />
+          <LocationBreadcrumb
+            projectName={projectName}
+            selectedPath={selectedPath}
+            onSelectPath={handleSelectPath}
+          />
 
           {/* Description */}
           <div>

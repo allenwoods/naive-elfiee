@@ -13,7 +13,7 @@ const DocumentEditor = () => {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-white">
       {/* Mobile Header - Only visible on mobile */}
-      <div className="bg-background border-border fixed top-0 right-0 left-0 z-50 flex h-14 items-center border-b px-4 lg:hidden">
+      <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center border-b border-border bg-background px-4 lg:hidden">
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="text-accent">

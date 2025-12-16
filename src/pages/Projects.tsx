@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sidebar } from '@/components/dashboard/Sidebar'
 import { TopBar } from '@/components/dashboard/TopBar'
 import { Plus, Upload, ChevronDown, FolderOpen, Menu } from 'lucide-react'
@@ -18,55 +18,11 @@ import {
 import { ImportProjectModal } from '@/components/projects/ImportProjectModal'
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal'
 import { toast } from 'sonner'
+import { TauriClient } from '@/lib/tauri-client'
+import type { FileMetadata } from '@/bindings'
 
 type StatusFilterOption = 'all' | 'conflicts' | 'agent-running' | 'drafts'
 type SortOption = 'last-edited' | 'name-asc'
-
-const mockCollaborators: Collaborator[] = [
-  { id: '1', name: 'Ops Zhang', avatar: '' },
-  { id: '2', name: 'Claude', isAgent: true },
-]
-
-const initialProjects: Project[] = [
-  {
-    id: 'challenge-system',
-    name: 'Challenge System',
-    description:
-      'Core gamification logic for user challenges and point calculations. Includes streak tracking and achievement unlocks.',
-    path: '~/docs/challenge-system.elf',
-    status: 'conflict',
-    lastEdited: '5m ago',
-    collaborators: mockCollaborators,
-  },
-  {
-    id: 'api-docs',
-    name: 'API Docs',
-    description: 'REST API documentation for the platform.',
-    path: '~/docs/api-docs.elf',
-    status: 'synced',
-    lastEdited: '1d ago',
-    collaborators: [{ id: '1', name: 'Ops Zhang', avatar: '' }],
-  },
-  {
-    id: 'new-feature-spec',
-    name: 'New Feature Spec',
-    description: 'Draft specification for the upcoming release.',
-    path: '~/docs/feature-spec.elf',
-    status: 'editing',
-    lastEdited: '2m ago',
-    // No collaborators - will show invite button
-  },
-  {
-    id: 'legacy-data',
-    name: 'Legacy Data Migration',
-    description:
-      'This document outlines the comprehensive migration strategy for transitioning legacy user data from the old MySQL database to the new PostgreSQL cluster. It includes detailed field mappings, data transformation rules, and rollback procedures.',
-    path: '~/docs/legacy-migration.elf',
-    status: 'synced',
-    lastEdited: '3d ago',
-    collaborators: mockCollaborators,
-  },
-]
 
 const statusFilterOptions: {
   value: StatusFilterOption
@@ -84,8 +40,47 @@ const sortOptions: { value: SortOption; label: string }[] = [
   { value: 'name-asc', label: 'Name (A-Z)' },
 ]
 
+/**
+ * Convert FileMetadata to Project type for UI display
+ */
+function fileMetadataToProject(metadata: FileMetadata): Project {
+  const collaborators: Collaborator[] = metadata.collaborators.map((id) => ({
+    id,
+    name: id,
+    avatar: '',
+  }))
+
+  // Calculate last edited time (simple conversion from ISO string)
+  const lastModified = new Date(metadata.last_modified)
+  const now = new Date()
+  const diffMs = now.getTime() - lastModified.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  let lastEdited: string
+  if (diffMins < 60) {
+    lastEdited = `${diffMins}m ago`
+  } else if (diffHours < 24) {
+    lastEdited = `${diffHours}h ago`
+  } else {
+    lastEdited = `${diffDays}d ago`
+  }
+
+  return {
+    id: metadata.file_id,
+    name: metadata.name,
+    description: `Project file: ${metadata.name}.elf`,
+    path: metadata.path,
+    status: 'synced', // Default status, can be enhanced later
+    lastEdited,
+    collaborators: collaborators.length > 0 ? collaborators : undefined,
+  }
+}
+
 const Projects = () => {
-  const [projects, setProjects] = useState<Project[]>(initialProjects)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilterOption>('all')
   const [sortBy, setSortBy] = useState<SortOption>('last-edited')
   const [showImportModal, setShowImportModal] = useState(false)
@@ -93,10 +88,55 @@ const Projects = () => {
   const [highlightedProjectId, setHighlightedProjectId] = useState<
     string | null
   >(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
-  // Apply filter and sort
+  // Load projects from backend on mount
+  useEffect(() => {
+    loadProjects()
+  }, [])
+
+  /**
+   * Load all open files from backend
+   */
+  const loadProjects = async () => {
+    try {
+      setLoading(true)
+      const fileIds = await TauriClient.file.listOpenFiles()
+
+      // Get metadata for each file
+      const metadataPromises = fileIds.map((id) =>
+        TauriClient.file.getFileInfo(id)
+      )
+      const metadata = await Promise.all(metadataPromises)
+
+      // Convert to Project format
+      const loadedProjects = metadata.map(fileMetadataToProject)
+      setProjects(loadedProjects)
+    } catch (error) {
+      console.error('Failed to load projects:', error)
+      toast.error('Failed to load projects')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Apply search, filter and sort
   const filteredProjects = projects
     .filter((project) => {
+      // Search filter - search in name, description, and path
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase()
+        const matchesName = project.name.toLowerCase().includes(query)
+        const matchesDescription = project.description
+          ?.toLowerCase()
+          .includes(query)
+        const matchesPath = project.path.toLowerCase().includes(query)
+
+        if (!matchesName && !matchesDescription && !matchesPath) {
+          return false
+        }
+      }
+
       // Status filter
       if (statusFilter === 'all') return true
       if (statusFilter === 'conflicts') return project.status === 'conflict'
@@ -119,80 +159,153 @@ const Projects = () => {
     sortOptions.find((s) => s.value === sortBy)?.label || 'Last Edited'
   const existingNames = projects.map((p) => p.name)
 
-  const handleRename = (id: string, newName: string) => {
-    setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, name: newName } : p))
-    )
-    toast.success('Project renamed')
-  }
+  const handleRename = async (id: string, newName: string) => {
+    try {
+      await TauriClient.file.renameFile(id, newName)
 
-  const handleDuplicate = (id: string) => {
-    const project = projects.find((p) => p.id === id)
-    if (project) {
-      const newProject: Project = {
-        ...project,
-        id: `${project.id}-copy-${Date.now()}`,
-        name: `${project.name} (Copy)`,
-        lastEdited: 'Just now',
-      }
-      setProjects((prev) => [...prev, newProject])
-      toast.success('Project duplicated')
+      // Update local state
+      setProjects((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, name: newName } : p))
+      )
+      toast.success('Project renamed')
+    } catch (error) {
+      console.error('Failed to rename project:', error)
+      toast.error(`Failed to rename project: ${error}`)
     }
   }
 
-  const handleDelete = (id: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id))
-    toast.success('Project deleted')
+  const handleDuplicate = async (id: string) => {
+    try {
+      // Duplicate the file using backend
+      const newFileId = await TauriClient.file.duplicateFile(id)
+
+      // Get metadata for the new file
+      const metadata = await TauriClient.file.getFileInfo(newFileId)
+
+      // Convert to Project and add to list
+      const newProject = fileMetadataToProject(metadata)
+      setProjects((prev) => [newProject, ...prev])
+      setHighlightedProjectId(newProject.id)
+      toast.success(`Project duplicated as '${metadata.name}'`)
+
+      // Remove highlight after animation
+      setTimeout(() => setHighlightedProjectId(null), 2000)
+    } catch (error) {
+      console.error('Failed to duplicate project:', error)
+      toast.error(`Failed to duplicate project: ${error}`)
+    }
   }
 
-  const handleImportProject = (data: {
+  const handleDelete = async (id: string) => {
+    try {
+      await TauriClient.file.deleteFile(id)
+
+      // Update local state
+      setProjects((prev) => prev.filter((p) => p.id !== id))
+      toast.success('Project deleted')
+    } catch (error) {
+      console.error('Failed to delete project:', error)
+      toast.error(`Failed to delete project: ${error}`)
+    }
+  }
+
+  const handleImportProject = async (data: {
     name: string
     description: string
     path: string
   }) => {
-    const newProject: Project = {
-      id: `imported-${Date.now()}`,
-      name: data.name,
-      description: data.description || 'Imported .elf project',
-      path: data.path,
-      status: 'synced',
-      lastEdited: 'Just now',
-    }
-    setProjects((prev) => [newProject, ...prev])
-    setHighlightedProjectId(newProject.id)
-    toast.success(`Project '${data.name}' imported successfully.`)
+    try {
+      // Path is already selected in the modal, use it directly
+      const filePath = data.path
 
-    // Remove highlight after animation
-    setTimeout(() => setHighlightedProjectId(null), 2000)
+      // Open the file using backend
+      const fileId = await TauriClient.file.openFile(filePath)
+
+      // Get file metadata
+      const metadata = await TauriClient.file.getFileInfo(fileId)
+
+      // Convert to Project and add to list
+      const newProject = fileMetadataToProject(metadata)
+      setProjects((prev) => [newProject, ...prev])
+      setHighlightedProjectId(newProject.id)
+      toast.success(`Project '${metadata.name}' imported successfully.`)
+
+      // Remove highlight after animation
+      setTimeout(() => setHighlightedProjectId(null), 2000)
+    } catch (error) {
+      console.error('Failed to import project:', error)
+      toast.error(`Failed to import project: ${error}`)
+    }
   }
 
-  const handleCreateProject = (data: { name: string; description: string }) => {
-    const sanitizedName = data.name.toLowerCase().replace(/\s+/g, '-')
-    const newProject: Project = {
-      id: `created-${Date.now()}`,
-      name: data.name,
-      description: data.description || 'A new project',
-      path: `~/docs/${sanitizedName}.elf`,
-      status: 'editing',
-      lastEdited: 'Just now',
-    }
-    setProjects((prev) => [newProject, ...prev])
-    setHighlightedProjectId(newProject.id)
-    toast.success(`Project '${data.name}' created successfully.`)
+  const handleCreateProject = async (data: {
+    name: string
+    description: string
+    path: string
+  }) => {
+    try {
+      // Path is already selected in the modal, use it directly
+      const filePath = data.path
 
-    // Remove highlight after animation
-    setTimeout(() => setHighlightedProjectId(null), 2000)
+      // Create the file using backend with absolute path
+      const fileId = await TauriClient.file.createFile(filePath)
+
+      // If user provided a description, create a markdown block to store it
+      if (data.description.trim()) {
+        try {
+          // Create a project info block with the description
+          const projectInfoContent = `# ${data.name}\n\n${data.description}`
+          await TauriClient.block.createBlock(
+            fileId,
+            'Project Info',
+            'markdown'
+          )
+
+          // Get the created block and write the content to it
+          const blocks = await TauriClient.block.getAllBlocks(fileId)
+          if (blocks.length > 0) {
+            const projectInfoBlock = blocks[0]
+            await TauriClient.block.writeBlock(
+              fileId,
+              projectInfoBlock.block_id,
+              projectInfoContent
+            )
+          }
+        } catch (blockError) {
+          console.warn(
+            'Failed to create project description block:',
+            blockError
+          )
+          // Don't fail the whole operation if block creation fails
+        }
+      }
+
+      // Get file metadata
+      const metadata = await TauriClient.file.getFileInfo(fileId)
+
+      // Convert to Project and add to list
+      const newProject = fileMetadataToProject(metadata)
+      setProjects((prev) => [newProject, ...prev])
+      setHighlightedProjectId(newProject.id)
+      toast.success(`Project '${data.name}' created successfully.`)
+
+      // Remove highlight after animation
+      setTimeout(() => setHighlightedProjectId(null), 2000)
+    } catch (error) {
+      console.error('Failed to create project:', error)
+      toast.error(`Failed to create project: ${error}`)
+    }
   }
 
   return (
-    <div className="bg-background flex min-h-screen">
+    <div className="flex min-h-screen bg-background">
       {/* Desktop Sidebar - Always visible on lg+ */}
       <div className="hidden w-20 flex-shrink-0 lg:block">
         <Sidebar />
       </div>
 
       {/* Mobile/Tablet Header with Hamburger */}
-      <div className="bg-background border-border fixed top-0 right-0 left-0 z-40 border-b lg:hidden">
+      <div className="fixed left-0 right-0 top-0 z-40 border-b border-border bg-background lg:hidden">
         <div className="flex items-center gap-3 px-4 py-3">
           <Sheet>
             <SheetTrigger asChild>
@@ -206,19 +319,19 @@ const Projects = () => {
             </SheetTrigger>
             <SheetContent
               side="left"
-              className="bg-primary w-20 p-0 [&>button]:hidden"
+              className="w-20 bg-primary p-0 [&>button]:hidden"
             >
               <Sidebar />
             </SheetContent>
           </Sheet>
-          <h1 className="text-foreground text-xl font-bold">Projects</h1>
+          <h1 className="text-xl font-bold text-foreground">Projects</h1>
         </div>
       </div>
 
       {/* Mobile FAB - Floating Action Button */}
       <button
         onClick={() => setShowCreateModal(true)}
-        className="fixed right-6 bottom-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg transition-all hover:scale-105 hover:bg-orange-600 active:scale-95 lg:hidden"
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-orange-500 text-white shadow-lg transition-all hover:scale-105 hover:bg-orange-600 active:scale-95 lg:hidden"
         aria-label="Create new project"
       >
         <Plus className="h-7 w-7" />
@@ -228,7 +341,12 @@ const Projects = () => {
       <div className="min-h-screen flex-1 lg:ml-20">
         {/* Desktop TopBar */}
         <div className="hidden lg:block">
-          <TopBar title="Projects" searchPlaceholder="Search projects..." />
+          <TopBar
+            title="Projects"
+            searchPlaceholder="Search projects..."
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+          />
         </div>
 
         {/* Mobile/tablet spacing for fixed header */}
@@ -254,7 +372,7 @@ const Projects = () => {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
-                  className="bg-card border-border z-50"
+                  className="z-50 border-border bg-card"
                 >
                   {statusFilterOptions.map((option) => (
                     <DropdownMenuItem
@@ -290,7 +408,7 @@ const Projects = () => {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
-                  className="bg-card border-border z-50"
+                  className="z-50 border-border bg-card"
                 >
                   {sortOptions.map((option) => (
                     <DropdownMenuItem
@@ -314,14 +432,14 @@ const Projects = () => {
               <Button
                 variant="outline"
                 onClick={() => setShowCreateModal(true)}
-                className="border-primary text-primary hover:bg-primary hover:text-primary-foreground min-h-[44px] flex-1 sm:flex-none"
+                className="min-h-[44px] flex-1 border-primary text-primary hover:bg-primary hover:text-primary-foreground sm:flex-none"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Create
               </Button>
               <Button
                 onClick={() => setShowImportModal(true)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground min-h-[44px] flex-1 sm:flex-none"
+                className="min-h-[44px] flex-1 bg-primary text-primary-foreground hover:bg-primary/90 sm:flex-none"
               >
                 <Upload className="mr-2 h-4 w-4" />
                 Import
@@ -329,30 +447,41 @@ const Projects = () => {
             </div>
           </div>
 
-          {/* Projects Grid - Responsive: 1 col mobile, 2 col tablet, 3 col desktop */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
-            {filteredProjects.map((project, index) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                index={index}
-                onRename={handleRename}
-                onDuplicate={handleDuplicate}
-                onDelete={handleDelete}
-                isHighlighted={highlightedProjectId === project.id}
-              />
-            ))}
-          </div>
-
-          {filteredProjects.length === 0 && (
+          {/* Loading state */}
+          {loading && (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <FolderOpen className="text-muted-foreground/30 mb-4 h-16 w-16 stroke-1" />
-              <h3 className="text-foreground mb-2 text-lg font-medium">
+              <div className="mb-4 text-muted-foreground">
+                Loading projects...
+              </div>
+            </div>
+          )}
+
+          {/* Projects Grid - Responsive: 1 col mobile, 2 col tablet, 3 col desktop */}
+          {!loading && (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+              {filteredProjects.map((project, index) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  index={index}
+                  onRename={handleRename}
+                  onDuplicate={handleDuplicate}
+                  onDelete={handleDelete}
+                  isHighlighted={highlightedProjectId === project.id}
+                />
+              ))}
+            </div>
+          )}
+
+          {!loading && filteredProjects.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <FolderOpen className="mb-4 h-16 w-16 stroke-1 text-muted-foreground/30" />
+              <h3 className="mb-2 text-lg font-medium text-foreground">
                 {statusFilter !== 'all'
                   ? 'No projects found'
                   : 'Create your first project'}
               </h3>
-              <p className="text-muted-foreground max-w-sm">
+              <p className="max-w-sm text-muted-foreground">
                 {statusFilter !== 'all'
                   ? 'Try adjusting your filter criteria.'
                   : 'Get started by creating a new project or importing an existing .elf file.'}

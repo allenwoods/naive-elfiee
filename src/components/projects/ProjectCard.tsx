@@ -135,7 +135,7 @@ export const ProjectCard = ({
       >
         <div
           onClick={handleCardClick}
-          className="bg-card hover:border-primary border-border relative flex h-52 cursor-pointer flex-col rounded-xl border p-5 transition-all duration-200 hover:shadow-lg"
+          className="relative flex h-52 cursor-pointer flex-col rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:border-primary hover:shadow-lg"
         >
           {/* Top Row: Status + Context Menu */}
           <div className="mb-3 flex items-center justify-between">
@@ -146,7 +146,7 @@ export const ProjectCard = ({
                   <div
                     className={`h-2.5 w-2.5 rounded-full ${statusConfig.dot}`}
                   />
-                  <span className="text-muted-foreground text-xs font-medium">
+                  <span className="text-xs font-medium text-muted-foreground">
                     {statusConfig.label}
                   </span>
                 </div>
@@ -166,14 +166,14 @@ export const ProjectCard = ({
                 <DropdownMenuTrigger asChild>
                   <button
                     onClick={(e) => e.stopPropagation()}
-                    className="hover:bg-secondary flex h-8 w-8 items-center justify-center rounded-lg"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-secondary"
                   >
-                    <MoreHorizontal className="text-muted-foreground h-4 w-4" />
+                    <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="end"
-                  className="bg-card border-border z-50"
+                  className="z-50 border-border bg-card"
                 >
                   <DropdownMenuItem
                     onClick={(e) =>
@@ -204,7 +204,7 @@ export const ProjectCard = ({
                         setShowDeleteDialog(true)
                       )
                     }
-                    className="text-destructive focus:text-destructive cursor-pointer"
+                    className="cursor-pointer text-destructive focus:text-destructive"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete
@@ -216,20 +216,20 @@ export const ProjectCard = ({
 
           {/* Title */}
           <div className="mb-2">
-            <h3 className="text-foreground text-lg font-semibold">
+            <h3 className="text-lg font-semibold text-foreground">
               {project.name}
             </h3>
           </div>
 
           {/* Description - 2 line truncation */}
-          <p className="text-muted-foreground line-clamp-2 flex-1 text-sm">
+          <p className="line-clamp-2 flex-1 text-sm text-muted-foreground">
             {project.description}
           </p>
 
           {/* Footer: Path + Last Edited + Avatars */}
-          <div className="border-border mt-auto border-t pt-3">
+          <div className="mt-auto border-t border-border pt-3">
             <div className="flex items-center justify-between">
-              <div className="text-muted-foreground flex min-w-0 flex-1 flex-col gap-0.5 text-xs">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-xs text-muted-foreground">
                 <span className="truncate">{project.path}</span>
                 <span>{project.lastEdited}</span>
               </div>
@@ -240,9 +240,9 @@ export const ProjectCard = ({
                   {collaborators.slice(0, 3).map((collab) => (
                     <Tooltip key={collab.id}>
                       <TooltipTrigger asChild>
-                        <Avatar className="border-card h-6 w-6 border-2">
+                        <Avatar className="h-6 w-6 border-2 border-card">
                           {collab.isAgent ? (
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                            <AvatarFallback className="bg-primary/10 text-xs text-primary">
                               <Bot className="h-3 w-3" />
                             </AvatarFallback>
                           ) : collab.avatar ? (
@@ -311,7 +311,7 @@ export const ProjectCard = ({
                   placeholder="Enter project name"
                   onKeyDown={(e) => e.key === 'Enter' && handleRename()}
                 />
-                <p className="text-muted-foreground mt-1.5 text-xs">
+                <p className="mt-1.5 text-xs text-muted-foreground">
                   This sets the display alias. The original folder name is
                   preserved.
                 </p>

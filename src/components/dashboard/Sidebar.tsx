@@ -40,11 +40,11 @@ export const Sidebar = () => {
   }
 
   return (
-    <aside className="bg-primary z-50 flex h-full min-h-0 w-20 flex-shrink-0 flex-col items-center py-6">
+    <aside className="z-50 flex h-full min-h-0 w-20 flex-shrink-0 flex-col items-center bg-primary py-6">
       {/* Logo */}
       <div className="mb-12">
-        <div className="bg-accent flex h-10 w-10 items-center justify-center rounded-lg">
-          <span className="text-accent-foreground text-xl font-bold">A</span>
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
+          <span className="text-xl font-bold text-accent-foreground">A</span>
         </div>
       </div>
 
@@ -57,7 +57,7 @@ export const Sidebar = () => {
             className="group relative"
             activeClassName="after:absolute after:left-0 after:top-0 after:w-1 after:h-full after:bg-accent"
           >
-            <div className="text-primary-foreground/60 group-hover:text-primary-foreground flex h-12 w-12 items-center justify-center transition-colors">
+            <div className="flex h-12 w-12 items-center justify-center text-primary-foreground/60 transition-colors group-hover:text-primary-foreground">
               <item.icon className="h-5 w-5" />
             </div>
           </NavLink>
@@ -70,7 +70,7 @@ export const Sidebar = () => {
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <button
-                className="hover:ring-accent/50 bg-accent flex h-10 w-10 cursor-pointer items-center justify-center rounded-full transition-all hover:ring-2"
+                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-accent transition-all hover:ring-2 hover:ring-accent/50"
                 title={`${activeEditor.name} - Click to switch`}
               >
                 <span className="text-sm font-semibold text-white">
@@ -81,9 +81,9 @@ export const Sidebar = () => {
             <PopoverContent
               side="right"
               align="end"
-              className="bg-popover border-border w-56 border p-2 shadow-lg"
+              className="w-56 border border-border bg-popover p-2 shadow-lg"
             >
-              <div className="text-muted-foreground mb-2 px-2 text-xs">
+              <div className="mb-2 px-2 text-xs text-muted-foreground">
                 Switch Editor
               </div>
               <div className="space-y-1">
@@ -95,10 +95,10 @@ export const Sidebar = () => {
                       'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors',
                       activeEditor.editor_id === editor.editor_id
                         ? 'bg-accent/20 text-accent-foreground'
-                        : 'hover:bg-muted text-foreground'
+                        : 'text-foreground hover:bg-muted'
                     )}
                   >
-                    <div className="bg-accent flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-accent">
                       <span className="text-xs font-semibold text-white">
                         {editor.name.charAt(0).toUpperCase()}
                       </span>

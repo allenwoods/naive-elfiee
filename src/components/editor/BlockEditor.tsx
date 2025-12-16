@@ -28,25 +28,30 @@ const BlockCard = ({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">{block.name}</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            {block.name}
+          </h3>
         </div>
         <Badge variant="secondary" className="text-xs">
           {block.block_type}
         </Badge>
       </div>
-      <p className="text-muted-foreground mt-2 text-sm line-clamp-2">{preview}</p>
+      <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+        {preview}
+      </p>
     </div>
   )
 }
 
 export const BlockEditor = () => {
-  const { currentFileId, selectedBlockId, getBlocks, selectBlock } = useAppStore()
+  const { currentFileId, selectedBlockId, getBlocks, selectBlock } =
+    useAppStore()
   const blocks = currentFileId ? getBlocks(currentFileId) : []
   const [isSaving, setIsSaving] = useState(false)
 
   if (!currentFileId) {
     return (
-      <main className="bg-background text-muted-foreground flex flex-1 items-center justify-center">
+      <main className="flex flex-1 items-center justify-center bg-background text-muted-foreground">
         <div className="text-center">
           <FileText className="mx-auto mb-4 h-12 w-12 opacity-20" />
           <p>Open a file to start editing</p>
@@ -56,11 +61,11 @@ export const BlockEditor = () => {
   }
 
   return (
-    <main className="bg-background h-full flex-1 overflow-auto p-8">
-      <div className="mx-auto max-w-3xl pb-32 space-y-6">
+    <main className="h-full flex-1 overflow-auto bg-background p-8">
+      <div className="mx-auto max-w-3xl space-y-6 pb-32">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-foreground text-3xl font-bold">Blocks</h1>
+            <h1 className="text-3xl font-bold text-foreground">Blocks</h1>
             <Badge variant="secondary" className="mt-2 text-xs font-medium">
               {blocks.length} blocks
             </Badge>
@@ -71,7 +76,7 @@ export const BlockEditor = () => {
               New Block
             </Button>
             <Button
-              className="bg-primary text-primary-foreground px-6 font-semibold shadow-md hover:bg-primary/90"
+              className="bg-primary px-6 font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
               disabled={isSaving}
               onClick={() => setIsSaving(false)}
             >
@@ -92,8 +97,10 @@ export const BlockEditor = () => {
           ))}
 
           {blocks.length === 0 && (
-            <div className="border-border rounded-xl border-2 border-dashed py-20 text-center">
-              <p className="text-muted-foreground">Empty document. Start typing...</p>
+            <div className="rounded-xl border-2 border-dashed border-border py-20 text-center">
+              <p className="text-muted-foreground">
+                Empty document. Start typing...
+              </p>
             </div>
           )}
         </div>
@@ -103,4 +110,3 @@ export const BlockEditor = () => {
 }
 
 export default BlockEditor
-

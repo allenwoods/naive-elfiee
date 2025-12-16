@@ -92,54 +92,29 @@ All colors MUST be HSL.
 
 @layer base {
   * {
-    border-color: hsl(var(--border));
+    @apply border-border;
   }
 
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-    font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    @apply bg-background font-sans text-foreground antialiased;
   }
 }
 
 @layer utilities {
-  /* 显式定义 border-border 工具类，供组件中的 className 使用 */
-  .border-border {
-    border-color: hsl(var(--border));
-  }
-
   .bento-card {
     @apply rounded-[24px] transition-transform duration-200;
   }
 
   .bento-card-hover {
-    cursor: pointer;
-  }
-
-  .bento-card-hover:hover {
-    transform: scale(1.02);
+    @apply cursor-pointer hover:scale-[1.02];
   }
 
   .metric-number {
-    font-size: 3rem; /* text-5xl: 48px */
-    line-height: 1; /* leading-none */
-    font-weight: 700; /* font-bold */
-  }
-
-  @media (min-width: 768px) {
-    .metric-number {
-      font-size: 3.75rem; /* md:text-6xl: 60px */
-    }
+    @apply text-5xl font-bold leading-none md:text-6xl;
   }
 
   .metric-label {
-    color: hsl(var(--muted-foreground));
-    font-size: 0.875rem;
-    font-weight: 500;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    @apply text-sm font-medium uppercase tracking-wide text-muted-foreground;
   }
 
   /* Highlight fade animation for new/duplicated projects */

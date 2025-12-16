@@ -131,11 +131,11 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
   }
 
   return (
-    <aside className="bg-card border-border flex w-[320px] flex-col border-l">
+    <aside className="flex w-[320px] flex-col border-l border-border bg-card">
       {/* Header */}
-      <div className="border-border border-b p-4">
+      <div className="border-b border-border p-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-foreground text-sm font-semibold">
+          <h2 className="text-sm font-semibold text-foreground">
             Block Details
           </h2>
           <Badge
@@ -146,7 +146,7 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
             {blockTypeConfig.label}
           </Badge>
         </div>
-        <p className="text-muted-foreground mt-1.5 truncate text-xs">
+        <p className="mt-1.5 truncate text-xs text-muted-foreground">
           {selectedBlock ? selectedBlock.name : 'Select a block'}
         </p>
       </div>
@@ -157,24 +157,24 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
         onValueChange={setActiveTab}
         className="flex flex-1 flex-col"
       >
-        <TabsList className="border-border h-auto w-full justify-start rounded-none border-b bg-transparent p-0">
+        <TabsList className="h-auto w-full justify-start rounded-none border-b border-border bg-transparent p-0">
           <TabsTrigger
             value="history"
-            className="data-[state=active]:border-accent rounded-none border-b-2 border-transparent px-4 py-3 text-sm data-[state=active]:bg-transparent"
+            className="rounded-none border-b-2 border-transparent px-4 py-3 text-sm data-[state=active]:border-accent data-[state=active]:bg-transparent"
           >
             <History className="mr-2 h-4 w-4" />
             History
           </TabsTrigger>
           <TabsTrigger
             value="permissions"
-            className="data-[state=active]:border-accent rounded-none border-b-2 border-transparent px-4 py-3 text-sm data-[state=active]:bg-transparent"
+            className="rounded-none border-b-2 border-transparent px-4 py-3 text-sm data-[state=active]:border-accent data-[state=active]:bg-transparent"
           >
             <Shield className="mr-2 h-4 w-4" />
             Permissions
           </TabsTrigger>
           <TabsTrigger
             value="agent"
-            className="data-[state=active]:border-accent rounded-none border-b-2 border-transparent px-4 py-3 text-sm data-[state=active]:bg-transparent"
+            className="rounded-none border-b-2 border-transparent px-4 py-3 text-sm data-[state=active]:border-accent data-[state=active]:bg-transparent"
           >
             <Bot className="mr-2 h-4 w-4" />
             Editors
@@ -185,7 +185,7 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
         <TabsContent value="history" className="mt-0 flex-1 overflow-auto p-4">
           <div className="space-y-1">
             {events.length === 0 ? (
-              <div className="text-muted-foreground py-8 text-center text-xs">
+              <div className="py-8 text-center text-xs text-muted-foreground">
                 No events yet
               </div>
             ) : (
@@ -203,12 +203,12 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
                   >
                     {/* Timeline line */}
                     {index < events.length - 1 && (
-                      <div className="bg-border absolute top-6 bottom-0 left-[11px] w-px" />
+                      <div className="absolute bottom-0 left-[11px] top-6 w-px bg-border" />
                     )}
 
                     {/* Timeline dot */}
-                    <div className="bg-secondary border-border absolute top-1 left-0 flex h-[22px] w-[22px] items-center justify-center rounded-full border-2">
-                      <span className="text-muted-foreground text-[10px] font-bold">
+                    <div className="absolute left-0 top-1 flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-border bg-secondary">
+                      <span className="text-[10px] font-bold text-muted-foreground">
                         {editor?.name.charAt(0).toUpperCase() || '?'}
                       </span>
                     </div>
@@ -216,7 +216,7 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
                     {/* Event content */}
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
                           {formatTimestamp(event.timestamp)}
                         </span>
@@ -228,7 +228,7 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-foreground text-sm font-medium">
+                        <span className="text-sm font-medium text-foreground">
                           {editor?.name || editorId}
                         </span>
                       </div>
@@ -246,13 +246,13 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
           className="mt-0 flex-1 overflow-auto p-4"
         >
           <div className="space-y-4">
-            <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Collaborator Permissions
             </h3>
 
             <div className="space-y-4">
               {editors.length === 0 ? (
-                <div className="text-muted-foreground py-8 text-center text-xs">
+                <div className="py-8 text-center text-xs text-muted-foreground">
                   No editors available
                 </div>
               ) : (
@@ -269,17 +269,17 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
                   return (
                     <div
                       key={editor.editor_id}
-                      className="bg-secondary/30 space-y-3 rounded-xl p-4"
+                      className="space-y-3 rounded-xl bg-secondary/30 p-4"
                     >
                       {/* User Info */}
                       <div className="flex items-center gap-3">
-                        <div className="bg-accent/20 border-accent/30 flex h-8 w-8 items-center justify-center rounded-full border">
-                          <span className="text-accent text-sm font-bold">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full border border-accent/30 bg-accent/20">
+                          <span className="text-sm font-bold text-accent">
                             {editor.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
                         <div className="flex-1">
-                          <span className="text-foreground text-sm font-medium">
+                          <span className="text-sm font-medium text-foreground">
                             {editor.name}
                           </span>
                         </div>
@@ -305,7 +305,7 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
                                 'cursor-pointer rounded-full px-3 py-1 text-xs font-medium transition-colors',
                                 hasPermission
                                   ? 'bg-accent text-accent-foreground hover:bg-accent/90'
-                                  : 'bg-background border-border text-muted-foreground hover:border-accent/50 border'
+                                  : 'border border-border bg-background text-muted-foreground hover:border-accent/50'
                               )}
                             >
                               {cap.split('.').pop()?.toUpperCase() || cap}
@@ -324,13 +324,13 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
         {/* Editors Tab */}
         <TabsContent value="agent" className="mt-0 flex-1 overflow-auto p-4">
           <div className="space-y-4">
-            <h3 className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Editors
             </h3>
 
             <div className="space-y-3">
               {editors.length === 0 ? (
-                <div className="text-muted-foreground py-8 text-center text-xs">
+                <div className="py-8 text-center text-xs text-muted-foreground">
                   No editors available
                 </div>
               ) : (
@@ -339,20 +339,20 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
                     key={editor.editor_id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-secondary/30 hover:border-accent/30 space-y-3 rounded-xl border border-transparent p-4 transition-colors"
+                    className="space-y-3 rounded-xl border border-transparent bg-secondary/30 p-4 transition-colors hover:border-accent/30"
                   >
                     {/* Editor Info */}
                     <div className="flex items-center gap-3">
-                      <div className="bg-accent/20 border-accent/30 flex h-10 w-10 items-center justify-center rounded-full border">
-                        <span className="text-accent text-sm font-bold">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-accent/30 bg-accent/20">
+                        <span className="text-sm font-bold text-accent">
                           {editor.name.charAt(0).toUpperCase()}
                         </span>
                       </div>
                       <div className="flex-1">
-                        <p className="text-foreground text-sm font-medium">
+                        <p className="text-sm font-medium text-foreground">
                           {editor.name}
                         </p>
-                        <p className="text-muted-foreground text-xs">
+                        <p className="text-xs text-muted-foreground">
                           Editor ID: {editor.editor_id}
                         </p>
                       </div>

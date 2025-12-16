@@ -1,10 +1,26 @@
 use crate::elf::ElfArchive;
 use crate::models::Command;
 use crate::state::{AppState, FileInfo};
-use specta::specta;
+use serde::{Deserialize, Serialize};
+use specta::{specta, Type};
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
+
+/// File metadata for frontend display.
+///
+/// This structure contains all information about a file that the UI needs to display,
+/// including the file name, path, collaborators (editors), and timestamps.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct FileMetadata {
+    pub file_id: String,
+    pub name: String,
+    pub path: String,
+    pub collaborators: Vec<String>,
+    pub created_at: String,
+    pub last_modified: String,
+}
 
 /// Bootstrap the editor system for a file.
 ///
@@ -239,4 +255,236 @@ pub async fn get_all_events(
 
     // Get all events from the engine
     handle.get_all_events().await
+}
+
+/// Get detailed information about a file.
+///
+/// Returns metadata including file name, path, collaborators (editors),
+/// and timestamps. The file must be open to retrieve this information.
+///
+/// # Arguments
+/// * `file_id` - Unique identifier of the file
+///
+/// # Returns
+/// * `Ok(FileMetadata)` - File metadata
+/// * `Err(message)` - Error description if retrieval fails
+#[tauri::command]
+#[specta]
+pub async fn get_file_info(
+    file_id: String,
+    state: State<'_, AppState>,
+) -> Result<FileMetadata, String> {
+    // Get file info from state
+    let file_info = state
+        .files
+        .get(&file_id)
+        .ok_or_else(|| format!("File '{}' not found", file_id))?;
+
+    // Get file path
+    let path = file_info
+        .path
+        .to_str()
+        .ok_or("Invalid file path")?
+        .to_string();
+
+    // Extract file name from path
+    let name = file_info
+        .path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or("Invalid file name")?
+        .to_string();
+
+    // Get file metadata from filesystem
+    let metadata = fs::metadata(&file_info.path)
+        .map_err(|e| format!("Failed to read file metadata: {}", e))?;
+
+    // Get created and modified timestamps
+    let created_at = metadata
+        .created()
+        .map(|t| {
+            chrono::DateTime::<chrono::Utc>::from(t)
+                .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        })
+        .unwrap_or_else(|_| "Unknown".to_string());
+
+    let last_modified = metadata
+        .modified()
+        .map(|t| {
+            chrono::DateTime::<chrono::Utc>::from(t)
+                .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        })
+        .unwrap_or_else(|_| "Unknown".to_string());
+
+    // Get collaborators (editors) from engine
+    let handle = state
+        .engine_manager
+        .get_engine(&file_id)
+        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
+
+    let editors_map = handle.get_all_editors().await;
+    let collaborators: Vec<String> = editors_map.keys().cloned().collect();
+
+    Ok(FileMetadata {
+        file_id,
+        name,
+        path,
+        collaborators,
+        created_at,
+        last_modified,
+    })
+}
+
+/// Rename a file on the filesystem.
+///
+/// This updates the file path both in the filesystem and in the application state.
+/// The file must be open to be renamed.
+///
+/// # Arguments
+/// * `file_id` - Unique identifier of the file
+/// * `new_name` - New name for the file (without extension)
+///
+/// # Returns
+/// * `Ok(())` - File renamed successfully
+/// * `Err(message)` - Error description if rename fails
+#[tauri::command]
+#[specta]
+pub async fn rename_file(
+    file_id: String,
+    new_name: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    // Validate new name
+    if new_name.is_empty() {
+        return Err("File name cannot be empty".to_string());
+    }
+
+    if new_name.contains(&['/', '\\', ':', '*', '?', '"', '<', '>', '|'][..]) {
+        return Err("File name contains invalid characters".to_string());
+    }
+
+    // Get current file info
+    let file_info = state
+        .files
+        .get(&file_id)
+        .ok_or_else(|| format!("File '{}' not found", file_id))?;
+
+    let old_path = file_info.path.clone();
+
+    // Construct new path
+    let new_path = old_path
+        .parent()
+        .ok_or("Invalid file path")?
+        .join(format!("{}.elf", new_name));
+
+    // Check if new path already exists
+    if new_path.exists() {
+        return Err(format!(
+            "A file named '{}' already exists",
+            new_path.display()
+        ));
+    }
+
+    // Drop the reference to file_info before mutating state
+    drop(file_info);
+
+    // Rename file on filesystem
+    fs::rename(&old_path, &new_path).map_err(|e| format!("Failed to rename file: {}", e))?;
+
+    // Update path in state
+    if let Some(mut entry) = state.files.get_mut(&file_id) {
+        entry.path = new_path;
+    }
+
+    Ok(())
+}
+
+/// Delete a file from the filesystem.
+///
+/// This closes the file if it's open and removes it from the filesystem.
+/// This operation cannot be undone.
+///
+/// # Arguments
+/// * `file_id` - Unique identifier of the file to delete
+///
+/// # Returns
+/// * `Ok(())` - File deleted successfully
+/// * `Err(message)` - Error description if deletion fails
+#[tauri::command]
+#[specta]
+pub async fn delete_file(file_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    // Get file path before closing
+    let file_path = {
+        let file_info = state
+            .files
+            .get(&file_id)
+            .ok_or_else(|| format!("File '{}' not found", file_id))?;
+        file_info.path.clone()
+    };
+
+    // Close the file first (this will shut down the engine and remove from state)
+    close_file(file_id, state.clone()).await?;
+
+    // Delete file from filesystem
+    fs::remove_file(&file_path).map_err(|e| format!("Failed to delete file: {}", e))?;
+
+    Ok(())
+}
+
+/// Duplicate (copy) an existing .elf file.
+///
+/// This creates a copy of the file with a new name and opens it for editing.
+/// The new file will have " Copy" appended to the name, or " Copy N" if that name exists.
+///
+/// # Arguments
+/// * `file_id` - Unique identifier of the file to duplicate
+///
+/// # Returns
+/// * `Ok(new_file_id)` - Unique identifier for the newly created duplicate file
+/// * `Err(message)` - Error description if duplication fails
+#[tauri::command]
+#[specta]
+pub async fn duplicate_file(file_id: String, state: State<'_, AppState>) -> Result<String, String> {
+    // Get source file info
+    let source_file_info = state
+        .files
+        .get(&file_id)
+        .ok_or_else(|| format!("File '{}' not found", file_id))?;
+
+    let source_path = source_file_info.path.clone();
+    drop(source_file_info); // Release the reference
+
+    // Extract base name and directory
+    let parent_dir = source_path.parent().ok_or("Invalid source file path")?;
+
+    let base_name = source_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or("Invalid source file name")?;
+
+    // Find a unique name for the copy
+    let mut copy_name = format!("{} Copy", base_name);
+    let mut copy_path = parent_dir.join(format!("{}.elf", copy_name));
+    let mut counter = 2;
+
+    while copy_path.exists() {
+        copy_name = format!("{} Copy {}", base_name, counter);
+        copy_path = parent_dir.join(format!("{}.elf", copy_name));
+        counter += 1;
+    }
+
+    // Copy the file
+    fs::copy(&source_path, &copy_path).map_err(|e| format!("Failed to copy file: {}", e))?;
+
+    // Open the copied file
+    let new_file_id = open_file(
+        copy_path
+            .to_str()
+            .ok_or("Invalid copy file path")?
+            .to_string(),
+        state,
+    )
+    .await?;
+
+    Ok(new_file_id)
 }

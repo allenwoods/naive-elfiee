@@ -37,7 +37,10 @@ export function setupCommandMocks(
 /**
  * Setup a command to return an error
  */
-export function setupCommandError(command: keyof Command, errorMessage: string) {
+export function setupCommandError(
+  command: keyof Command,
+  errorMessage: string
+) {
   vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
     if (cmd === command) {
       throw new Error(errorMessage)
@@ -52,4 +55,3 @@ export function setupCommandError(command: keyof Command, errorMessage: string) 
 export function getMockedInvoke() {
   return vi.mocked(invoke)
 }
-

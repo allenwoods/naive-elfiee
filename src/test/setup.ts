@@ -30,8 +30,12 @@ export function createMockBlock(overrides?: Partial<Block>): Block {
       markdown: '# Test Content',
       metadata: {},
     },
-    created_at: overrides?.created_at || { secs_since_epoch: Date.now() / 1000 },
-    updated_at: overrides?.updated_at || { secs_since_epoch: Date.now() / 1000 },
+    created_at: overrides?.created_at || {
+      secs_since_epoch: Date.now() / 1000,
+    },
+    updated_at: overrides?.updated_at || {
+      secs_since_epoch: Date.now() / 1000,
+    },
   }
 }
 
@@ -40,7 +44,9 @@ export function createMockEditor(overrides?: Partial<Editor>): Editor {
     editor_id: overrides?.editor_id || TEST_EDITOR_ID,
     file_id: overrides?.file_id || TEST_FILE_ID,
     name: overrides?.name || 'Test Editor',
-    created_at: overrides?.created_at || { secs_since_epoch: Date.now() / 1000 },
+    created_at: overrides?.created_at || {
+      secs_since_epoch: Date.now() / 1000,
+    },
   }
 }
 
@@ -62,7 +68,9 @@ export function createMockGrant(overrides?: Partial<Grant>): Grant {
     block_id: overrides?.block_id || TEST_BLOCK_ID,
     editor_id: overrides?.editor_id || TEST_EDITOR_ID,
     capability: overrides?.capability || 'read',
-    created_at: overrides?.created_at || { secs_since_epoch: Date.now() / 1000 },
+    created_at: overrides?.created_at || {
+      secs_since_epoch: Date.now() / 1000,
+    },
   }
 }
 
@@ -70,4 +78,3 @@ export function createMockGrant(overrides?: Partial<Grant>): Grant {
 beforeEach(() => {
   vi.clearAllMocks()
 })
-
