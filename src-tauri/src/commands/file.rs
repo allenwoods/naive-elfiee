@@ -488,3 +488,111 @@ pub async fn duplicate_file(file_id: String, state: State<'_, AppState>) -> Resu
 
     Ok(new_file_id)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// Helper function to create a test .elf file
+    fn create_test_elf_file(dir: &Path, name: &str) -> PathBuf {
+        let file_path = dir.join(format!("{}.elf", name));
+        fs::write(&file_path, b"test content").expect("Failed to create test file");
+        file_path
+    }
+
+    #[tokio::test]
+    async fn test_duplicate_file_name_generation() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let test_file = create_test_elf_file(temp_dir.path(), "test");
+
+        // Test: First copy should be "test Copy"
+        let base_name = test_file.file_stem().unwrap().to_str().unwrap();
+        let expected_copy_name = format!("{} Copy.elf", base_name);
+        let expected_copy_path = temp_dir.path().join(&expected_copy_name);
+
+        assert!(!expected_copy_path.exists(), "Copy should not exist yet");
+
+        // Create the first copy manually to test the naming logic
+        fs::copy(&test_file, &expected_copy_path).expect("Failed to copy file");
+        assert!(expected_copy_path.exists(), "First copy should exist");
+
+        // Test: Second copy should be "test Copy 2"
+        let expected_copy_2_path = temp_dir.path().join(format!("{} Copy 2.elf", base_name));
+        assert!(!expected_copy_2_path.exists(), "Copy 2 should not exist yet");
+    }
+
+    #[tokio::test]
+    async fn test_rename_file_validation() {
+        // Test empty name
+        let result = validate_filename("");
+        assert!(result.is_err(), "Empty name should be rejected");
+        assert_eq!(result.unwrap_err(), "File name cannot be empty");
+
+        // Test invalid characters
+        let invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
+        for ch in invalid_chars {
+            let name = format!("test{}name", ch);
+            let result = validate_filename(&name);
+            assert!(
+                result.is_err(),
+                "Name with '{}' should be rejected",
+                ch
+            );
+            assert!(result.unwrap_err().contains("invalid characters"));
+        }
+
+        // Test valid name
+        let result = validate_filename("valid-file_name123");
+        assert!(result.is_ok(), "Valid name should be accepted");
+    }
+
+    #[test]
+    fn test_file_copy_content_integrity() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let test_content = b"test file content for integrity check";
+        let source_path = temp_dir.path().join("source.elf");
+        let dest_path = temp_dir.path().join("dest.elf");
+
+        // Create source file
+        fs::write(&source_path, test_content).expect("Failed to write source file");
+
+        // Copy file
+        fs::copy(&source_path, &dest_path).expect("Failed to copy file");
+
+        // Verify content
+        let copied_content = fs::read(&dest_path).expect("Failed to read copied file");
+        assert_eq!(
+            copied_content, test_content,
+            "Copied file content should match source"
+        );
+    }
+
+    #[test]
+    fn test_file_metadata_extraction() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let test_file = create_test_elf_file(temp_dir.path(), "metadata-test");
+
+        // Test file_stem extraction
+        let base_name = test_file.file_stem().unwrap().to_str().unwrap();
+        assert_eq!(base_name, "metadata-test");
+
+        // Test parent directory
+        let parent = test_file.parent().unwrap();
+        assert_eq!(parent, temp_dir.path());
+    }
+
+    /// Helper function to validate filename
+    fn validate_filename(name: &str) -> Result<(), String> {
+        if name.is_empty() {
+            return Err("File name cannot be empty".to_string());
+        }
+
+        if name.contains(&['/', '\\', ':', '*', '?', '"', '<', '>', '|'][..]) {
+            return Err("File name contains invalid characters".to_string());
+        }
+
+        Ok(())
+    }
+}

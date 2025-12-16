@@ -68,35 +68,8 @@ export class FileOperations {
     }
   }
 
-  static async saveFile(fileId: string): Promise<void> {
-    const result = await commands.saveFile(fileId)
-    if (result.status === 'ok') {
-      return
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
-  static async closeFile(fileId: string): Promise<void> {
-    const result = await commands.closeFile(fileId)
-    if (result.status === 'ok') {
-      return
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
   static async listOpenFiles(): Promise<string[]> {
     const result = await commands.listOpenFiles()
-    if (result.status === 'ok') {
-      return result.data
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
-  static async getAllEvents(fileId: string): Promise<Event[]> {
-    const result = await commands.getAllEvents(fileId)
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -173,15 +146,6 @@ export class FileOperations {
  * Block Operations
  */
 export class BlockOperations {
-  static async getBlock(fileId: string, blockId: string): Promise<Block> {
-    const result = await commands.getBlock(fileId, blockId)
-    if (result.status === 'ok') {
-      return result.data
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
   static async getAllBlocks(fileId: string): Promise<Block[]> {
     const result = await commands.getAllBlocks(fileId)
     if (result.status === 'ok') {
@@ -234,15 +198,6 @@ export class BlockOperations {
       blockId,
       payload as unknown as JsonValue
     )
-    return await this.executeCommand(fileId, cmd)
-  }
-
-  static async deleteBlock(
-    fileId: string,
-    blockId: string,
-    editorId: string = DEFAULT_EDITOR_ID
-  ): Promise<Event[]> {
-    const cmd = createCommand(editorId, 'core.delete', blockId, {} as JsonValue)
     return await this.executeCommand(fileId, cmd)
   }
 }
