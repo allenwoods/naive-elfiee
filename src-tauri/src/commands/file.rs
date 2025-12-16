@@ -363,6 +363,11 @@ pub async fn rename_file(
         return Err("File name contains invalid characters".to_string());
     }
 
+    // Prevent path traversal attacks
+    if new_name.contains("..") || new_name.starts_with('.') {
+        return Err("File name cannot contain relative path components".to_string());
+    }
+
     // Get current file info
     let file_info = state
         .files
@@ -543,6 +548,42 @@ mod tests {
             assert!(result.unwrap_err().contains("invalid characters"));
         }
 
+        // Test path traversal attempts - names containing ".."
+        let double_dot_names = vec!["..", "file..name", "..file", "file.."];
+        for name in double_dot_names {
+            let result = validate_filename(name);
+            assert!(
+                result.is_err(),
+                "Name with '..' ('{}') should be rejected",
+                name
+            );
+            let err_msg = result.unwrap_err();
+            assert!(
+                err_msg.contains("relative path components"),
+                "Expected 'relative path components' error for '{}', got: {}",
+                name,
+                err_msg
+            );
+        }
+
+        // Test path traversal attempts - names starting with "."
+        let dot_names = vec![".hidden", ".config", "."];
+        for name in dot_names {
+            let result = validate_filename(name);
+            assert!(
+                result.is_err(),
+                "Name starting with '.' ('{}') should be rejected",
+                name
+            );
+            let err_msg = result.unwrap_err();
+            assert!(
+                err_msg.contains("relative path components"),
+                "Expected 'relative path components' error for '{}', got: {}",
+                name,
+                err_msg
+            );
+        }
+
         // Test valid name
         let result = validate_filename("valid-file_name123");
         assert!(result.is_ok(), "Valid name should be accepted");
@@ -591,6 +632,11 @@ mod tests {
 
         if name.contains(&['/', '\\', ':', '*', '?', '"', '<', '>', '|'][..]) {
             return Err("File name contains invalid characters".to_string());
+        }
+
+        // Prevent path traversal attacks
+        if name.contains("..") || name.starts_with('.') {
+            return Err("File name cannot contain relative path components".to_string());
         }
 
         Ok(())
