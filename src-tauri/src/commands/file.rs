@@ -1,6 +1,7 @@
 use crate::elf::ElfArchive;
 use crate::models::Command;
 use crate::state::{AppState, FileInfo};
+use crate::utils::time;
 use serde::{Deserialize, Serialize};
 use specta::{specta, Type};
 use std::fs;
@@ -299,22 +300,18 @@ pub async fn get_file_info(
     let metadata = fs::metadata(&file_info.path)
         .map_err(|e| format!("Failed to read file metadata: {}", e))?;
 
-    // Get created and modified timestamps
+    // Get created and modified timestamps (using timezone-aware RFC 3339 format)
     let created_at = metadata
         .created()
-        .map(|t| {
-            chrono::DateTime::<chrono::Utc>::from(t)
-                .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
-        })
-        .unwrap_or_else(|_| "Unknown".to_string());
+        .ok()
+        .and_then(|t| time::system_time_to_utc(t).ok())
+        .unwrap_or_else(|| "Unknown".to_string());
 
     let last_modified = metadata
         .modified()
-        .map(|t| {
-            chrono::DateTime::<chrono::Utc>::from(t)
-                .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
-        })
-        .unwrap_or_else(|_| "Unknown".to_string());
+        .ok()
+        .and_then(|t| time::system_time_to_utc(t).ok())
+        .unwrap_or_else(|| "Unknown".to_string());
 
     // Get collaborators (editors) from engine
     let handle = state

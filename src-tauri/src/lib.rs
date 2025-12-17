@@ -5,6 +5,7 @@ pub mod engine;
 pub mod extensions;
 pub mod models;
 pub mod state;
+pub mod utils;
 
 use state::AppState;
 

@@ -1,3 +1,4 @@
+use crate::utils::time;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -8,6 +9,7 @@ pub struct Command {
     pub cap_id: String,
     pub block_id: String,
     pub payload: serde_json::Value,
+    /// UTC timestamp when the command was created (timezone-aware)
     pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
@@ -24,7 +26,7 @@ impl Command {
             cap_id,
             block_id,
             payload,
-            timestamp: chrono::Utc::now(),
+            timestamp: time::now_utc_datetime(),
         }
     }
 }

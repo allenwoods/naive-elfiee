@@ -586,6 +586,9 @@ export type Command = {
   cap_id: string
   block_id: string
   payload: JsonValue
+  /**
+   * UTC timestamp when the command was created (timezone-aware)
+   */
   timestamp: string
 }
 /**
