@@ -82,6 +82,12 @@ const getStatusConfig = (status: ProjectStatus) => {
         label: 'Editing',
         tooltip: 'Unsaved local changes',
       }
+    case 'archived':
+      return {
+        dot: 'bg-gray-500',
+        label: 'Archived',
+        tooltip: 'This project is archived',
+      }
   }
 }
 
