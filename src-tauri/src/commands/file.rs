@@ -402,36 +402,23 @@ pub async fn rename_file(
     Ok(())
 }
 
-/// Delete a file from the filesystem.
+/// Remove a file from the open files list.
 ///
-/// This closes the file if it's open and removes it from the filesystem.
-/// This operation cannot be undone.
+/// This closes the file and removes it from memory, but does NOT delete the physical file.
+/// The file remains on disk and can be reopened later.
 ///
 /// # Arguments
-/// * `file_id` - Unique identifier of the file to delete
+/// * `file_id` - Unique identifier of the file to remove from the list
 ///
 /// # Returns
-/// * `Ok(())` - File deleted successfully
-/// * `Err(message)` - Error description if deletion fails
+/// * `Ok(())` - File removed from list successfully
+/// * `Err(message)` - Error description if removal fails
 #[tauri::command]
 #[specta]
 pub async fn delete_file(file_id: String, state: State<'_, AppState>) -> Result<(), String> {
-    // Get file path before closing
-    let file_path = {
-        let file_info = state
-            .files
-            .get(&file_id)
-            .ok_or_else(|| format!("File '{}' not found", file_id))?;
-        file_info.path.clone()
-    };
-
-    // Close the file first (this will shut down the engine and remove from state)
-    close_file(file_id, state.clone()).await?;
-
-    // Delete file from filesystem
-    fs::remove_file(&file_path).map_err(|e| format!("Failed to delete file: {}", e))?;
-
-    Ok(())
+    // Close the file (shut down engine and remove from state)
+    // The physical file remains on disk
+    close_file(file_id, state).await
 }
 
 /// Duplicate (copy) an existing .elf file.

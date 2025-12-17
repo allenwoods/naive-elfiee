@@ -172,17 +172,17 @@ export const commands = {
     }
   },
   /**
-   * Delete a file from the filesystem.
+   * Remove a file from the open files list.
    *
-   * This closes the file if it's open and removes it from the filesystem.
-   * This operation cannot be undone.
+   * This closes the file and removes it from memory, but does NOT delete the physical file.
+   * The file remains on disk and can be reopened later.
    *
    * # Arguments
-   * * `file_id` - Unique identifier of the file to delete
+   * * `file_id` - Unique identifier of the file to remove from the list
    *
    * # Returns
-   * * `Ok(())` - File deleted successfully
-   * * `Err(message)` - Error description if deletion fails
+   * * `Ok(())` - File removed from list successfully
+   * * `Err(message)` - Error description if removal fails
    */
   async deleteFile(fileId: string): Promise<Result<null, string>> {
     try {
