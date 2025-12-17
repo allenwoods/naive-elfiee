@@ -21,6 +21,7 @@ use std::time::SystemTime;
 ///
 /// # Example
 /// ```
+/// use elfiee_lib::utils::time;
 /// let timestamp = time::now_utc();
 /// assert!(timestamp.ends_with('Z'));
 /// ```

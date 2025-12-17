@@ -379,19 +379,20 @@ pub async fn rename_file(
         .ok_or("Invalid file path")?
         .join(format!("{}.elf", new_name));
 
-    // Check if new path already exists
-    if new_path.exists() {
-        return Err(format!(
-            "A file named '{}' already exists",
-            new_path.display()
-        ));
-    }
-
     // Drop the reference to file_info before mutating state
     drop(file_info);
 
-    // Rename file on filesystem
-    fs::rename(&old_path, &new_path).map_err(|e| format!("Failed to rename file: {}", e))?;
+    // Rename file on filesystem - let the OS handle atomicity
+    // No TOCTOU race condition: the rename operation is atomic
+    fs::rename(&old_path, &new_path).map_err(|e| {
+        // Check if the error is because the target already exists
+        match e.kind() {
+            std::io::ErrorKind::AlreadyExists => {
+                format!("A file named '{}' already exists", new_path.display())
+            }
+            _ => format!("Failed to rename file: {}", e),
+        }
+    })?;
 
     // Update path in state
     if let Some(mut entry) = state.files.get_mut(&file_id) {
