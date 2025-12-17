@@ -525,7 +525,10 @@ mod tests {
 
         // Test: Second copy should be "test Copy 2"
         let expected_copy_2_path = temp_dir.path().join(format!("{} Copy 2.elf", base_name));
-        assert!(!expected_copy_2_path.exists(), "Copy 2 should not exist yet");
+        assert!(
+            !expected_copy_2_path.exists(),
+            "Copy 2 should not exist yet"
+        );
     }
 
     #[tokio::test]
@@ -540,11 +543,7 @@ mod tests {
         for ch in invalid_chars {
             let name = format!("test{}name", ch);
             let result = validate_filename(&name);
-            assert!(
-                result.is_err(),
-                "Name with '{}' should be rejected",
-                ch
-            );
+            assert!(result.is_err(), "Name with '{}' should be rejected", ch);
             assert!(result.unwrap_err().contains("invalid characters"));
         }
 

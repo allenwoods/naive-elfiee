@@ -70,7 +70,6 @@ function fileMetadataToProject(metadata: FileMetadata): Project {
   return {
     id: metadata.file_id,
     name: metadata.name,
-    description: `Project file: ${metadata.name}.elf`,
     path: metadata.path,
     status: 'synced', // Default status, can be enhanced later
     lastEdited,
@@ -127,12 +126,9 @@ const Projects = () => {
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase()
         const matchesName = project.name.toLowerCase().includes(query)
-        const matchesDescription = project.description
-          ?.toLowerCase()
-          .includes(query)
         const matchesPath = project.path.toLowerCase().includes(query)
 
-        if (!matchesName && !matchesDescription && !matchesPath) {
+        if (!matchesName && !matchesPath) {
           return false
         }
       }
@@ -209,11 +205,7 @@ const Projects = () => {
     }
   }
 
-  const handleImportProject = async (data: {
-    name: string
-    description: string
-    path: string
-  }) => {
+  const handleImportProject = async (data: { name: string; path: string }) => {
     try {
       // Path is already selected in the modal, use it directly
       const filePath = data.path
@@ -238,47 +230,13 @@ const Projects = () => {
     }
   }
 
-  const handleCreateProject = async (data: {
-    name: string
-    description: string
-    path: string
-  }) => {
+  const handleCreateProject = async (data: { name: string; path: string }) => {
     try {
       // Path is already selected in the modal, use it directly
       const filePath = data.path
 
       // Create the file using backend with absolute path
       const fileId = await TauriClient.file.createFile(filePath)
-
-      // If user provided a description, create a markdown block to store it
-      if (data.description.trim()) {
-        try {
-          // Create a project info block with the description
-          const projectInfoContent = `# ${data.name}\n\n${data.description}`
-          await TauriClient.block.createBlock(
-            fileId,
-            'Project Info',
-            'markdown'
-          )
-
-          // Get the created block and write the content to it
-          const blocks = await TauriClient.block.getAllBlocks(fileId)
-          if (blocks.length > 0) {
-            const projectInfoBlock = blocks[0]
-            await TauriClient.block.writeBlock(
-              fileId,
-              projectInfoBlock.block_id,
-              projectInfoContent
-            )
-          }
-        } catch (blockError) {
-          console.warn(
-            'Failed to create project description block:',
-            blockError
-          )
-          // Don't fail the whole operation if block creation fails
-        }
-      }
 
       // Get file metadata
       const metadata = await TauriClient.file.getFileInfo(fileId)

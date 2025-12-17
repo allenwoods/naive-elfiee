@@ -7,7 +7,6 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Loader2 } from 'lucide-react'
 import { LocationBreadcrumb } from './LocationBreadcrumb'
 import { cn } from '@/lib/utils'
@@ -16,11 +15,7 @@ import { save } from '@tauri-apps/plugin-dialog'
 interface CreateProjectModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreate: (project: {
-    name: string
-    description: string
-    path: string
-  }) => void
+  onCreate: (project: { name: string; path: string }) => void
   existingNames: string[]
 }
 
@@ -31,7 +26,6 @@ export const CreateProjectModal = ({
   existingNames,
 }: CreateProjectModalProps) => {
   const [projectName, setProjectName] = useState('')
-  const [description, setDescription] = useState('')
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
@@ -40,7 +34,6 @@ export const CreateProjectModal = ({
   useEffect(() => {
     if (open) {
       setProjectName('')
-      setDescription('')
       setSelectedPath(null)
       setIsCreating(false)
       setNameError(null)
@@ -94,7 +87,6 @@ export const CreateProjectModal = ({
 
     onCreate({
       name: projectName.trim(),
-      description: description.trim(),
       path: selectedPath,
     })
 
@@ -135,20 +127,6 @@ export const CreateProjectModal = ({
             selectedPath={selectedPath}
             onSelectPath={handleSelectPath}
           />
-
-          {/* Description */}
-          <div>
-            <label className="mb-2 block text-sm font-medium">
-              Description{' '}
-              <span className="text-muted-foreground">(Optional)</span>
-            </label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Briefly describe what this project is about..."
-              rows={3}
-            />
-          </div>
 
           {/* Footer */}
           <div className="flex justify-end gap-3 pt-2">

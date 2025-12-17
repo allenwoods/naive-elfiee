@@ -7,14 +7,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  FileText,
-  CheckCircle,
-  Sparkles,
-  Loader2,
-  FolderOpen,
-} from 'lucide-react'
+import { CheckCircle, Loader2, FolderOpen } from 'lucide-react'
 import { LocationBreadcrumb } from './LocationBreadcrumb'
 import { cn } from '@/lib/utils'
 import * as dialog from '@tauri-apps/plugin-dialog'
@@ -22,11 +15,7 @@ import * as dialog from '@tauri-apps/plugin-dialog'
 interface ImportProjectModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onImport: (project: {
-    name: string
-    description: string
-    path: string
-  }) => void
+  onImport: (project: { name: string; path: string }) => void
   existingNames: string[]
 }
 
@@ -38,9 +27,7 @@ export const ImportProjectModal = ({
 }: ImportProjectModalProps) => {
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null)
   const [projectName, setProjectName] = useState('')
-  const [description, setDescription] = useState('')
   const [nameError, setNameError] = useState<string | null>(null)
-  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
 
   // Reset state when modal opens
@@ -48,9 +35,7 @@ export const ImportProjectModal = ({
     if (open) {
       setSelectedFilePath(null)
       setProjectName('')
-      setDescription('')
       setNameError(null)
-      setIsGeneratingAI(false)
       setIsImporting(false)
     }
   }, [open])
@@ -98,16 +83,6 @@ export const ImportProjectModal = ({
     }
   }
 
-  const handleGenerateAI = async () => {
-    setIsGeneratingAI(true)
-    // Mock AI generation delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setDescription(
-      'A collaborative project file with structured content blocks and version control.'
-    )
-    setIsGeneratingAI(false)
-  }
-
   const handleImport = async () => {
     if (!selectedFilePath || !projectName.trim() || nameError) return
 
@@ -115,7 +90,6 @@ export const ImportProjectModal = ({
 
     onImport({
       name: projectName.trim(),
-      description: description.trim(),
       path: selectedFilePath,
     })
 
@@ -197,36 +171,6 @@ export const ImportProjectModal = ({
               selectedPath={selectedFilePath}
             />
           )}
-
-          {/* Description */}
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-sm font-medium">
-                Description{' '}
-                <span className="text-muted-foreground">(Optional)</span>
-              </label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleGenerateAI}
-                disabled={isGeneratingAI}
-                className="h-auto px-2 py-1 text-primary hover:text-primary/80"
-              >
-                {isGeneratingAI ? (
-                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-1 h-3 w-3" />
-                )}
-                Auto-generate with AI
-              </Button>
-            </div>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Briefly describe what this project is about..."
-              rows={3}
-            />
-          </div>
 
           {/* Footer */}
           <div className="flex justify-end gap-3 pt-2">

@@ -47,7 +47,6 @@ export interface Collaborator {
 export interface Project {
   id: string
   name: string
-  description: string
   path: string
   status: ProjectStatus
   lastEdited: string
@@ -220,11 +219,6 @@ export const ProjectCard = ({
               {project.name}
             </h3>
           </div>
-
-          {/* Description - 2 line truncation */}
-          <p className="line-clamp-2 flex-1 text-sm text-muted-foreground">
-            {project.description}
-          </p>
 
           {/* Footer: Path + Last Edited + Avatars */}
           <div className="mt-auto border-t border-border pt-3">
