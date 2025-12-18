@@ -4,6 +4,7 @@ mod command;
 mod editor;
 mod event;
 mod grant;
+pub mod metadata;
 pub mod payloads;
 
 pub use block::Block;
@@ -12,4 +13,5 @@ pub use command::Command;
 pub use editor::Editor;
 pub use event::Event;
 pub use grant::Grant;
+pub use metadata::BlockMetadata;
 pub use payloads::*;

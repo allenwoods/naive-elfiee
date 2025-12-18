@@ -89,6 +89,10 @@ impl StateProjector {
                             .get("children")
                             .and_then(|v| serde_json::from_value(v.clone()).ok())
                             .unwrap_or_default(),
+                        metadata: obj
+                            .get("metadata")
+                            .cloned()
+                            .unwrap_or_else(|| serde_json::json!({})),
                     };
                     self.blocks.insert(block.block_id.clone(), block);
                 }
@@ -112,6 +116,10 @@ impl StateProjector {
                         if let Ok(new_children) = serde_json::from_value(children.clone()) {
                             block.children = new_children;
                         }
+                    }
+                    // Update metadata if present (e.g. updated_at from write ops)
+                    if let Some(new_metadata) = event.value.get("metadata") {
+                        block.metadata = new_metadata.clone();
                     }
                 }
             }
@@ -324,5 +332,154 @@ mod tests {
 
         // Command based on count 6 is ok (newer)
         assert!(!state.has_conflict("alice", 6));
+    }
+
+    #[test]
+    fn test_apply_create_event_with_metadata() {
+        let mut state = StateProjector::new();
+
+        let event = Event::new(
+            "block1".to_string(),
+            "alice/core.create".to_string(),
+            serde_json::json!({
+                "name": "Test Block",
+                "type": "markdown",
+                "owner": "alice",
+                "contents": {},
+                "children": {},
+                "metadata": {
+                    "description": "测试描述",
+                    "created_at": "2025-12-17T02:30:00Z",
+                    "updated_at": "2025-12-17T02:30:00Z"
+                }
+            }),
+            {
+                let mut ts = std::collections::HashMap::new();
+                ts.insert("alice".to_string(), 1);
+                ts
+            },
+        );
+
+        state.apply_event(&event);
+
+        assert_eq!(state.blocks.len(), 1);
+        let block = state.get_block("block1").unwrap();
+        assert_eq!(block.name, "Test Block");
+
+        // 验证 metadata
+        assert_eq!(block.metadata["description"], "测试描述");
+        assert_eq!(block.metadata["created_at"], "2025-12-17T02:30:00Z");
+        assert_eq!(block.metadata["updated_at"], "2025-12-17T02:30:00Z");
+    }
+
+    #[test]
+    fn test_apply_write_event_updates_metadata() {
+        let mut state = StateProjector::new();
+
+        // 先创建 Block
+        let create_event = Event::new(
+            "block1".to_string(),
+            "alice/core.create".to_string(),
+            serde_json::json!({
+                "name": "Test",
+                "type": "markdown",
+                "owner": "alice",
+                "contents": {},
+                "children": {},
+                "metadata": {
+                    "created_at": "2025-12-17T02:30:00Z",
+                    "updated_at": "2025-12-17T02:30:00Z"
+                }
+            }),
+            {
+                let mut ts = std::collections::HashMap::new();
+                ts.insert("alice".to_string(), 1);
+                ts
+            },
+        );
+        state.apply_event(&create_event);
+
+        // 写入内容（模拟更新了 updated_at）
+        let write_event = Event::new(
+            "block1".to_string(),
+            "alice/markdown.write".to_string(),
+            serde_json::json!({
+                "contents": {
+                    "markdown": "# Hello"
+                },
+                "metadata": {
+                    "created_at": "2025-12-17T02:30:00Z",
+                    "updated_at": "2025-12-17T10:15:00Z"
+                }
+            }),
+            {
+                let mut ts = std::collections::HashMap::new();
+                ts.insert("alice".to_string(), 2);
+                ts
+            },
+        );
+        state.apply_event(&write_event);
+
+        let block = state.get_block("block1").unwrap();
+
+        // contents 应该被更新
+        assert_eq!(block.contents["markdown"], "# Hello");
+
+        // metadata 应该被更新
+        assert_eq!(block.metadata["created_at"], "2025-12-17T02:30:00Z");
+        assert_eq!(block.metadata["updated_at"], "2025-12-17T10:15:00Z");
+    }
+
+    #[test]
+    fn test_replay_maintains_metadata() {
+        let mut state = StateProjector::new();
+
+        let events = vec![
+            Event::new(
+                "block1".to_string(),
+                "alice/core.create".to_string(),
+                serde_json::json!({
+                    "name": "Block 1",
+                    "type": "markdown",
+                    "owner": "alice",
+                    "contents": {},
+                    "children": {},
+                    "metadata": {
+                        "description": "描述1",
+                        "created_at": "2025-12-17T02:00:00Z",
+                        "updated_at": "2025-12-17T02:00:00Z"
+                    }
+                }),
+                {
+                    let mut ts = std::collections::HashMap::new();
+                    ts.insert("alice".to_string(), 1);
+                    ts
+                },
+            ),
+            Event::new(
+                "block1".to_string(),
+                "alice/markdown.write".to_string(),
+                serde_json::json!({
+                    "contents": { "markdown": "内容" },
+                    "metadata": {
+                        "description": "描述1",
+                        "created_at": "2025-12-17T02:00:00Z",
+                        "updated_at": "2025-12-17T03:00:00Z"
+                    }
+                }),
+                {
+                    let mut ts = std::collections::HashMap::new();
+                    ts.insert("alice".to_string(), 2);
+                    ts
+                },
+            ),
+        ];
+
+        state.replay(events);
+
+        let block = state.get_block("block1").unwrap();
+        assert_eq!(block.metadata["description"], "描述1");
+        assert_eq!(block.metadata["created_at"], "2025-12-17T02:00:00Z");
+        assert_eq!(block.metadata["updated_at"], "2025-12-17T03:00:00Z");
     }
 }
