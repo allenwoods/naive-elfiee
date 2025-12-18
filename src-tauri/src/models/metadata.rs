@@ -2,31 +2,31 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
 
-/// Block 元数据结构（推荐格式）
+/// Block metadata structure (recommended format)
 ///
-/// 存储在 Block.metadata 字段中（JSON 格式）。
-/// 该结构定义了推荐的 metadata 格式，但不强制所有代码使用。
+/// Stored in Block.metadata field (JSON format).
+/// This structure defines the recommended metadata format, but is not enforced.
 ///
-/// # 字段说明
-/// * `description` - Block 的详细描述
-/// * `created_at` - 创建时间（ISO 8601 UTC 格式，例如："2025-12-17T02:30:00Z"）
-/// * `updated_at` - 最后更新时间（ISO 8601 UTC 格式）
-/// * `custom` - 自定义扩展字段（使用 #[serde(flatten)] 合并到根对象）
+/// # Fields
+/// * `description` - Detailed description of the block
+/// * `created_at` - Creation timestamp (ISO 8601 UTC format, e.g., "2025-12-17T02:30:00Z")
+/// * `updated_at` - Last update timestamp (ISO 8601 UTC format)
+/// * `custom` - Custom extension fields (merged into root object via #[serde(flatten)])
 #[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq)]
 pub struct BlockMetadata {
-    /// Block 描述
+    /// Block description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
-    /// 创建时间（ISO 8601 UTC）
+    /// Creation timestamp (ISO 8601 UTC)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
 
-    /// 最后更新时间（ISO 8601 UTC）
+    /// Last update timestamp (ISO 8601 UTC)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
 
-    /// 自定义扩展字段
+    /// Custom extension fields
     #[serde(flatten)]
     pub custom: HashMap<String, serde_json::Value>,
 }
@@ -43,7 +43,7 @@ impl Default for BlockMetadata {
 }
 
 impl BlockMetadata {
-    /// 创建新的 BlockMetadata，自动设置当前时间
+    /// Create new BlockMetadata with current timestamp
     pub fn new() -> Self {
         let now = crate::utils::time::now_utc();
         Self {
@@ -54,18 +54,18 @@ impl BlockMetadata {
         }
     }
 
-    /// 从 JSON Value 解析 BlockMetadata
+    /// Parse BlockMetadata from JSON Value
     pub fn from_json(value: &serde_json::Value) -> Result<Self, String> {
         serde_json::from_value(value.clone())
             .map_err(|e| format!("Failed to parse BlockMetadata: {}", e))
     }
 
-    /// 转换为 JSON Value
+    /// Convert to JSON Value
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::to_value(self).unwrap_or_else(|_| serde_json::json!({}))
     }
 
-    /// 更新 updated_at 为当前时间
+    /// Update updated_at to current timestamp
     pub fn touch(&mut self) {
         self.updated_at = Some(crate::utils::time::now_utc());
     }

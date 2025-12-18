@@ -35,9 +35,23 @@ fn handle_markdown_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<
         obj.insert("updated_at".to_string(), serde_json::json!(now_utc()));
     } else {
         // If metadata is not an object (e.g. null), initialize it
-        new_metadata = serde_json::json!({
-            "updated_at": now_utc()
-        });
+        // Try to preserve created_at if it exists in the old metadata
+        let created_at = block
+            .metadata
+            .get("created_at")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        new_metadata = if let Some(created) = created_at {
+            serde_json::json!({
+                "created_at": created,
+                "updated_at": now_utc()
+            })
+        } else {
+            serde_json::json!({
+                "updated_at": now_utc()
+            })
+        };
     }
 
     // Create event
@@ -175,5 +189,31 @@ mod tests {
 
         // 应该添加 updated_at
         assert!(new_metadata["updated_at"].is_string());
+    }
+
+    #[test]
+    fn test_markdown_write_handles_null_metadata_with_created_at() {
+        let mut block = create_test_block();
+        // Set metadata to null to trigger the else branch
+        block.metadata = serde_json::Value::Null;
+
+        let cmd = Command::new(
+            "alice".to_string(),
+            "markdown.write".to_string(),
+            block.block_id.clone(),
+            serde_json::json!({
+                "content": "New content"
+            }),
+        );
+
+        let result = handle_markdown_write(&cmd, Some(&block));
+        assert!(result.is_ok());
+
+        let events = result.unwrap();
+        let new_metadata = &events[0].value["metadata"];
+
+        // Should initialize with only updated_at (created_at is lost, which is expected)
+        assert!(new_metadata["updated_at"].is_string());
+        assert!(new_metadata.get("created_at").is_none());
     }
 }
