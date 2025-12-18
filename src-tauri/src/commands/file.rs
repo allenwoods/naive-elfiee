@@ -20,7 +20,7 @@ pub struct FileMetadata {
     pub path: String,
     pub collaborators: Vec<String>,
     pub created_at: String,
-    pub last_modified: String,
+    pub updated_at: String,
 }
 
 /// Bootstrap the editor system for a file.
@@ -307,7 +307,7 @@ pub async fn get_file_info(
         .and_then(|t| time::system_time_to_utc(t).ok())
         .unwrap_or_else(|| "Unknown".to_string());
 
-    let last_modified = metadata
+    let updated_at = metadata
         .modified()
         .ok()
         .and_then(|t| time::system_time_to_utc(t).ok())
@@ -328,7 +328,7 @@ pub async fn get_file_info(
         path,
         collaborators,
         created_at,
-        last_modified,
+        updated_at,
     })
 }
 

@@ -75,7 +75,9 @@ pub fn run() {
             .typ::<extensions::terminal::pty::TerminalWritePayload>()
             .typ::<extensions::terminal::pty::TerminalResizePayload>()
             // File metadata types
-            .typ::<commands::FileMetadata>();
+            .typ::<commands::FileMetadata>()
+            // Block metadata types
+            .typ::<models::BlockMetadata>();
 
         // Export TypeScript bindings on app startup
         #[cfg(debug_assertions)]
