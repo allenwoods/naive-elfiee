@@ -116,17 +116,17 @@ mod tests {
         let event = &events[0];
         let new_metadata = &event.value["metadata"];
 
-        // updated_at 应该被更新
+        // updated_at should be updated
         let new_updated = new_metadata["updated_at"].as_str().unwrap();
         assert_ne!(original_updated, new_updated);
 
-        // created_at 应该保持不变
+        // created_at should remain unchanged
         assert_eq!(
             new_metadata["created_at"].as_str().unwrap(),
             "2025-12-17T02:30:00Z"
         );
 
-        // 内容应该被更新
+        // Content should be updated
         let new_contents = &event.value["contents"];
         assert_eq!(new_contents["markdown"], "# Hello World");
     }
@@ -134,7 +134,7 @@ mod tests {
     #[test]
     fn test_markdown_write_preserves_other_metadata() {
         let mut block = create_test_block();
-        // 设置自定义字段
+        // Set custom fields
         if let Some(obj) = block.metadata.as_object_mut() {
             obj.insert("description".to_string(), serde_json::json!("测试描述"));
             obj.insert(
@@ -158,19 +158,19 @@ mod tests {
         let events = result.unwrap();
         let new_metadata = &events[0].value["metadata"];
 
-        // 其他字段应该保留
+        // Other fields should be preserved
         assert_eq!(new_metadata["description"], "测试描述");
         assert_eq!(new_metadata["custom_field"], "custom_value");
         assert_eq!(new_metadata["created_at"], "2025-12-17T02:30:00Z");
 
-        // updated_at 应该被更新
+        // updated_at should be updated
         assert_ne!(new_metadata["updated_at"], "2025-12-17T02:30:00Z");
     }
 
     #[test]
     fn test_markdown_write_handles_missing_metadata() {
         let mut block = create_test_block();
-        block.metadata = serde_json::json!({}); // 空 metadata
+        block.metadata = serde_json::json!({}); // Empty metadata
 
         let cmd = Command::new(
             "alice".to_string(),
@@ -187,7 +187,7 @@ mod tests {
         let events = result.unwrap();
         let new_metadata = &events[0].value["metadata"];
 
-        // 应该添加 updated_at
+        // Should add updated_at
         assert!(new_metadata["updated_at"].is_string());
     }
 

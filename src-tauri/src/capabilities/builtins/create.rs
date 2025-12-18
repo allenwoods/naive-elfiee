@@ -74,11 +74,11 @@ mod tests {
         let event = &events[0];
         let metadata = &event.value["metadata"];
 
-        // 应该自动生成时间戳
+        // Should auto-generate timestamps
         assert!(metadata["created_at"].is_string());
         assert!(metadata["updated_at"].is_string());
 
-        // 时间戳应该是 UTC 格式（以 Z 结尾）
+        // Timestamps should be in UTC format (ending with Z)
         let created = metadata["created_at"].as_str().unwrap();
         let updated = metadata["updated_at"].as_str().unwrap();
         assert!(created.ends_with('Z'));
@@ -107,10 +107,10 @@ mod tests {
         let event = &events[0];
         let metadata = &event.value["metadata"];
 
-        // 用户提供的字段应该保留
+        // User-provided fields should be preserved
         assert_eq!(metadata["description"], "测试描述");
 
-        // 自动生成的时间戳也应该存在
+        // Auto-generated timestamps should also exist
         assert!(metadata["created_at"].is_string());
         assert!(metadata["updated_at"].is_string());
     }
@@ -134,7 +134,7 @@ mod tests {
         let event = &events[0];
         let metadata = &event.value["metadata"];
 
-        // 即使用户没提供 metadata，也应该有时间戳
+        // Should have timestamps even if user didn't provide metadata
         assert!(metadata.is_object());
         assert!(metadata["created_at"].is_string());
         assert!(metadata["updated_at"].is_string());

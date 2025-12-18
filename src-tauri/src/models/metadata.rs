@@ -93,7 +93,7 @@ mod tests {
         let created = metadata.created_at.unwrap();
         let updated = metadata.updated_at.unwrap();
 
-        // 应该是有效的 UTC 时间戳
+        // Should be valid UTC timestamps
         assert!(created.ends_with('Z'));
         assert!(updated.ends_with('Z'));
     }
@@ -111,13 +111,13 @@ mod tests {
             },
         };
 
-        // 转换为 JSON
+        // Convert to JSON
         let json = metadata.to_json();
         assert_eq!(json["description"], "测试描述");
         assert_eq!(json["created_at"], "2025-12-17T02:30:00Z");
         assert_eq!(json["priority"], "high");
 
-        // 从 JSON 恢复
+        // Restore from JSON
         let restored = BlockMetadata::from_json(&json).unwrap();
         assert_eq!(restored, metadata);
     }
@@ -133,15 +133,15 @@ mod tests {
 
         let original_updated = metadata.updated_at.clone().unwrap();
 
-        // 等待一小段时间
+        // Wait a short time
         std::thread::sleep(std::time::Duration::from_millis(10));
 
-        // 更新时间戳
+        // Update timestamp
         metadata.touch();
 
         let new_updated = metadata.updated_at.clone().unwrap();
 
-        // updated_at 应该变化，created_at 不变
+        // updated_at should change, created_at should not
         assert_eq!(metadata.created_at.unwrap(), "2025-12-17T02:30:00Z");
         assert_ne!(original_updated, new_updated);
     }
@@ -157,7 +157,7 @@ mod tests {
 
         let json = serde_json::to_value(&metadata).unwrap();
 
-        // None 字段不应该出现在 JSON 中
+        // None fields should not appear in JSON
         assert!(json["description"].is_string());
         assert!(json.get("created_at").is_none() || json["created_at"].is_null());
         assert!(json.get("updated_at").is_none() || json["updated_at"].is_null());
