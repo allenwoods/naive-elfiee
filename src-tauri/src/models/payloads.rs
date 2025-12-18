@@ -13,6 +13,12 @@ pub struct CreateBlockPayload {
     pub name: String,
     /// The block type (e.g., "markdown", "code", "diagram")
     pub block_type: String,
+    /// Optional metadata (description, custom fields, etc.)
+    ///
+    /// If provided, will be merged with auto-generated timestamps.
+    /// Example: { "description": "项目需求文档" }
+    #[serde(default)]
+    pub metadata: Option<serde_json::Value>,
 }
 
 /// Payload for core.link capability
@@ -92,6 +98,24 @@ mod tests {
         let payload: CreateBlockPayload = serde_json::from_value(json).unwrap();
         assert_eq!(payload.name, "My Block");
         assert_eq!(payload.block_type, "markdown");
+        assert!(payload.metadata.is_none());
+    }
+
+    #[test]
+    fn test_create_block_payload_with_metadata() {
+        let json = serde_json::json!({
+            "name": "My Block",
+            "block_type": "markdown",
+            "metadata": {
+                "description": "测试描述"
+            }
+        });
+        let payload: CreateBlockPayload = serde_json::from_value(json).unwrap();
+        assert_eq!(payload.name, "My Block");
+        assert!(payload.metadata.is_some());
+
+        let metadata = payload.metadata.unwrap();
+        assert_eq!(metadata["description"], "测试描述");
     }
 
     #[test]

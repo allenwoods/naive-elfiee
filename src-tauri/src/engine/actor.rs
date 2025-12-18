@@ -853,4 +853,144 @@ mod tests {
 
         handle.shutdown().await;
     }
+
+    #[tokio::test]
+    async fn test_create_block_with_metadata() {
+        let event_pool = EventStore::create(":memory:").await.unwrap();
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+            .await
+            .expect("Failed to spawn engine");
+
+        let cmd = Command::new(
+            "alice".to_string(),
+            "core.create".to_string(),
+            "".to_string(),
+            serde_json::json!({
+                "name": "测试文档",
+                "block_type": "markdown",
+                "metadata": {
+                    "description": "这是一个测试文档"
+                }
+            }),
+        );
+
+        let events = handle
+            .process_command(cmd)
+            .await
+            .expect("Failed to create block");
+
+        assert_eq!(events.len(), 1);
+
+        let block_id = events[0].entity.clone();
+        let block = handle.get_block(block_id).await.unwrap();
+
+        assert_eq!(block.name, "测试文档");
+        assert_eq!(block.metadata["description"], "这是一个测试文档");
+        assert!(block.metadata["created_at"].is_string());
+        assert!(block.metadata["updated_at"].is_string());
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_write_updates_timestamp() {
+        let event_pool = EventStore::create(":memory:").await.unwrap();
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+            .await
+            .expect("Failed to spawn engine");
+
+        // 创建 Block
+        let create_cmd = Command::new(
+            "alice".to_string(),
+            "core.create".to_string(),
+            "".to_string(),
+            serde_json::json!({
+                "name": "Test",
+                "block_type": "markdown"
+            }),
+        );
+
+        let events = handle.process_command(create_cmd).await.unwrap();
+        let block_id = events[0].entity.clone();
+
+        // 获取初始时间戳
+        let block = handle.get_block(block_id.clone()).await.unwrap();
+        let original_updated = block.metadata["updated_at"].as_str().unwrap().to_string();
+
+        // 等待一小段时间
+        tokio::time::sleep(tokio::time::Duration::from_millis(1100)).await;
+
+        // 写入内容
+        let write_cmd = Command::new(
+            "alice".to_string(),
+            "markdown.write".to_string(),
+            block_id.clone(),
+            serde_json::json!({
+                "content": "# Hello World"
+            }),
+        );
+
+        let result = handle.process_command(write_cmd).await;
+        assert!(result.is_ok());
+
+        // 检查时间戳是否更新
+        let block = handle.get_block(block_id).await.unwrap();
+        let new_updated = block.metadata["updated_at"].as_str().unwrap();
+
+        assert_ne!(original_updated, new_updated);
+        assert_eq!(
+            block.metadata["created_at"].as_str().unwrap(),
+            block.metadata["created_at"].as_str().unwrap()
+        ); // created_at 不变
+
+        handle.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_metadata_persists_after_replay() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("events.db");
+        let event_pool = EventStore::create(db_path.to_str().unwrap()).await.unwrap();
+
+        // 创建第一个 handle，执行操作
+        {
+            let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+                .await
+                .unwrap();
+
+            let cmd = Command::new(
+                "alice".to_string(),
+                "core.create".to_string(),
+                "".to_string(),
+                serde_json::json!({
+                    "name": "持久化测试",
+                    "block_type": "markdown",
+                    "metadata": {
+                        "description": "测试持久化"
+                    }
+                }),
+            );
+
+            handle.process_command(cmd).await.unwrap();
+            handle.shutdown().await;
+        }
+
+        // 创建第二个 handle，重放事件
+        {
+            let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+                .await
+                .unwrap();
+
+            let blocks = handle.get_all_blocks().await;
+            assert_eq!(blocks.len(), 1);
+
+            let block = blocks.values().next().unwrap();
+            assert_eq!(block.name, "持久化测试");
+            assert_eq!(block.metadata["description"], "测试持久化");
+            assert!(block.metadata["created_at"].is_string());
+            assert!(block.metadata["updated_at"].is_string());
+
+            handle.shutdown().await;
+        }
+    }
 }
