@@ -689,7 +689,7 @@ export type FileMetadata = {
   path: string
   collaborators: string[]
   created_at: string
-  last_modified: string
+  updated_at: string
 }
 /**
  * Represents a capability grant in the CBAC system.
