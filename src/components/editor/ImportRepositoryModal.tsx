@@ -163,10 +163,10 @@ export const ImportRepositoryModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-background w-[520px] max-w-[95vw] overflow-hidden rounded-xl shadow-2xl">
+      <div className="w-[520px] max-w-[95vw] overflow-hidden rounded-xl bg-background shadow-2xl">
         {/* Header */}
-        <div className="border-border flex items-center justify-between border-b px-6 py-4">
-          <h2 className="text-foreground text-lg font-semibold">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h2 className="text-lg font-semibold text-foreground">
             Import Repository
           </h2>
           <button
@@ -174,14 +174,14 @@ export const ImportRepositoryModal = ({
               onOpenChange(false)
               resetState()
             }}
-            className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Tabs Navigation */}
-        <div className="border-border border-b px-6 pt-4">
+        <div className="border-b border-border px-6 pt-4">
           <div className="flex gap-6">
             {tabs.map((tab) => (
               <button
@@ -204,7 +204,7 @@ export const ImportRepositoryModal = ({
                   </span>
                 )}
                 {activeTab === tab.id && !tab.disabled && (
-                  <div className="bg-foreground absolute right-0 bottom-0 left-0 h-0.5" />
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground" />
                 )}
               </button>
             ))}
@@ -228,11 +228,11 @@ export const ImportRepositoryModal = ({
                     : 'border-border hover:border-muted-foreground'
                 )}
               >
-                <FolderOpen className="text-muted-foreground mb-3 h-10 w-10" />
-                <p className="text-muted-foreground mb-1 text-sm">
+                <FolderOpen className="mb-3 h-10 w-10 text-muted-foreground" />
+                <p className="mb-1 text-sm text-muted-foreground">
                   Drag files or folders here
                 </p>
-                <p className="text-muted-foreground/70 text-xs">
+                <p className="text-xs text-muted-foreground/70">
                   Or use the buttons below to browse
                 </p>
               </div>
@@ -282,12 +282,12 @@ export const ImportRepositoryModal = ({
             <div className="space-y-4">
               {/* Search */}
               <div className="relative">
-                <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search projects..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="border-border focus:border-foreground pl-9 focus:ring-0"
+                  className="border-border pl-9 focus:border-foreground focus:ring-0"
                 />
               </div>
 
@@ -301,18 +301,18 @@ export const ImportRepositoryModal = ({
                       'flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors',
                       selectedAgentourProject === project.id
                         ? 'border-orange-200 bg-orange-50'
-                        : 'hover:bg-muted/50 border-transparent'
+                        : 'border-transparent hover:bg-muted/50'
                     )}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-foreground truncate text-sm font-medium">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {project.name}
                       </p>
-                      <p className="text-muted-foreground truncate text-xs">
+                      <p className="truncate text-xs text-muted-foreground">
                         {project.owner}
                       </p>
                     </div>
-                    <div className="text-muted-foreground ml-2 flex flex-shrink-0 items-center gap-1 text-xs">
+                    <div className="ml-2 flex flex-shrink-0 items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       <span>{project.updatedAt}</span>
                     </div>
@@ -325,14 +325,14 @@ export const ImportRepositoryModal = ({
           {/* GitHub Tab */}
           {activeTab === 'github' && (
             <div className="space-y-4">
-              <div className="text-muted-foreground mb-4 flex items-center gap-2">
+              <div className="mb-4 flex items-center gap-2 text-muted-foreground">
                 <Github className="h-5 w-5" />
                 <span className="text-sm">Connect to a GitHub repository</span>
               </div>
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-foreground mb-1.5 block text-sm font-medium">
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
                     Repository URL
                   </label>
                   <Input
@@ -344,9 +344,9 @@ export const ImportRepositoryModal = ({
                 </div>
 
                 <div>
-                  <label className="text-foreground mb-1.5 block text-sm font-medium">
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
                     Branch Name{' '}
-                    <span className="text-muted-foreground font-normal">
+                    <span className="font-normal text-muted-foreground">
                       (Optional)
                     </span>
                   </label>
@@ -363,7 +363,7 @@ export const ImportRepositoryModal = ({
         </div>
 
         {/* Footer */}
-        <div className="border-border bg-muted/30 flex items-center justify-end gap-3 border-t px-6 py-4">
+        <div className="flex items-center justify-end gap-3 border-t border-border bg-muted/30 px-6 py-4">
           <Button
             variant="ghost"
             onClick={() => {

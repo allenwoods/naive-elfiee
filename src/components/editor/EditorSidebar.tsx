@@ -20,23 +20,23 @@ const PermissionsTab = ({ block }: { block: Block }) => {
 const DocumentDetailsView = ({}: { documentId: string }) => {
   return (
     <Tabs defaultValue="info" className="flex flex-1 flex-col">
-      <div className="border-border border-b px-4 pt-4">
+      <div className="border-b border-border px-4 pt-4">
         <TabsList className="h-auto w-full justify-start gap-4 bg-transparent p-0">
           <TabsTrigger
             value="info"
-            className="data-[state=active]:border-accent rounded-none px-1 pb-3 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            className="rounded-none px-1 pb-3 data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
             Info
           </TabsTrigger>
           <TabsTrigger
             value="permissions"
-            className="data-[state=active]:border-accent rounded-none px-1 pb-3 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            className="rounded-none px-1 pb-3 data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
             Permissions
           </TabsTrigger>
           <TabsTrigger
             value="agent"
-            className="data-[state=active]:border-accent rounded-none px-1 pb-3 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            className="rounded-none px-1 pb-3 data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
             Agent
           </TabsTrigger>
@@ -50,7 +50,6 @@ const DocumentDetailsView = ({}: { documentId: string }) => {
               Select a block to view details.
             </p>
           </div>
-
         </TabsContent>
 
         <TabsContent value="permissions" className="mt-0">
@@ -72,23 +71,23 @@ const DocumentDetailsView = ({}: { documentId: string }) => {
 const BlockDetailsView = ({ block }: { block: Block }) => {
   return (
     <Tabs defaultValue="actions" className="flex flex-1 flex-col">
-      <div className="border-border border-b px-4 pt-4">
+      <div className="border-b border-border px-4 pt-4">
         <div className="mb-4">
           <h2 className="text-sm font-semibold">Block Details</h2>
-          <p className="text-muted-foreground mt-1 truncate text-xs">
+          <p className="mt-1 truncate text-xs text-muted-foreground">
             {block.block_id}
           </p>
         </div>
         <TabsList className="h-auto w-full justify-start gap-4 bg-transparent p-0">
           <TabsTrigger
             value="actions"
-            className="data-[state=active]:border-accent rounded-none px-1 pb-3 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            className="rounded-none px-1 pb-3 data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
             Actions
           </TabsTrigger>
           <TabsTrigger
             value="history"
-            className="data-[state=active]:border-accent rounded-none px-1 pb-3 data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+            className="rounded-none px-1 pb-3 data-[state=active]:border-b-2 data-[state=active]:border-accent data-[state=active]:bg-transparent data-[state=active]:shadow-none"
           >
             History
           </TabsTrigger>
@@ -97,14 +96,17 @@ const BlockDetailsView = ({ block }: { block: Block }) => {
 
       <div className="flex-1 overflow-auto p-4">
         <TabsContent value="actions" className="mt-0 space-y-4">
-          <div className="text-sm text-muted-foreground space-y-2">
+          <div className="space-y-2 text-sm text-muted-foreground">
             <p>Block ID: {block.block_id}</p>
             <p>Type: {block.block_type}</p>
             <p>Owner: {block.owner}</p>
           </div>
         </TabsContent>
 
-        <TabsContent value="history" className="mt-0 text-sm text-muted-foreground">
+        <TabsContent
+          value="history"
+          className="mt-0 text-sm text-muted-foreground"
+        >
           Timeline events are available in AgentContext.
         </TabsContent>
       </div>
@@ -123,14 +125,14 @@ export const EditorSidebar = () => {
 
   if (!currentFileId) {
     return (
-      <aside className="bg-card border-border text-muted-foreground flex w-[320px] items-center justify-center border-l">
+      <aside className="flex w-[320px] items-center justify-center border-l border-border bg-card text-muted-foreground">
         <p>No file opened</p>
       </aside>
     )
   }
 
   return (
-    <aside className="bg-card border-border flex w-[320px] flex-col border-l">
+    <aside className="flex w-[320px] flex-col border-l border-border bg-card">
       {activeBlock ? (
         <BlockDetailsView block={activeBlock} />
       ) : (

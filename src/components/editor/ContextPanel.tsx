@@ -41,7 +41,9 @@ const CollaboratorsTab = ({
   grants: Grant[]
 }) => {
   if (!block) {
-    return <div className="text-sm text-muted-foreground">No block selected.</div>
+    return (
+      <div className="text-sm text-muted-foreground">No block selected.</div>
+    )
   }
   const blockGrants = grants.filter((g) => g.block_id === block.block_id)
   return (
@@ -57,9 +59,7 @@ const CollaboratorsTab = ({
             <div className="flex items-center gap-2">
               <Shield className="h-4 w-4" />
               <div>
-                <p className="text-foreground">
-                  {editor?.name || g.editor_id}
-                </p>
+                <p className="text-foreground">{editor?.name || g.editor_id}</p>
                 <p className="text-xs text-muted-foreground">
                   Capability: {g.cap_id}
                 </p>
@@ -97,8 +97,14 @@ const TimelineTab = ({ events }: { events: Event[] }) => {
 }
 
 const ContextPanel = () => {
-  const { currentFileId, selectedBlockId, getBlock, getEvents, getEditors, getGrants } =
-    useAppStore()
+  const {
+    currentFileId,
+    selectedBlockId,
+    getBlock,
+    getEvents,
+    getEditors,
+    getGrants,
+  } = useAppStore()
   const block: Block | null =
     currentFileId && selectedBlockId
       ? getBlock(currentFileId, selectedBlockId) || null
@@ -121,46 +127,46 @@ const ContextPanel = () => {
 
   if (!currentFileId) {
     return (
-      <aside className="bg-card text-muted-foreground flex h-full w-full items-center justify-center">
+      <aside className="flex h-full w-full items-center justify-center bg-card text-muted-foreground">
         <p className="text-sm">No file opened</p>
       </aside>
     )
   }
 
   return (
-    <aside className="bg-card flex h-full w-full flex-col">
-      <div className="border-border shrink-0 border-b px-4 pt-4 pb-2">
+    <aside className="flex h-full w-full flex-col bg-card">
+      <div className="shrink-0 border-b border-border px-4 pb-2 pt-4">
         <div className="mb-3 flex items-center gap-2">
           <Badge
             variant="outline"
-            className="border-border h-5 px-2 text-[10px] tracking-wide uppercase text-muted-foreground"
+            className="h-5 border-border px-2 text-[10px] uppercase tracking-wide text-muted-foreground"
           >
             Scope
           </Badge>
-          <span className="text-foreground text-sm font-medium">
+          <span className="text-sm font-medium text-foreground">
             {block ? block.name : 'Blocks'}
           </span>
         </div>
       </div>
 
       <Tabs defaultValue="info" className="flex min-h-0 flex-1 flex-col">
-        <div className="border-border shrink-0 border-b px-4">
+        <div className="shrink-0 border-b border-border px-4">
           <TabsList className="h-auto w-full justify-start gap-4 bg-transparent p-0">
             <TabsTrigger
               value="info"
-              className="data-[state=active]:border-foreground data-[state=active]:text-foreground text-muted-foreground rounded-none px-1 pb-3 text-sm data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="rounded-none px-1 pb-3 text-sm text-muted-foreground data-[state=active]:border-b-2 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
             >
               Info
             </TabsTrigger>
             <TabsTrigger
               value="collaborators"
-              className="data-[state=active]:border-foreground data-[state=active]:text-foreground text-muted-foreground rounded-none px-1 pb-3 text-sm data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="rounded-none px-1 pb-3 text-sm text-muted-foreground data-[state=active]:border-b-2 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
             >
               Collaborators
             </TabsTrigger>
             <TabsTrigger
               value="timeline"
-              className="data-[state=active]:border-foreground data-[state=active]:text-foreground text-muted-foreground rounded-none px-1 pb-3 text-sm data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              className="rounded-none px-1 pb-3 text-sm text-muted-foreground data-[state=active]:border-b-2 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
             >
               Timeline
             </TabsTrigger>
@@ -168,13 +174,17 @@ const ContextPanel = () => {
         </div>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="p-4 space-y-6">
+          <div className="space-y-6 p-4">
             <TabsContent value="info" className="mt-0">
               <InfoTab block={block} />
             </TabsContent>
 
             <TabsContent value="collaborators" className="mt-0">
-              <CollaboratorsTab block={block} editors={editors} grants={grants} />
+              <CollaboratorsTab
+                block={block}
+                editors={editors}
+                grants={grants}
+              />
             </TabsContent>
 
             <TabsContent value="timeline" className="mt-0">
@@ -188,4 +198,3 @@ const ContextPanel = () => {
 }
 
 export default ContextPanel
-

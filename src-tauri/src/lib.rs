@@ -5,6 +5,7 @@ pub mod engine;
 pub mod extensions;
 pub mod models;
 pub mod state;
+pub mod utils;
 
 use state::AppState;
 
@@ -31,6 +32,10 @@ pub fn run() {
                 commands::file::close_file,
                 commands::file::list_open_files,
                 commands::file::get_all_events,
+                commands::file::get_file_info,
+                commands::file::rename_file,
+                commands::file::delete_file,
+                commands::file::duplicate_file,
                 // Block operations (core)
                 commands::block::execute_command,
                 commands::block::get_block,
@@ -68,7 +73,9 @@ pub fn run() {
             .typ::<extensions::terminal::TerminalSavePayload>()
             .typ::<extensions::terminal::pty::TerminalInitPayload>()
             .typ::<extensions::terminal::pty::TerminalWritePayload>()
-            .typ::<extensions::terminal::pty::TerminalResizePayload>();
+            .typ::<extensions::terminal::pty::TerminalResizePayload>()
+            // File metadata types
+            .typ::<commands::FileMetadata>();
 
         // Export TypeScript bindings on app startup
         #[cfg(debug_assertions)]
@@ -92,6 +99,10 @@ pub fn run() {
         commands::file::close_file,
         commands::file::list_open_files,
         commands::file::get_all_events,
+        commands::file::get_file_info,
+        commands::file::rename_file,
+        commands::file::delete_file,
+        commands::file::duplicate_file,
         // Block operations (core)
         commands::block::execute_command,
         commands::block::get_block,

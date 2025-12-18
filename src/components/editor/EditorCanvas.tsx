@@ -69,9 +69,9 @@ ${code.substring(0, 100)}${code.length > 100 ? '...' : ''}
 
   return (
     <div className="group relative my-4 w-full">
-      <div className={cn('border-border overflow-hidden rounded-lg border')}>
+      <div className={cn('overflow-hidden rounded-lg border border-border')}>
         <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-4 py-2">
-          <span className="font-mono text-xs text-zinc-300 uppercase">
+          <span className="font-mono text-xs uppercase text-zinc-300">
             {language}
           </span>
           <Button
@@ -130,11 +130,11 @@ ${code.substring(0, 100)}${code.length > 100 ? '...' : ''}
               className="border-t border-zinc-800 bg-zinc-950"
             >
               <div className="p-4 font-mono text-sm">
-                <div className="mb-2 flex items-center gap-2 text-xs text-zinc-500 select-none">
+                <div className="mb-2 flex select-none items-center gap-2 text-xs text-zinc-500">
                   <Terminal className="h-3 w-3" />
                   <span>Terminal Output</span>
                 </div>
-                <pre className="font-mono text-xs leading-relaxed whitespace-pre-wrap text-green-400">
+                <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-green-400">
                   {output}
                 </pre>
               </div>
@@ -336,7 +336,7 @@ const MySTDocument = ({
   // Edit mode - show raw MyST markdown
   if (isEditing) {
     return (
-      <div className="border-primary/50 bg-background relative my-4 rounded-lg border-2 shadow-md">
+      <div className="relative my-4 rounded-lg border-2 border-primary/50 bg-background shadow-md">
         <div className="p-4">
           <div className="mb-2 flex items-center justify-between">
             <Badge variant="outline" className="text-xs">
@@ -366,7 +366,7 @@ const MySTDocument = ({
             onKeyDown={handleKeyDown}
             className={cn(
               'min-h-[400px] resize-y font-mono text-sm',
-              'focus-visible:ring-primary focus-visible:ring-2',
+              'focus-visible:ring-2 focus-visible:ring-primary',
               'leading-relaxed'
             )}
             placeholder="Enter MyST Markdown content..."
@@ -388,7 +388,7 @@ const MySTDocument = ({
         className={cn('myst-rendered', 'group relative w-full cursor-pointer')}
         onDoubleClick={() => setIsEditing(true)}
       >
-        <div className="border-border/50 bg-background hover:border-primary/50 relative my-4 rounded-lg border p-8 text-center transition-colors">
+        <div className="relative my-4 rounded-lg border border-border/50 bg-background p-8 text-center transition-colors hover:border-primary/50">
           <div className="text-muted-foreground">
             <p className="mb-2 text-base">(Empty document)</p>
             <p className="text-sm opacity-75">
@@ -397,7 +397,7 @@ const MySTDocument = ({
           </div>
         </div>
         {/* Edit hint on hover */}
-        <div className="pointer-events-none absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="pointer-events-none absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
           <Badge variant="secondary" className="text-xs shadow-sm">
             <Edit2 className="mr-1 h-3 w-3" />
             Double-click to edit
@@ -429,7 +429,7 @@ const MySTDocument = ({
       </ThemeProvider>
 
       {/* Edit hint on hover */}
-      <div className="pointer-events-none absolute top-2 right-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="pointer-events-none absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
         <Badge variant="secondary" className="text-xs shadow-sm">
           <Edit2 className="mr-1 h-3 w-3" />
           Double-click to edit
@@ -495,15 +495,15 @@ export const EditorCanvas = () => {
 
   return (
     <ScrollArea className="h-full w-full">
-      <main className="bg-background w-full min-w-0 p-4 md:p-6 lg:p-8">
+      <main className="w-full min-w-0 bg-background p-4 md:p-6 lg:p-8">
         {/* Editor Container */}
-        <div className="mx-auto w-full max-w-4xl min-w-0 pb-32">
+        <div className="mx-auto w-full min-w-0 max-w-4xl pb-32">
           {/* Status + Save */}
           <div className="mb-6 flex flex-wrap items-center justify-end gap-2">
             <div className="flex flex-wrap items-center gap-3">
               <Badge
                 variant="outline"
-                className="border-border text-muted-foreground text-xs font-medium"
+                className="border-border text-xs font-medium text-muted-foreground"
               >
                 🟡 Editing
               </Badge>
@@ -512,7 +512,7 @@ export const EditorCanvas = () => {
                 whileTap={{ scale: 0.98 }}
               >
                 <Button
-                  className="bg-foreground text-background hover:bg-foreground/90 rounded-full px-6 font-semibold shadow-sm"
+                  className="rounded-full bg-foreground px-6 font-semibold text-background shadow-sm hover:bg-foreground/90"
                   onClick={(e) => {
                     e.stopPropagation()
                     handleSave()
@@ -529,7 +529,7 @@ export const EditorCanvas = () => {
           {/* Editable Document Title */}
           <div className="mb-8 min-w-0">
             <h1
-              className="text-foreground hover:bg-muted/30 -mx-2 cursor-pointer rounded px-2 text-3xl font-bold break-words transition-colors"
+              className="-mx-2 cursor-pointer break-words rounded px-2 text-3xl font-bold text-foreground transition-colors hover:bg-muted/30"
               contentEditable
               suppressContentEditableWarning
             >
@@ -537,7 +537,7 @@ export const EditorCanvas = () => {
             </h1>
             <p
               ref={descriptionRef}
-              className="text-muted-foreground hover:text-foreground hover:bg-muted/30 focus:ring-primary/50 -mx-2 mt-2 min-h-[1.5rem] cursor-pointer rounded px-2 text-sm break-words transition-colors focus:ring-2 focus:outline-none"
+              className="-mx-2 mt-2 min-h-[1.5rem] cursor-pointer break-words rounded px-2 text-sm text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               contentEditable
               suppressContentEditableWarning
               onInput={(e) => {
@@ -579,7 +579,7 @@ export const EditorCanvas = () => {
                 onContentChange={handleContentChange}
               />
             ) : (
-              <div className="text-muted-foreground py-16 text-center">
+              <div className="py-16 text-center text-muted-foreground">
                 <p>No block selected</p>
                 <p className="mt-2 text-sm">
                   Select a block from the file panel to start editing

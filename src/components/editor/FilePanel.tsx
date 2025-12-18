@@ -92,7 +92,7 @@ const InlineEditInput = ({
       onChange={(e) => setValue(e.target.value)}
       onBlur={handleSave}
       onKeyDown={handleKeyDown}
-      className="focus:ring-primary/50 min-w-0 flex-1 rounded border-none bg-transparent px-1 py-0 text-sm outline-none focus:ring-1"
+      className="min-w-0 flex-1 rounded border-none bg-transparent px-1 py-0 text-sm outline-none focus:ring-1 focus:ring-primary/50"
     />
   )
 }
@@ -148,7 +148,7 @@ const LinkedRepoNode = ({
     <div className="w-full">
       {/* Row Container */}
       <div
-        className="group hover:bg-muted/50 text-foreground flex w-full cursor-pointer items-center overflow-hidden rounded-md py-1.5 pr-1 transition-colors"
+        className="group flex w-full cursor-pointer items-center overflow-hidden rounded-md py-1.5 pr-1 text-foreground transition-colors hover:bg-muted/50"
         style={{ paddingLeft: `${8 + depth * 12}px` }}
         onClick={handleSelect}
       >
@@ -157,26 +157,26 @@ const LinkedRepoNode = ({
           {node.type === 'folder' ? (
             <button
               onClick={handleToggle}
-              className="hover:bg-muted z-10 flex h-4 w-4 items-center justify-center rounded"
+              className="z-10 flex h-4 w-4 items-center justify-center rounded hover:bg-muted"
             >
               {node.isExpanded ? (
-                <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
               ) : (
-                <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
               )}
             </button>
           ) : (
             <span className="w-4" />
           )}
           {node.type === 'folder' ? (
-            <Folder className="text-muted-foreground ml-0.5 h-3.5 w-3.5" />
+            <Folder className="ml-0.5 h-3.5 w-3.5 text-muted-foreground" />
           ) : (
-            <FileCode className="text-muted-foreground ml-0.5 h-3.5 w-3.5" />
+            <FileCode className="ml-0.5 h-3.5 w-3.5 text-muted-foreground" />
           )}
         </div>
 
         {/* Middle: Text or Input (flex-1 min-w-0 for shrinking) */}
-        <div className="mr-2 ml-1.5 min-w-0 flex-1">
+        <div className="ml-1.5 mr-2 min-w-0 flex-1">
           {isEditing ? (
             <InlineEditInput
               initialValue={node.name}
@@ -197,7 +197,7 @@ const LinkedRepoNode = ({
             <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
               <button
                 onClick={handleAddChild}
-                className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-5 w-5 items-center justify-center rounded"
+                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
                 title="Import Repository"
               >
                 <Plus className="h-3 w-3" />
@@ -206,7 +206,7 @@ const LinkedRepoNode = ({
                 <DropdownMenuTrigger asChild>
                   <button
                     onClick={(e) => e.stopPropagation()}
-                    className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-5 w-5 items-center justify-center rounded"
+                    className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
                     title="More Options"
                   >
                     <MoreHorizontal className="h-3 w-3" />
@@ -390,18 +390,18 @@ export const FilePanel = () => {
   }
 
   return (
-    <aside className="bg-secondary/30 flex h-full min-h-0 w-full flex-col overflow-hidden">
+    <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-secondary/30">
       {/* Breadcrumbs - Top of sidebar */}
-      <div className="border-border shrink-0 border-b px-4 py-3">
-        <nav className="text-muted-foreground flex items-center gap-1.5 text-xs">
+      <div className="shrink-0 border-b border-border px-4 py-3">
+        <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Link
             to="/"
-            className="hover:text-foreground transition-colors hover:underline"
+            className="transition-colors hover:text-foreground hover:underline"
           >
             Projects
           </Link>
           <span>/</span>
-          <span className="text-foreground truncate font-medium">
+          <span className="truncate font-medium text-foreground">
             elfiee-pay-demo.elf
           </span>
         </nav>
@@ -412,13 +412,13 @@ export const FilePanel = () => {
           {/* OUTLINE Section (Primary - Top) */}
           <div className="mb-3 px-2">
             <div className="mb-2 flex items-center justify-between px-1">
-              <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Outline
               </span>
               <Button
                 size="sm"
                 variant="ghost"
-                className="text-muted-foreground hover:text-foreground h-6 w-6 p-0"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
                 onClick={handleAddAtRoot}
                 title="Create new document"
               >
@@ -439,13 +439,13 @@ export const FilePanel = () => {
           {/* LINKED REPOSITORIES Section (Secondary - Bottom) */}
           <div className="px-2">
             <div className="mb-2 flex items-center justify-between px-1">
-              <span className="text-muted-foreground text-xs font-semibold tracking-wide whitespace-nowrap uppercase">
+              <span className="whitespace-nowrap text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Linked Repos
               </span>
               <Button
                 size="sm"
                 variant="ghost"
-                className="text-muted-foreground hover:text-foreground h-6 w-6 flex-shrink-0 p-0"
+                className="h-6 w-6 flex-shrink-0 p-0 text-muted-foreground hover:text-foreground"
                 onClick={() => setIsImportModalOpen(true)}
                 title="Import repository"
               >

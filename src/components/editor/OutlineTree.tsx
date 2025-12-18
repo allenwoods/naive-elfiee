@@ -67,14 +67,14 @@ const InlineEditInput = ({
 
   return (
     <div
-      className="group bg-accent/10 ring-accent/50 flex w-full items-center overflow-hidden rounded-md py-1 pr-2 ring-2"
+      className="group flex w-full items-center overflow-hidden rounded-md bg-accent/10 py-1 pr-2 ring-2 ring-accent/50"
       style={{ paddingLeft: `${8 + depth * 16}px` }}
     >
       {/* Zone 1: Toggle placeholder */}
       <div className="h-5 w-5 flex-shrink-0" />
 
       {/* Zone 2: Icon */}
-      <FileText className="text-accent h-4 w-4 flex-shrink-0" />
+      <FileText className="h-4 w-4 flex-shrink-0 text-accent" />
 
       {/* Zone 3: Input */}
       <div className="ml-2 min-w-0 flex-1">
@@ -85,7 +85,7 @@ const InlineEditInput = ({
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
-          className="text-foreground h-6 w-full border-none bg-transparent p-0 text-sm font-medium focus:ring-0 focus:outline-none"
+          className="h-6 w-full border-none bg-transparent p-0 text-sm font-medium text-foreground focus:outline-none focus:ring-0"
           placeholder="Untitled"
         />
       </div>
@@ -212,8 +212,8 @@ const TreeNode = ({
         className={cn(
           'group flex w-full cursor-pointer items-center overflow-hidden rounded-md py-1 pr-1 transition-colors',
           isActive
-            ? 'bg-accent/10 text-accent font-medium'
-            : 'hover:bg-muted/50 text-foreground'
+            ? 'bg-accent/10 font-medium text-accent'
+            : 'text-foreground hover:bg-muted/50'
         )}
         style={{ paddingLeft: `${8 + depth * 16}px` }}
       >
@@ -221,15 +221,15 @@ const TreeNode = ({
         <button
           onClick={handleToggleClick}
           className={cn(
-            'hover:bg-muted/80 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded transition-colors',
+            'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded transition-colors hover:bg-muted/80',
             !hasChildren && 'pointer-events-none opacity-0'
           )}
           aria-label={isExpanded ? 'Collapse' : 'Expand'}
         >
           {isExpanded ? (
-            <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           ) : (
-            <ChevronRight className="text-muted-foreground h-3.5 w-3.5" />
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
           )}
         </button>
 
@@ -242,8 +242,8 @@ const TreeNode = ({
         />
 
         {/* Zone 2: Title (Content) - Clickable to select */}
-        <div className="mr-2 ml-2 min-w-0 flex-1" onClick={handleTitleClick}>
-          <span className="block truncate text-left text-sm select-none">
+        <div className="ml-2 mr-2 min-w-0 flex-1" onClick={handleTitleClick}>
+          <span className="block select-none truncate text-left text-sm">
             {node.title}
           </span>
         </div>
@@ -253,7 +253,7 @@ const TreeNode = ({
           {/* Add Child Button */}
           <button
             onClick={handleAddChildClick}
-            className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-6 w-6 items-center justify-center rounded transition-colors"
+            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             title="Add sub-document"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -264,7 +264,7 @@ const TreeNode = ({
             <DropdownMenuTrigger asChild>
               <button
                 onClick={handleDropdownClick}
-                className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-6 w-6 items-center justify-center rounded transition-colors"
+                className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 title="More options"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />

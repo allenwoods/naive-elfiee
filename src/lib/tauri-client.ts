@@ -19,6 +19,7 @@ import {
   type GrantPayload,
   type RevokePayload,
   type MarkdownWritePayload,
+  type FileMetadata,
 } from '@/bindings'
 
 /**
@@ -67,24 +68,6 @@ export class FileOperations {
     }
   }
 
-  static async saveFile(fileId: string): Promise<void> {
-    const result = await commands.saveFile(fileId)
-    if (result.status === 'ok') {
-      return
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
-  static async closeFile(fileId: string): Promise<void> {
-    const result = await commands.closeFile(fileId)
-    if (result.status === 'ok') {
-      return
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
   static async listOpenFiles(): Promise<string[]> {
     const result = await commands.listOpenFiles()
     if (result.status === 'ok') {
@@ -94,8 +77,63 @@ export class FileOperations {
     }
   }
 
-  static async getAllEvents(fileId: string): Promise<Event[]> {
-    const result = await commands.getAllEvents(fileId)
+  /**
+   * Get detailed information about a file.
+   *
+   * @param fileId - Unique identifier of the file
+   * @returns File metadata (name, path, collaborators, timestamps)
+   */
+  static async getFileInfo(fileId: string): Promise<FileMetadata> {
+    const result = await commands.getFileInfo(fileId)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Rename a file.
+   *
+   * @param fileId - Unique identifier of the file
+   * @param newName - New name for the file (without .elf extension)
+   */
+  static async renameFile(fileId: string, newName: string): Promise<void> {
+    const result = await commands.renameFile(fileId, newName)
+    if (result.status === 'ok') {
+      return
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Delete a file from the filesystem.
+   *
+   * Warning: This operation cannot be undone.
+   *
+   * @param fileId - Unique identifier of the file to delete
+   */
+  static async deleteFile(fileId: string): Promise<void> {
+    const result = await commands.deleteFile(fileId)
+    if (result.status === 'ok') {
+      return
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Duplicate (copy) an existing .elf file.
+   *
+   * This creates a copy of the file with a new name and opens it for editing.
+   * The new file will have " Copy" appended to the name.
+   *
+   * @param fileId - Unique identifier of the file to duplicate
+   * @returns The file ID of the newly created duplicate
+   */
+  static async duplicateFile(fileId: string): Promise<string> {
+    const result = await commands.duplicateFile(fileId)
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -108,15 +146,6 @@ export class FileOperations {
  * Block Operations
  */
 export class BlockOperations {
-  static async getBlock(fileId: string, blockId: string): Promise<Block> {
-    const result = await commands.getBlock(fileId, blockId)
-    if (result.status === 'ok') {
-      return result.data
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
   static async getAllBlocks(fileId: string): Promise<Block[]> {
     const result = await commands.getAllBlocks(fileId)
     if (result.status === 'ok') {
@@ -169,15 +198,6 @@ export class BlockOperations {
       blockId,
       payload as unknown as JsonValue
     )
-    return await this.executeCommand(fileId, cmd)
-  }
-
-  static async deleteBlock(
-    fileId: string,
-    blockId: string,
-    editorId: string = DEFAULT_EDITOR_ID
-  ): Promise<Event[]> {
-    const cmd = createCommand(editorId, 'core.delete', blockId, {} as JsonValue)
     return await this.executeCommand(fileId, cmd)
   }
 }
