@@ -579,7 +579,52 @@ export type Block = {
   contents: JsonValue
   children: Partial<{ [key in string]: string[] }>
   owner: string
+  /**
+   * 元数据（灵活的 JSON 对象）
+   *
+   * 推荐使用 BlockMetadata 结构，但不强制。
+   * 默认为空对象 {}
+   */
+  metadata: JsonValue
 }
+/**
+ * Block 元数据结构（推荐格式）
+ *
+ * 存储在 Block.metadata 字段中（JSON 格式）。
+ * 该结构定义了推荐的 metadata 格式，但不强制所有代码使用。
+ *
+ * # 字段说明
+ * * `description` - Block 的详细描述
+ * * `created_at` - 创建时间（ISO 8601 UTC 格式，例如："2025-12-17T02:30:00Z"）
+ * * `updated_at` - 最后更新时间（ISO 8601 UTC 格式）
+ * * `custom` - 自定义扩展字段（使用 #[serde(flatten)] 合并到根对象）
+ */
+export type BlockMetadata =
+  /**
+   * 自定义扩展字段
+   */
+  Partial<{
+    [key in string]:
+      | null
+      | boolean
+      | number
+      | string
+      | JsonValue[]
+      | Partial<{ [key in string]: JsonValue }>
+  }> & {
+    /**
+     * Block 描述
+     */
+    description?: string | null
+    /**
+     * 创建时间（ISO 8601 UTC）
+     */
+    created_at?: string | null
+    /**
+     * 最后更新时间（ISO 8601 UTC）
+     */
+    updated_at?: string | null
+  }
 export type Command = {
   cmd_id: string
   editor_id: string
@@ -605,6 +650,13 @@ export type CreateBlockPayload = {
    * The block type (e.g., "markdown", "code", "diagram")
    */
   block_type: string
+  /**
+   * Optional metadata (description, custom fields, etc.)
+   *
+   * If provided, will be merged with auto-generated timestamps.
+   * Example: { "description": "项目需求文档" }
+   */
+  metadata?: JsonValue | null
 }
 export type Editor = { editor_id: string; name: string }
 /**
