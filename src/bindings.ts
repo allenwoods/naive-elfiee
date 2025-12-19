@@ -580,28 +580,25 @@ export type Block = {
   children: Partial<{ [key in string]: string[] }>
   owner: string
   /**
-   * 元数据（灵活的 JSON 对象）
-   *
-   * 推荐使用 BlockMetadata 结构，但不强制。
-   * 默认为空对象 {}
+   * Block metadata with timestamps and custom fields
    */
-  metadata: JsonValue
+  metadata: BlockMetadata
 }
 /**
- * Block 元数据结构（推荐格式）
+ * Block metadata structure (recommended format)
  *
- * 存储在 Block.metadata 字段中（JSON 格式）。
- * 该结构定义了推荐的 metadata 格式，但不强制所有代码使用。
+ * Stored in Block.metadata field (JSON format).
+ * This structure defines the recommended metadata format, but is not enforced.
  *
- * # 字段说明
- * * `description` - Block 的详细描述
- * * `created_at` - 创建时间（ISO 8601 UTC 格式，例如："2025-12-17T02:30:00Z"）
- * * `updated_at` - 最后更新时间（ISO 8601 UTC 格式）
- * * `custom` - 自定义扩展字段（使用 #[serde(flatten)] 合并到根对象）
+ * # Fields
+ * * `description` - Detailed description of the block
+ * * `created_at` - Creation timestamp (ISO 8601 UTC format, e.g., "2025-12-17T02:30:00Z")
+ * * `updated_at` - Last update timestamp (ISO 8601 UTC format)
+ * * `custom` - Custom extension fields (merged into root object via #[serde(flatten)])
  */
 export type BlockMetadata =
   /**
-   * 自定义扩展字段
+   * Custom extension fields
    */
   Partial<{
     [key in string]:
@@ -613,15 +610,15 @@ export type BlockMetadata =
       | Partial<{ [key in string]: JsonValue }>
   }> & {
     /**
-     * Block 描述
+     * Block description
      */
     description?: string | null
     /**
-     * 创建时间（ISO 8601 UTC）
+     * Creation timestamp (ISO 8601 UTC)
      */
     created_at?: string | null
     /**
-     * 最后更新时间（ISO 8601 UTC）
+     * Last update timestamp (ISO 8601 UTC)
      */
     updated_at?: string | null
   }
