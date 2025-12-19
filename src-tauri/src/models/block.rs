@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
 
+use super::BlockMetadata;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct Block {
     pub block_id: String,
@@ -11,11 +13,8 @@ pub struct Block {
     pub children: HashMap<String, Vec<String>>,
     pub owner: String,
 
-    /// 元数据（灵活的 JSON 对象）
-    ///
-    /// 推荐使用 BlockMetadata 结构，但不强制。
-    /// 默认为空对象 {}
-    pub metadata: serde_json::Value,
+    /// Block metadata with timestamps and custom fields
+    pub metadata: BlockMetadata,
 }
 
 impl Block {
@@ -27,7 +26,7 @@ impl Block {
             contents: serde_json::json!({}),
             children: HashMap::new(),
             owner,
-            metadata: serde_json::json!({}),
+            metadata: BlockMetadata::default(),
         }
     }
 }
@@ -47,7 +46,9 @@ mod tests {
         assert_eq!(block.name, "Test Block");
         assert_eq!(block.block_type, "markdown");
         assert_eq!(block.owner, "alice");
-        assert_eq!(block.metadata, serde_json::json!({}));
+        assert_eq!(block.metadata, BlockMetadata::default());
+        assert!(block.metadata.created_at.is_none());
+        assert!(block.metadata.updated_at.is_none());
     }
 
     #[test]
@@ -58,12 +59,17 @@ mod tests {
             "alice".to_string(),
         );
 
-        block.metadata = serde_json::json!({
-            "description": "测试描述",
-            "created_at": "2025-12-17T02:30:00Z"
-        });
+        block.metadata = BlockMetadata {
+            description: Some("测试描述".to_string()),
+            created_at: Some("2025-12-17T02:30:00Z".to_string()),
+            updated_at: Some("2025-12-17T02:30:00Z".to_string()),
+            custom: HashMap::new(),
+        };
 
-        assert_eq!(block.metadata["description"], "测试描述");
-        assert_eq!(block.metadata["created_at"], "2025-12-17T02:30:00Z");
+        assert_eq!(block.metadata.description, Some("测试描述".to_string()));
+        assert_eq!(
+            block.metadata.created_at,
+            Some("2025-12-17T02:30:00Z".to_string())
+        );
     }
 }

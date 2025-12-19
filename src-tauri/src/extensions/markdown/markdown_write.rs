@@ -1,6 +1,5 @@
 use crate::capabilities::core::{create_event, CapResult};
 use crate::models::{Block, Command, Event};
-use crate::utils::time::now_utc;
 use capability_macros::capability;
 
 use super::MarkdownWritePayload;
@@ -29,30 +28,9 @@ fn handle_markdown_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<
     };
     new_contents.insert("markdown".to_string(), serde_json::json!(payload.content));
 
-    // Update metadata.updated_at
+    // Update metadata.updated_at using the touch() method
     let mut new_metadata = block.metadata.clone();
-    if let Some(obj) = new_metadata.as_object_mut() {
-        obj.insert("updated_at".to_string(), serde_json::json!(now_utc()));
-    } else {
-        // If metadata is not an object (e.g. null), initialize it
-        // Try to preserve created_at if it exists in the old metadata
-        let created_at = block
-            .metadata
-            .get("created_at")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-
-        new_metadata = if let Some(created) = created_at {
-            serde_json::json!({
-                "created_at": created,
-                "updated_at": now_utc()
-            })
-        } else {
-            serde_json::json!({
-                "updated_at": now_utc()
-            })
-        };
-    }
+    new_metadata.touch();
 
     // Create event
     let event = create_event(
@@ -60,7 +38,7 @@ fn handle_markdown_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<
         "markdown.write", // cap_id
         serde_json::json!({
             "contents": new_contents,
-            "metadata": new_metadata
+            "metadata": new_metadata.to_json()
         }),
         &cmd.editor_id,
         1, // Placeholder - engine actor updates with correct count (actor.rs:227)
@@ -76,6 +54,8 @@ mod tests {
     use std::collections::HashMap;
 
     fn create_test_block() -> Block {
+        use crate::models::BlockMetadata;
+
         Block {
             block_id: "block-123".to_string(),
             name: "Test Block".to_string(),
@@ -83,19 +63,23 @@ mod tests {
             owner: "alice".to_string(),
             contents: serde_json::json!({}),
             children: HashMap::new(),
-            metadata: serde_json::json!({
-                "created_at": "2025-12-17T02:30:00Z",
-                "updated_at": "2025-12-17T02:30:00Z"
-            }),
+            metadata: BlockMetadata {
+                description: None,
+                created_at: Some("2025-12-17T02:30:00Z".to_string()),
+                updated_at: Some("2025-12-17T02:30:00Z".to_string()),
+                custom: HashMap::new(),
+            },
         }
     }
 
     #[test]
     fn test_markdown_write_updates_timestamp() {
-        let block = create_test_block();
-        let original_updated = block.metadata["updated_at"].as_str().unwrap();
+        use crate::models::BlockMetadata;
 
-        // 等待一小段时间确保时间戳不同
+        let block = create_test_block();
+        let original_updated = block.metadata.updated_at.clone().unwrap();
+
+        // Wait a moment to ensure timestamp is different
         std::thread::sleep(std::time::Duration::from_millis(10));
 
         let cmd = Command::new(
@@ -114,17 +98,15 @@ mod tests {
         assert_eq!(events.len(), 1);
 
         let event = &events[0];
-        let new_metadata = &event.value["metadata"];
+        let new_metadata_json = &event.value["metadata"];
+        let new_metadata = BlockMetadata::from_json(new_metadata_json).unwrap();
 
         // updated_at should be updated
-        let new_updated = new_metadata["updated_at"].as_str().unwrap();
+        let new_updated = new_metadata.updated_at.clone().unwrap();
         assert_ne!(original_updated, new_updated);
 
         // created_at should remain unchanged
-        assert_eq!(
-            new_metadata["created_at"].as_str().unwrap(),
-            "2025-12-17T02:30:00Z"
-        );
+        assert_eq!(new_metadata.created_at.unwrap(), "2025-12-17T02:30:00Z");
 
         // Content should be updated
         let new_contents = &event.value["contents"];
@@ -133,15 +115,15 @@ mod tests {
 
     #[test]
     fn test_markdown_write_preserves_other_metadata() {
+        use crate::models::BlockMetadata;
+
         let mut block = create_test_block();
         // Set custom fields
-        if let Some(obj) = block.metadata.as_object_mut() {
-            obj.insert("description".to_string(), serde_json::json!("测试描述"));
-            obj.insert(
-                "custom_field".to_string(),
-                serde_json::json!("custom_value"),
-            );
-        }
+        block.metadata.description = Some("测试描述".to_string());
+        block.metadata.custom.insert(
+            "custom_field".to_string(),
+            serde_json::json!("custom_value"),
+        );
 
         let cmd = Command::new(
             "alice".to_string(),
@@ -156,21 +138,33 @@ mod tests {
         assert!(result.is_ok());
 
         let events = result.unwrap();
-        let new_metadata = &events[0].value["metadata"];
+        let new_metadata_json = &events[0].value["metadata"];
+        let new_metadata = BlockMetadata::from_json(new_metadata_json).unwrap();
 
         // Other fields should be preserved
-        assert_eq!(new_metadata["description"], "测试描述");
-        assert_eq!(new_metadata["custom_field"], "custom_value");
-        assert_eq!(new_metadata["created_at"], "2025-12-17T02:30:00Z");
+        assert_eq!(new_metadata.description, Some("测试描述".to_string()));
+        assert_eq!(
+            new_metadata.custom.get("custom_field").unwrap(),
+            "custom_value"
+        );
+        assert_eq!(
+            new_metadata.created_at,
+            Some("2025-12-17T02:30:00Z".to_string())
+        );
 
         // updated_at should be updated
-        assert_ne!(new_metadata["updated_at"], "2025-12-17T02:30:00Z");
+        assert_ne!(
+            new_metadata.updated_at,
+            Some("2025-12-17T02:30:00Z".to_string())
+        );
     }
 
     #[test]
     fn test_markdown_write_handles_missing_metadata() {
+        use crate::models::BlockMetadata;
+
         let mut block = create_test_block();
-        block.metadata = serde_json::json!({}); // Empty metadata
+        block.metadata = BlockMetadata::default(); // Empty metadata
 
         let cmd = Command::new(
             "alice".to_string(),
@@ -185,35 +179,13 @@ mod tests {
         assert!(result.is_ok());
 
         let events = result.unwrap();
-        let new_metadata = &events[0].value["metadata"];
+        let new_metadata_json = &events[0].value["metadata"];
+        let new_metadata = BlockMetadata::from_json(new_metadata_json).unwrap();
 
         // Should add updated_at
-        assert!(new_metadata["updated_at"].is_string());
+        assert!(new_metadata.updated_at.is_some());
     }
 
-    #[test]
-    fn test_markdown_write_handles_null_metadata_with_created_at() {
-        let mut block = create_test_block();
-        // Set metadata to null to trigger the else branch
-        block.metadata = serde_json::Value::Null;
-
-        let cmd = Command::new(
-            "alice".to_string(),
-            "markdown.write".to_string(),
-            block.block_id.clone(),
-            serde_json::json!({
-                "content": "New content"
-            }),
-        );
-
-        let result = handle_markdown_write(&cmd, Some(&block));
-        assert!(result.is_ok());
-
-        let events = result.unwrap();
-        let new_metadata = &events[0].value["metadata"];
-
-        // Should initialize with only updated_at (created_at is lost, which is expected)
-        assert!(new_metadata["updated_at"].is_string());
-        assert!(new_metadata.get("created_at").is_none());
-    }
+    // Note: test_markdown_write_handles_null_metadata_with_created_at removed
+    // because Block.metadata is now strongly typed as BlockMetadata and cannot be null
 }

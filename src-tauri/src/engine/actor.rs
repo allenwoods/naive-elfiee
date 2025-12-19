@@ -885,9 +885,12 @@ mod tests {
         let block = handle.get_block(block_id).await.unwrap();
 
         assert_eq!(block.name, "测试文档");
-        assert_eq!(block.metadata["description"], "这是一个测试文档");
-        assert!(block.metadata["created_at"].is_string());
-        assert!(block.metadata["updated_at"].is_string());
+        assert_eq!(
+            block.metadata.description,
+            Some("这是一个测试文档".to_string())
+        );
+        assert!(block.metadata.created_at.is_some());
+        assert!(block.metadata.updated_at.is_some());
 
         handle.shutdown().await;
     }
@@ -915,7 +918,7 @@ mod tests {
 
         // 获取初始时间戳
         let block = handle.get_block(block_id.clone()).await.unwrap();
-        let original_updated = block.metadata["updated_at"].as_str().unwrap().to_string();
+        let original_updated = block.metadata.updated_at.clone().unwrap();
 
         // 等待一小段时间
         tokio::time::sleep(tokio::time::Duration::from_millis(1100)).await;
@@ -935,13 +938,11 @@ mod tests {
 
         // 检查时间戳是否更新
         let block = handle.get_block(block_id).await.unwrap();
-        let new_updated = block.metadata["updated_at"].as_str().unwrap();
+        let new_updated = block.metadata.updated_at.clone().unwrap();
 
         assert_ne!(original_updated, new_updated);
-        assert_eq!(
-            block.metadata["created_at"].as_str().unwrap(),
-            block.metadata["created_at"].as_str().unwrap()
-        ); // created_at 不变
+        // created_at should remain unchanged
+        assert!(block.metadata.created_at.is_some());
 
         handle.shutdown().await;
     }
@@ -986,9 +987,9 @@ mod tests {
 
             let block = blocks.values().next().unwrap();
             assert_eq!(block.name, "持久化测试");
-            assert_eq!(block.metadata["description"], "测试持久化");
-            assert!(block.metadata["created_at"].is_string());
-            assert!(block.metadata["updated_at"].is_string());
+            assert_eq!(block.metadata.description, Some("测试持久化".to_string()));
+            assert!(block.metadata.created_at.is_some());
+            assert!(block.metadata.updated_at.is_some());
 
             handle.shutdown().await;
         }

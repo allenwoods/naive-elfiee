@@ -1,5 +1,5 @@
 use crate::capabilities::grants::GrantsTable;
-use crate::models::{Block, Editor, Event};
+use crate::models::{Block, BlockMetadata, Editor, Event};
 use std::collections::HashMap;
 
 /// In-memory state projection from events.
@@ -91,8 +91,8 @@ impl StateProjector {
                             .unwrap_or_default(),
                         metadata: obj
                             .get("metadata")
-                            .cloned()
-                            .unwrap_or_else(|| serde_json::json!({})),
+                            .and_then(|v| BlockMetadata::from_json(v).ok())
+                            .unwrap_or_default(),
                     };
                     self.blocks.insert(block.block_id.clone(), block);
                 }
@@ -119,7 +119,9 @@ impl StateProjector {
                     }
                     // Update metadata if present (e.g. updated_at from write ops)
                     if let Some(new_metadata) = event.value.get("metadata") {
-                        block.metadata = new_metadata.clone();
+                        if let Ok(parsed) = BlockMetadata::from_json(new_metadata) {
+                            block.metadata = parsed;
+                        }
                     }
                 }
             }
@@ -366,10 +368,16 @@ mod tests {
         let block = state.get_block("block1").unwrap();
         assert_eq!(block.name, "Test Block");
 
-        // 验证 metadata
-        assert_eq!(block.metadata["description"], "测试描述");
-        assert_eq!(block.metadata["created_at"], "2025-12-17T02:30:00Z");
-        assert_eq!(block.metadata["updated_at"], "2025-12-17T02:30:00Z");
+        // Verify metadata
+        assert_eq!(block.metadata.description, Some("测试描述".to_string()));
+        assert_eq!(
+            block.metadata.created_at,
+            Some("2025-12-17T02:30:00Z".to_string())
+        );
+        assert_eq!(
+            block.metadata.updated_at,
+            Some("2025-12-17T02:30:00Z".to_string())
+        );
     }
 
     #[test]
@@ -422,12 +430,18 @@ mod tests {
 
         let block = state.get_block("block1").unwrap();
 
-        // contents 应该被更新
+        // Contents should be updated
         assert_eq!(block.contents["markdown"], "# Hello");
 
-        // metadata 应该被更新
-        assert_eq!(block.metadata["created_at"], "2025-12-17T02:30:00Z");
-        assert_eq!(block.metadata["updated_at"], "2025-12-17T10:15:00Z");
+        // Metadata should be updated
+        assert_eq!(
+            block.metadata.created_at,
+            Some("2025-12-17T02:30:00Z".to_string())
+        );
+        assert_eq!(
+            block.metadata.updated_at,
+            Some("2025-12-17T10:15:00Z".to_string())
+        );
     }
 
     #[test]
@@ -478,8 +492,14 @@ mod tests {
         state.replay(events);
 
         let block = state.get_block("block1").unwrap();
-        assert_eq!(block.metadata["description"], "描述1");
-        assert_eq!(block.metadata["created_at"], "2025-12-17T02:00:00Z");
-        assert_eq!(block.metadata["updated_at"], "2025-12-17T03:00:00Z");
+        assert_eq!(block.metadata.description, Some("描述1".to_string()));
+        assert_eq!(
+            block.metadata.created_at,
+            Some("2025-12-17T02:00:00Z".to_string())
+        );
+        assert_eq!(
+            block.metadata.updated_at,
+            Some("2025-12-17T03:00:00Z".to_string())
+        );
     }
 }
