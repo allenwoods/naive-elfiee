@@ -14,8 +14,6 @@ import {
   type Grant,
   type JsonValue,
   type CreateBlockPayload,
-  type LinkBlockPayload,
-  type UnlinkBlockPayload,
   type GrantPayload,
   type RevokePayload,
   type MarkdownWritePayload,
@@ -78,6 +76,22 @@ export class FileOperations {
   }
 
   /**
+   * Save the current state of a file to disk.
+   *
+   * This persists all changes made since the file was opened or last saved.
+   *
+   * @param fileId - Unique identifier of the file to save
+   */
+  static async saveFile(fileId: string): Promise<void> {
+    const result = await commands.saveFile(fileId)
+    if (result.status === 'ok') {
+      return
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
    * Get detailed information about a file.
    *
    * @param fileId - Unique identifier of the file
@@ -100,6 +114,24 @@ export class FileOperations {
    */
   static async renameFile(fileId: string, newName: string): Promise<void> {
     const result = await commands.renameFile(fileId, newName)
+    if (result.status === 'ok') {
+      return
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Close a file and release associated resources.
+   *
+   * This removes the file from the open files list and shuts down the engine actor.
+   * The physical file remains on disk and can be reopened later.
+   * Unsaved changes will be lost.
+   *
+   * @param fileId - Unique identifier of the file to close
+   */
+  static async closeFile(fileId: string): Promise<void> {
+    const result = await commands.closeFile(fileId)
     if (result.status === 'ok') {
       return
     } else {
@@ -168,14 +200,20 @@ export class BlockOperations {
     fileId: string,
     name: string,
     blockType: string,
-    editorId: string = DEFAULT_EDITOR_ID
+    editorId?: string
   ): Promise<Event[]> {
+    // Get active editor if not provided
+    const activeEditorId =
+      editorId ||
+      (await EditorOperations.getActiveEditor(fileId)) ||
+      DEFAULT_EDITOR_ID
+
     const payload: CreateBlockPayload = {
       name,
       block_type: blockType,
     }
     const cmd = createCommand(
-      editorId,
+      activeEditorId,
       'core.create',
       '*',
       payload as unknown as JsonValue
@@ -187,18 +225,61 @@ export class BlockOperations {
     fileId: string,
     blockId: string,
     content: string,
-    editorId: string = DEFAULT_EDITOR_ID
+    editorId?: string
   ): Promise<Event[]> {
+    // Get active editor if not provided
+    const activeEditorId =
+      editorId ||
+      (await EditorOperations.getActiveEditor(fileId)) ||
+      DEFAULT_EDITOR_ID
+
     const payload: MarkdownWritePayload = {
       content,
     }
     const cmd = createCommand(
-      editorId,
+      activeEditorId,
       'markdown.write',
       blockId,
       payload as unknown as JsonValue
     )
     return await this.executeCommand(fileId, cmd)
+  }
+
+  static async deleteBlock(
+    fileId: string,
+    blockId: string,
+    editorId?: string
+  ): Promise<Event[]> {
+    // Get active editor if not provided
+    const activeEditorId =
+      editorId ||
+      (await EditorOperations.getActiveEditor(fileId)) ||
+      DEFAULT_EDITOR_ID
+
+    const cmd = createCommand(
+      activeEditorId,
+      'core.delete',
+      blockId,
+      {} as JsonValue
+    )
+    return await this.executeCommand(fileId, cmd)
+  }
+
+  static async updateBlockMetadata(
+    fileId: string,
+    blockId: string,
+    metadata: Record<string, unknown>
+  ): Promise<void> {
+    const result = await commands.updateBlockMetadata(
+      fileId,
+      blockId,
+      metadata as JsonValue
+    )
+    if (result.status === 'ok') {
+      return
+    } else {
+      throw new Error(result.error)
+    }
   }
 }
 
@@ -292,15 +373,19 @@ export class EditorOperations {
     targetEditor: string,
     capability: string,
     targetBlock: string = '*',
-    editorId: string = DEFAULT_EDITOR_ID
+    editorId?: string
   ): Promise<Event[]> {
+    // Get active editor if not provided
+    const activeEditorId =
+      editorId || (await this.getActiveEditor(fileId)) || DEFAULT_EDITOR_ID
+
     const payload: GrantPayload = {
       target_editor: targetEditor,
       capability,
       target_block: targetBlock,
     }
     const cmd = createCommand(
-      editorId,
+      activeEditorId,
       'core.grant',
       targetBlock,
       payload as unknown as JsonValue
@@ -313,15 +398,19 @@ export class EditorOperations {
     targetEditor: string,
     capability: string,
     targetBlock: string = '*',
-    editorId: string = DEFAULT_EDITOR_ID
+    editorId?: string
   ): Promise<Event[]> {
+    // Get active editor if not provided
+    const activeEditorId =
+      editorId || (await this.getActiveEditor(fileId)) || DEFAULT_EDITOR_ID
+
     const payload: RevokePayload = {
       target_editor: targetEditor,
       capability,
       target_block: targetBlock,
     }
     const cmd = createCommand(
-      editorId,
+      activeEditorId,
       'core.revoke',
       targetBlock,
       payload as unknown as JsonValue

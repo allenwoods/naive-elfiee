@@ -71,6 +71,17 @@ pub struct RevokePayload {
     pub target_block: String,
 }
 
+/// Payload for core.update_metadata capability
+///
+/// This payload is used to update metadata fields of an existing block.
+/// The metadata will be merged with existing metadata (not replaced).
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct UpdateMetadataPayload {
+    /// Metadata fields to update or add
+    /// Example: { "description": "Updated description", "tags": ["tag1", "tag2"] }
+    pub metadata: serde_json::Value,
+}
+
 /// Payload for editor.create capability
 ///
 /// This payload is used to create a new editor identity in the file.

@@ -39,11 +39,9 @@ interface CodeBlockNode extends ASTNode {
 const CodeBlockWithRun = ({
   code,
   language,
-  blockId,
 }: {
   code: string
   language: string
-  blockId: string
 }) => {
   const [isRunning, setIsRunning] = useState(false)
   const [output, setOutput] = useState<string | null>(null)
@@ -53,17 +51,21 @@ const CodeBlockWithRun = ({
     setIsRunning(true)
     setOutput(null)
 
-    // Simulate code execution
+    // TODO: Implement real code execution via Terminal Extension
+    // This is a mock implementation for demonstration purposes
+    // Real implementation should call Tauri backend command to execute code
     setTimeout(() => {
-      const mockOutput = `✓ Code executed successfully
+      const mockOutput = `✓ Code executed successfully (Mock)
 Language: ${language}
 Output:
 ${code.substring(0, 100)}${code.length > 100 ? '...' : ''}
 
-> Process completed at ${new Date().toLocaleTimeString()}`
+> Process completed at ${new Date().toLocaleTimeString()}
+
+Note: This is a mock execution. Real code execution will be implemented in Terminal Extension.`
       setOutput(mockOutput)
       setIsRunning(false)
-      toast.success('Code executed successfully')
+      toast.success('Code executed (mock)')
     }, 1500)
   }
 
@@ -150,13 +152,16 @@ ${code.substring(0, 100)}${code.length > 100 ? '...' : ''}
 const MySTDocument = ({
   content,
   onContentChange,
+  onSave,
 }: {
   content: string
   onContentChange?: (newContent: string) => void
+  onSave?: () => void | Promise<void>
 }) => {
   const codeBlockCounter = useRef(0)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState(content)
+  const [isSaving, setIsSaving] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Parse MyST content into AST
@@ -184,13 +189,28 @@ const MySTDocument = ({
     setEditContent(content)
   }, [content])
 
-  // Focus textarea when entering edit mode
+  // Focus textarea when entering edit mode and auto-resize
   useEffect(() => {
     if (isEditing && textareaRef.current) {
-      textareaRef.current.focus()
-      textareaRef.current.setSelectionRange(0, editContent.length)
+      const textarea = textareaRef.current
+      textarea.focus()
+      // Move cursor to end instead of selecting all
+      setTimeout(() => {
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length)
+      }, 0)
+
+      // Auto-resize textarea to fit content
+      const autoResize = () => {
+        textarea.style.height = 'auto'
+        textarea.style.height = textarea.scrollHeight + 'px'
+      }
+      autoResize()
+
+      // Add resize observer
+      textarea.addEventListener('input', autoResize)
+      return () => textarea.removeEventListener('input', autoResize)
     }
-  }, [isEditing, editContent.length])
+  }, [isEditing])
 
   // Custom renderers for all node types with proper text content handling
   // IMPORTANT: NodeRenderer only provides `node` and `className` props
@@ -279,11 +299,8 @@ const MySTDocument = ({
         const codeNode = node as CodeBlockNode
         const code = codeNode.value || ''
         const language = codeNode.lang || codeNode.language || 'text'
-        const blockId = `code-block-${codeBlockCounter.current}`
         codeBlockCounter.current += 1
-        return (
-          <CodeBlockWithRun code={code} language={language} blockId={blockId} />
-        )
+        return <CodeBlockWithRun code={code} language={language} />
       },
 
       // Blockquote
@@ -308,15 +325,30 @@ const MySTDocument = ({
     []
   )
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
+    // Update content
     if (editContent.trim() !== content.trim()) {
       if (onContentChange) {
         onContentChange(editContent)
-        toast.success('Document updated')
       }
     }
-    setIsEditing(false)
-  }, [editContent, content, onContentChange])
+
+    // Save block to database
+    if (onSave) {
+      setIsSaving(true)
+      try {
+        await onSave()
+        setIsEditing(false)
+      } catch (error) {
+        console.error('Failed to save block:', error)
+        // Keep editing mode open on error
+      } finally {
+        setIsSaving(false)
+      }
+    } else {
+      setIsEditing(false)
+    }
+  }, [editContent, content, onContentChange, onSave])
 
   const handleCancel = useCallback(() => {
     setEditContent(content)
@@ -333,43 +365,85 @@ const MySTDocument = ({
     }
   }
 
-  // Edit mode - show raw MyST markdown
+  // Edit mode - show raw MyST markdown with Jupyter-like UI
   if (isEditing) {
     return (
-      <div className="relative my-4 rounded-lg border-2 border-primary/50 bg-background shadow-md">
-        <div className="p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <Badge variant="outline" className="text-xs">
-              <Edit2 className="mr-1 h-3 w-3" />
-              Edit MyST Markdown
-            </Badge>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs"
-                onClick={handleCancel}
-              >
-                <X className="mr-1 h-3 w-3" />
-                Cancel
-              </Button>
-              <Button size="sm" className="h-7 text-xs" onClick={handleSave}>
-                <Check className="mr-1 h-3 w-3" />
-                Save (Cmd+Enter)
-              </Button>
+      <div className="group relative my-4 w-full">
+        {/* Floating toolbar - appears on focus */}
+        <div className="sticky top-4 z-20 mb-3 flex justify-end">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex gap-2 rounded-lg border border-border bg-background/95 p-2 shadow-lg backdrop-blur-sm"
+          >
+            <div className="flex items-center gap-2 border-r border-border pr-3">
+              <Badge variant="secondary" className="h-6 text-xs font-medium">
+                <Edit2 className="mr-1 h-3 w-3" />
+                Edit
+              </Badge>
+              <span className="text-xs text-muted-foreground">
+                MyST Markdown
+              </span>
             </div>
-          </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs"
+              onClick={handleCancel}
+            >
+              <X className="mr-1.5 h-3.5 w-3.5" />
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 text-xs font-medium"
+              onClick={handleSave}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check className="mr-1.5 h-3.5 w-3.5" />
+                  Save
+                </>
+              )}
+            </Button>
+          </motion.div>
+        </div>
+
+        {/* Textarea with preview-like styling */}
+        <div className="rounded-lg border border-primary/30 bg-background shadow-sm transition-all hover:border-primary/50">
           <Textarea
             ref={textareaRef}
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
             onKeyDown={handleKeyDown}
             className={cn(
-              'min-h-[400px] resize-y font-mono text-sm',
-              'focus-visible:ring-2 focus-visible:ring-primary',
-              'leading-relaxed'
+              'min-h-[500px] resize-none overflow-hidden',
+              'border-0 bg-transparent',
+              'focus-visible:ring-0 focus-visible:ring-offset-0',
+              'font-mono text-sm leading-relaxed',
+              'p-8'
             )}
-            placeholder="Enter MyST Markdown content..."
+            placeholder="Start typing your MyST Markdown content here...
+
+Examples:
+# Heading 1
+## Heading 2
+
+**Bold text** and *italic text*
+
+- Bullet point 1
+- Bullet point 2
+
+```python
+print('Hello, World!')
+```"
           />
         </div>
       </div>
@@ -384,24 +458,16 @@ const MySTDocument = ({
     astWithChildren.children.length === 0
   ) {
     return (
-      <div
-        className={cn('myst-rendered', 'group relative w-full cursor-pointer')}
-        onDoubleClick={() => setIsEditing(true)}
-      >
-        <div className="relative my-4 rounded-lg border border-border/50 bg-background p-8 text-center transition-colors hover:border-primary/50">
+      <div className={cn('myst-rendered', 'group relative w-full')}>
+        <div
+          className="relative my-4 cursor-text rounded-lg border border-dashed border-border/50 bg-muted/10 p-16 text-center transition-all hover:border-border hover:bg-muted/20"
+          onDoubleClick={() => setIsEditing(true)}
+        >
           <div className="text-muted-foreground">
-            <p className="mb-2 text-base">(Empty document)</p>
-            <p className="text-sm opacity-75">
-              Double-click to edit MyST Markdown
-            </p>
+            <Edit2 className="mx-auto mb-3 h-10 w-10 opacity-20" />
+            <p className="mb-2 text-base font-medium">Empty Block</p>
+            <p className="text-sm">Double-click to start editing</p>
           </div>
-        </div>
-        {/* Edit hint on hover */}
-        <div className="pointer-events-none absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
-          <Badge variant="secondary" className="text-xs shadow-sm">
-            <Edit2 className="mr-1 h-3 w-3" />
-            Double-click to edit
-          </Badge>
         </div>
       </div>
     )
@@ -414,26 +480,26 @@ const MySTDocument = ({
   // 4. Custom CSS in myst-styles.css provides all styling
   // 5. Custom renderers extend functionality (e.g., code blocks with Run button)
   return (
-    <div
-      className={cn('myst-rendered', 'group relative w-full cursor-pointer')}
-      onDoubleClick={() => setIsEditing(true)}
-    >
-      {/* ThemeProvider provides context for MyST components */}
-      <ThemeProvider
-        theme={Theme.light}
-        setTheme={() => {}}
-        renderers={customRenderers}
+    <div className={cn('myst-rendered', 'group relative w-full')}>
+      {/* Document Content - Double-click to edit (Jupyter-like) */}
+      <div
+        onDoubleClick={() => setIsEditing(true)}
+        className="cursor-text rounded-lg p-8 transition-all hover:bg-muted/5"
       >
-        {/* MyST renders the AST as actual HTML elements (h1, p, strong, etc.) */}
-        <MyST ast={ast} />
-      </ThemeProvider>
+        {/* ThemeProvider provides context for MyST components */}
+        <ThemeProvider
+          theme={Theme.light}
+          setTheme={() => {}}
+          renderers={customRenderers}
+        >
+          {/* MyST renders the AST as actual HTML elements (h1, p, strong, etc.) */}
+          <MyST ast={ast as any} />
+        </ThemeProvider>
+      </div>
 
-      {/* Edit hint on hover */}
-      <div className="pointer-events-none absolute right-2 top-2 z-10 opacity-0 transition-opacity group-hover:opacity-100">
-        <Badge variant="secondary" className="text-xs shadow-sm">
-          <Edit2 className="mr-1 h-3 w-3" />
-          Double-click to edit
-        </Badge>
+      {/* Subtle hint - only shows on hover */}
+      <div className="mt-4 text-center text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-60">
+        💡 Double-click to edit
       </div>
     </div>
   )
@@ -441,14 +507,10 @@ const MySTDocument = ({
 
 // Main EditorCanvas Component
 export const EditorCanvas = () => {
-  const { currentFileId, selectedBlockId, getBlock, updateBlock } =
+  const { currentFileId, selectedBlockId, getBlock, updateBlock, saveFile } =
     useAppStore()
   const [isSaving, setIsSaving] = useState(false)
   const [documentContent, setDocumentContent] = useState<string>('')
-  const [documentDescription, setDocumentDescription] = useState<string>(
-    'Define requirements and track implementations'
-  )
-  const descriptionRef = useRef<HTMLParagraphElement>(null)
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null)
 
   // Load block content when selectedBlockId changes
@@ -467,108 +529,90 @@ export const EditorCanvas = () => {
     }
   }, [currentFileId, selectedBlockId, getBlock])
 
-  const docName = selectedBlock?.name || 'Untitled'
+  // Handle save block only (called from editor)
+  const handleBlockSave = useCallback(async () => {
+    if (!currentFileId || !selectedBlockId) {
+      toast.error('No block selected')
+      return
+    }
 
-  // Handle save action
-  const handleSave = async () => {
-    if (!currentFileId || !selectedBlockId || !documentContent.trim()) {
-      toast.error('No block selected or content is empty')
+    try {
+      // Update block content in database
+      if (documentContent.trim()) {
+        await updateBlock(currentFileId, selectedBlockId, documentContent)
+        toast.success('Block saved successfully')
+      }
+    } catch (error) {
+      console.error('Failed to save block:', error)
+      throw error // Re-throw to let editor handle the error
+    }
+  }, [currentFileId, selectedBlockId, documentContent, updateBlock])
+
+  // Handle save file action (top-level save button)
+  const handleSave = useCallback(async () => {
+    if (!currentFileId || !selectedBlockId) {
+      toast.error('No block selected')
       return
     }
 
     setIsSaving(true)
     try {
-      await updateBlock(currentFileId, selectedBlockId, documentContent)
-      toast.success('Document saved successfully')
+      // Step 1: Update block content in memory
+      if (documentContent.trim()) {
+        await updateBlock(currentFileId, selectedBlockId, documentContent)
+      }
+
+      // Step 2: Save file to disk (.elf file)
+      await saveFile(currentFileId)
+
+      toast.success('Document and file saved successfully')
     } catch (error) {
       console.error('Failed to save:', error)
-      toast.error('Failed to save document')
+      // Error toast is already shown by app-store methods
     } finally {
       setIsSaving(false)
     }
-  }
+  }, [currentFileId, selectedBlockId, documentContent, updateBlock, saveFile])
 
   // Handle content change from MySTDocument
   const handleContentChange = useCallback((newContent: string) => {
     setDocumentContent(newContent)
   }, [])
 
+  // Keyboard shortcut for save (Ctrl+S / Cmd+S)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleSave])
+
   return (
     <ScrollArea className="h-full w-full">
       <main className="w-full min-w-0 bg-background p-4 md:p-6 lg:p-8">
         {/* Editor Container */}
         <div className="mx-auto w-full min-w-0 max-w-4xl pb-32">
-          {/* Status + Save */}
-          <div className="mb-6 flex flex-wrap items-center justify-end gap-2">
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge
-                variant="outline"
-                className="border-border text-xs font-medium text-muted-foreground"
+          {/* Save Button */}
+          <div className="mb-6 flex items-center justify-end">
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button
+                size="sm"
+                className="bg-foreground px-4 text-sm font-medium text-background shadow-sm hover:bg-foreground/90"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSave()
+                }}
+                disabled={isSaving}
               >
-                🟡 Editing
-              </Badge>
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <Button
-                  className="rounded-full bg-foreground px-6 font-semibold text-background shadow-sm hover:bg-foreground/90"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleSave()
-                  }}
-                  disabled={isSaving}
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {isSaving ? 'Saving...' : 'Save'}
-                </Button>
-              </motion.div>
-            </div>
-          </div>
-
-          {/* Editable Document Title */}
-          <div className="mb-8 min-w-0">
-            <h1
-              className="-mx-2 cursor-pointer break-words rounded px-2 text-3xl font-bold text-foreground transition-colors hover:bg-muted/30"
-              contentEditable
-              suppressContentEditableWarning
-            >
-              {docName}
-            </h1>
-            <p
-              ref={descriptionRef}
-              className="-mx-2 mt-2 min-h-[1.5rem] cursor-pointer break-words rounded px-2 text-sm text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-              contentEditable
-              suppressContentEditableWarning
-              onInput={(e) => {
-                const newDescription = e.currentTarget.textContent || ''
-                setDocumentDescription(newDescription)
-              }}
-              onBlur={(e) => {
-                const newDescription = e.currentTarget.textContent?.trim() || ''
-                const finalDescription =
-                  newDescription ||
-                  'Define requirements and track implementations'
-                if (finalDescription !== documentDescription) {
-                  setDocumentDescription(finalDescription)
-                  if (descriptionRef.current) {
-                    descriptionRef.current.textContent = finalDescription
-                  }
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  e.currentTarget.blur()
-                }
-                e.stopPropagation()
-              }}
-              onClick={(e) => {
-                e.stopPropagation()
-              }}
-            >
-              {documentDescription}
-            </p>
+                <Save className="mr-2 h-3.5 w-3.5" />
+                {isSaving ? 'Saving...' : 'Save (Ctrl+S)'}
+              </Button>
+            </motion.div>
           </div>
 
           {/* MyST Document Content */}
@@ -577,6 +621,7 @@ export const EditorCanvas = () => {
               <MySTDocument
                 content={documentContent}
                 onContentChange={handleContentChange}
+                onSave={handleBlockSave}
               />
             ) : (
               <div className="py-16 text-center text-muted-foreground">

@@ -5,6 +5,7 @@ mod grant;
 mod link;
 mod revoke;
 mod unlink;
+mod update_metadata;
 
 pub use create::CoreCreateCapability;
 pub use delete::CoreDeleteCapability;
@@ -13,3 +14,4 @@ pub use grant::CoreGrantCapability;
 pub use link::CoreLinkCapability;
 pub use revoke::CoreRevokeCapability;
 pub use unlink::CoreUnlinkCapability;
+pub use update_metadata::CoreUpdate_metadataCapability;

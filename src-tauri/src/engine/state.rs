@@ -142,6 +142,18 @@ impl StateProjector {
                 self.blocks.remove(&event.entity);
             }
 
+            // Block metadata update
+            "core.update_metadata" => {
+                if let Some(block) = self.blocks.get_mut(&event.entity) {
+                    // Update metadata by merging with existing
+                    if let Some(new_metadata) = event.value.get("metadata") {
+                        if let Ok(parsed) = BlockMetadata::from_json(new_metadata) {
+                            block.metadata = parsed;
+                        }
+                    }
+                }
+            }
+
             // Grant/Revoke - delegate to GrantsTable
             "core.grant" | "core.revoke" => {
                 // GrantsTable already handles these in from_events
