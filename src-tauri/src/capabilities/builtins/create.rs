@@ -1,6 +1,5 @@
 use crate::capabilities::core::{create_event, CapResult};
-use crate::models::{Block, Command, CreateBlockPayload, Event};
-use crate::utils::time::now_utc;
+use crate::models::{Block, BlockMetadata, Command, CreateBlockPayload, Event};
 use capability_macros::capability;
 
 /// Handler for core.create capability.
@@ -18,14 +17,17 @@ fn handle_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>>
     // Generate new block ID
     let block_id = uuid::Uuid::new_v4().to_string();
 
-    // Prepare metadata with timestamps
-    let now = now_utc();
-    let mut metadata = payload.metadata.unwrap_or_else(|| serde_json::json!({}));
+    // Start with auto-generated timestamps
+    let mut metadata = BlockMetadata::new();
 
-    // 合并用户提供的 metadata 和自动生成的时间戳
-    if let Some(obj) = metadata.as_object_mut() {
-        obj.insert("created_at".to_string(), serde_json::json!(now.clone()));
-        obj.insert("updated_at".to_string(), serde_json::json!(now));
+    // Merge user-provided metadata if present
+    if let Some(user_metadata) = payload.metadata {
+        if let Ok(parsed) = BlockMetadata::from_json(&user_metadata) {
+            // Preserve user's custom fields and description
+            metadata.description = parsed.description;
+            metadata.custom = parsed.custom;
+            // Timestamps are always auto-generated, don't use user-provided ones
+        }
     }
 
     // Create a single event with full initial state
@@ -39,7 +41,7 @@ fn handle_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>>
             "owner": cmd.editor_id,
             "contents": {},
             "children": {},
-            "metadata": metadata
+            "metadata": metadata.to_json()
         }),
         &cmd.editor_id,
         1, // Placeholder - engine actor updates with correct count (actor.rs:227)
