@@ -282,7 +282,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       // Use the new update_block_metadata Tauri command
       await TauriClient.block.updateBlockMetadata(fileId, blockId, metadata)
 
-      // Reload blocks to get the updated metadata
+      // TODO: Performance optimization - Currently reloading ALL blocks just to update one block's metadata.
+      // Consider: 1) Backend returning the updated block, or 2) Optimistic update pattern
+      // This causes unnecessary overhead when file has many blocks.
       await get().loadBlocks(fileId)
 
       toast.success('Metadata updated successfully')

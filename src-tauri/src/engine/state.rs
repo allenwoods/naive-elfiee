@@ -174,11 +174,11 @@ impl StateProjector {
                             }
                             Err(e) => {
                                 log::warn!(
-                                    "Failed to parse metadata for block {}: {}. Metadata value: {}",
+                                    "Failed to parse metadata for block {}: {}",
                                     event.entity,
-                                    e,
-                                    new_metadata
+                                    e
                                 );
+                                log::debug!("Metadata value: {}", new_metadata);
                             }
                         }
                     }
