@@ -89,3 +89,49 @@ pub async fn get_all_blocks(
 
     Ok(blocks)
 }
+
+/// Update block metadata.
+///
+/// This generates a Command with core.update_metadata capability and processes it through
+/// the engine actor. The metadata is merged with existing metadata and updated via event replay.
+///
+/// # Arguments
+/// * `file_id` - Unique identifier of the file containing the block
+/// * `block_id` - Unique identifier of the block to update
+/// * `metadata` - Metadata fields to update (will be merged with existing metadata)
+///
+/// # Returns
+/// * `Ok(())` - Metadata updated successfully
+/// * `Err(message)` - Error description if update fails
+#[tauri::command]
+#[specta]
+pub async fn update_block_metadata(
+    file_id: String,
+    block_id: String,
+    metadata: serde_json::Value,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    // Get engine handle for this file
+    let handle = state
+        .engine_manager
+        .get_engine(&file_id)
+        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
+
+    // Get current active editor
+    let editor_id = state
+        .get_active_editor(&file_id)
+        .unwrap_or_else(|| "default-editor".to_string());
+
+    // Create command to update metadata
+    let cmd = Command::new(
+        editor_id,
+        "core.update_metadata".to_string(),
+        block_id,
+        serde_json::json!({ "metadata": metadata }),
+    );
+
+    // Process command through engine
+    handle.process_command(cmd).await?;
+
+    Ok(())
+}

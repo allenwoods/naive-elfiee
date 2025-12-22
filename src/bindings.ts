@@ -294,6 +294,40 @@ export const commands = {
     }
   },
   /**
+   * Update block metadata.
+   *
+   * This generates a Command with core.update_metadata capability and processes it through
+   * the engine actor. The metadata is merged with existing metadata and updated via event replay.
+   *
+   * # Arguments
+   * * `file_id` - Unique identifier of the file containing the block
+   * * `block_id` - Unique identifier of the block to update
+   * * `metadata` - Metadata fields to update (will be merged with existing metadata)
+   *
+   * # Returns
+   * * `Ok(())` - Metadata updated successfully
+   * * `Err(message)` - Error description if update fails
+   */
+  async updateBlockMetadata(
+    fileId: string,
+    blockId: string,
+    metadata: JsonValue
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('update_block_metadata', {
+          fileId,
+          blockId,
+          metadata,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * Create a new editor for the specified file.
    *
    * This generates a Command with editor.create capability and processes it through
@@ -830,6 +864,19 @@ export type UnlinkBlockPayload = {
    * The target block ID to unlink
    */
   target_id: string
+}
+/**
+ * Payload for core.update_metadata capability
+ *
+ * This payload is used to update metadata fields of an existing block.
+ * The metadata will be merged with existing metadata (not replaced).
+ */
+export type UpdateMetadataPayload = {
+  /**
+   * Metadata fields to update or add
+   * Example: { "description": "Updated description", "tags": ["tag1", "tag2"] }
+   */
+  metadata: JsonValue
 }
 
 /** tauri-specta globals **/

@@ -40,4 +40,5 @@ specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 portable-pty = "0.8"
 base64 = "0.21"
+log = "0.4"
 

@@ -1,4 +1,4 @@
-import { Folder, ChevronRight, Pencil } from 'lucide-react'
+import { Folder, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface LocationBreadcrumbProps {
@@ -25,7 +25,7 @@ export const LocationBreadcrumb = ({
     <div>
       <label className="mb-2 block text-sm font-medium">Location</label>
       <div className="relative flex items-center gap-1 rounded-md border border-border bg-muted/50 px-3 py-2.5">
-        <Folder className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+        <Folder className="h-4 w-4 text-muted-foreground" />
         <span className="flex-1 truncate text-sm font-medium text-foreground">
           {displayPath}
         </span>

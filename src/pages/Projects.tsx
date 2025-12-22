@@ -51,7 +51,7 @@ function fileMetadataToProject(metadata: FileMetadata): Project {
   }))
 
   // Calculate last edited time (simple conversion from ISO string)
-  const lastModified = new Date(metadata.last_modified)
+  const lastModified = new Date(metadata.updated_at)
   const now = new Date()
   const diffMs = now.getTime() - lastModified.getTime()
   const diffMins = Math.floor(diffMs / 60000)
@@ -194,14 +194,14 @@ const Projects = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await TauriClient.file.deleteFile(id)
+      await TauriClient.file.closeFile(id)
 
       // Update local state
       setProjects((prev) => prev.filter((p) => p.id !== id))
-      toast.success('Project deleted')
+      toast.success('Project removed from list')
     } catch (error) {
-      console.error('Failed to delete project:', error)
-      toast.error(`Failed to delete project: ${error}`)
+      console.error('Failed to remove project:', error)
+      toast.error(`Failed to remove project: ${error}`)
     }
   }
 
@@ -258,7 +258,7 @@ const Projects = () => {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop Sidebar - Always visible on lg+ */}
-      <div className="hidden w-20 flex-shrink-0 lg:block">
+      <div className="hidden w-20 lg:block">
         <Sidebar />
       </div>
 

@@ -40,6 +40,7 @@ pub fn run() {
                 commands::block::execute_command,
                 commands::block::get_block,
                 commands::block::get_all_blocks,
+                commands::block::update_block_metadata,
                 // Editor operations
                 commands::editor::create_editor,
                 commands::editor::list_editors,
@@ -67,6 +68,7 @@ pub fn run() {
             .typ::<models::UnlinkBlockPayload>()
             .typ::<models::GrantPayload>()
             .typ::<models::RevokePayload>()
+            .typ::<models::UpdateMetadataPayload>()
             .typ::<models::EditorCreatePayload>()
             // Extension payload types
             .typ::<extensions::markdown::MarkdownWritePayload>()
@@ -109,6 +111,7 @@ pub fn run() {
         commands::block::execute_command,
         commands::block::get_block,
         commands::block::get_all_blocks,
+        commands::block::update_block_metadata,
         // Editor operations
         commands::editor::create_editor,
         commands::editor::list_editors,

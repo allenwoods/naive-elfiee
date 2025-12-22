@@ -1,5 +1,6 @@
 use crate::capabilities::grants::GrantsTable;
 use crate::models::{Block, BlockMetadata, Editor, Event};
+use log;
 use std::collections::HashMap;
 
 /// In-memory state projection from events.
@@ -91,7 +92,17 @@ impl StateProjector {
                             .unwrap_or_default(),
                         metadata: obj
                             .get("metadata")
-                            .and_then(|v| BlockMetadata::from_json(v).ok())
+                            .and_then(|v| match BlockMetadata::from_json(v) {
+                                Ok(parsed) => Some(parsed),
+                                Err(e) => {
+                                    log::warn!(
+                                        "Failed to parse metadata in core.create event for block {}: {}. Using default metadata.",
+                                        event.entity,
+                                        e
+                                    );
+                                    None
+                                }
+                            })
                             .unwrap_or_default(),
                     };
                     self.blocks.insert(block.block_id.clone(), block);
@@ -119,8 +130,18 @@ impl StateProjector {
                     }
                     // Update metadata if present (e.g. updated_at from write ops)
                     if let Some(new_metadata) = event.value.get("metadata") {
-                        if let Ok(parsed) = BlockMetadata::from_json(new_metadata) {
-                            block.metadata = parsed;
+                        match BlockMetadata::from_json(new_metadata) {
+                            Ok(parsed) => {
+                                block.metadata = parsed;
+                            }
+                            Err(e) => {
+                                log::warn!(
+                                    "Failed to parse metadata in {} event for block {}: {}",
+                                    cap_id,
+                                    event.entity,
+                                    e
+                                );
+                            }
                         }
                     }
                 }
@@ -140,6 +161,28 @@ impl StateProjector {
             // Block deletion
             "core.delete" => {
                 self.blocks.remove(&event.entity);
+            }
+
+            // Block metadata update
+            "core.update_metadata" => {
+                if let Some(block) = self.blocks.get_mut(&event.entity) {
+                    // Update metadata by merging with existing
+                    if let Some(new_metadata) = event.value.get("metadata") {
+                        match BlockMetadata::from_json(new_metadata) {
+                            Ok(parsed) => {
+                                block.metadata = parsed;
+                            }
+                            Err(e) => {
+                                log::warn!(
+                                    "Failed to parse metadata for block {}: {}",
+                                    event.entity,
+                                    e
+                                );
+                                log::debug!("Metadata value: {}", new_metadata);
+                            }
+                        }
+                    }
+                }
             }
 
             // Grant/Revoke - delegate to GrantsTable

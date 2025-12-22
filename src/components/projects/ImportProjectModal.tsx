@@ -6,10 +6,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { CheckCircle, Loader2, FolderOpen } from 'lucide-react'
-import { LocationBreadcrumb } from './LocationBreadcrumb'
-import { cn } from '@/lib/utils'
 import * as dialog from '@tauri-apps/plugin-dialog'
 
 interface ImportProjectModalProps {
@@ -113,7 +110,7 @@ export const ImportProjectModal = ({
             </label>
             {selectedFilePath ? (
               <div className="flex items-center gap-3 rounded-md border border-border bg-muted/50 px-3 py-2.5">
-                <CheckCircle className="h-5 w-5 flex-shrink-0 text-primary" />
+                <CheckCircle className="h-5 w-5 text-primary" />
                 <div className="flex-1 overflow-hidden">
                   <p className="truncate text-sm font-medium text-foreground">
                     {selectedFilePath.split(/[/\\]/).pop()}
@@ -145,33 +142,6 @@ export const ImportProjectModal = ({
               </Button>
             )}
           </div>
-
-          {/* Project Name */}
-          <div>
-            <label className="mb-2 block text-sm font-medium">
-              Project Name <span className="text-destructive">*</span>
-            </label>
-            <Input
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              placeholder="e.g., User Onboarding"
-              className={cn(
-                nameError && 'border-destructive focus-visible:ring-destructive'
-              )}
-            />
-            {nameError && (
-              <p className="mt-1 text-sm text-destructive">{nameError}</p>
-            )}
-          </div>
-
-          {/* Location Display */}
-          {selectedFilePath && (
-            <LocationBreadcrumb
-              projectName={projectName}
-              selectedPath={selectedFilePath}
-            />
-          )}
-
           {/* Footer */}
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="ghost" onClick={handleClose}>

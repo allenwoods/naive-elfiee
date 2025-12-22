@@ -1,32 +1,229 @@
-import { useMemo } from 'react'
-import { Clock, Shield } from 'lucide-react'
+import { useMemo, useState, useRef, useEffect } from 'react'
+import { Clock, Shield, Edit2, Check, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { useAppStore } from '@/lib/app-store'
 import type { Block, Event, Grant, Editor } from '@/bindings'
 
-const formatTime = (timestamp: Record<string, number>): string => {
-  const max = Math.max(...Object.values(timestamp), 0)
+const formatTime = (timestamp: Partial<{ [key: string]: number }>): string => {
+  const values = Object.values(timestamp).filter(
+    (v): v is number => v !== undefined
+  )
+  const max = values.length > 0 ? Math.max(...values, 0) : 0
   return max ? new Date(max * 1000).toLocaleTimeString() : '--'
 }
 
-const InfoTab = ({ block }: { block: Block | null }) => {
+const InfoTab = ({
+  block,
+  fileId,
+}: {
+  block: Block | null
+  fileId: string | null
+}) => {
+  const [isEditingDescription, setIsEditingDescription] = useState(false)
+  const [editedDescription, setEditedDescription] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { updateBlockMetadata } = useAppStore()
+
+  // Extract metadata before early return
+  const metadata = block?.metadata as {
+    description?: string
+    created_at?: string
+    updated_at?: string
+  } | null
+  const description = metadata?.description || ''
+  const createdAt = metadata?.created_at
+  const updatedAt = metadata?.updated_at
+
+  const formatDate = (isoString?: string) => {
+    if (!isoString) return null
+    try {
+      const date = new Date(isoString)
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    } catch {
+      return null
+    }
+  }
+
+  // Start editing description
+  const handleStartEdit = () => {
+    setEditedDescription(description)
+    setIsEditingDescription(true)
+  }
+
+  // Cancel editing
+  const handleCancelEdit = () => {
+    setIsEditingDescription(false)
+    setEditedDescription('')
+  }
+
+  // Save description
+  const handleSaveDescription = async () => {
+    if (!fileId || !block) return
+
+    setIsSaving(true)
+    try {
+      await updateBlockMetadata(fileId, block.block_id, {
+        description: editedDescription,
+      })
+      setIsEditingDescription(false)
+    } catch (error) {
+      console.error('Failed to save description:', error)
+      // Error toast is already shown by app-store
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Auto-focus and resize textarea when editing
+  // This hook must be called before any early returns
+  useEffect(() => {
+    if (isEditingDescription && textareaRef.current) {
+      const textarea = textareaRef.current
+      textarea.focus()
+      // Auto-resize
+      textarea.style.height = 'auto'
+      textarea.style.height = textarea.scrollHeight + 'px'
+    }
+  }, [isEditingDescription])
+
+  // Early return AFTER all hooks
   if (!block) {
     return (
-      <div className="text-sm text-muted-foreground">
-        Select a block to view details.
+      <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50 text-center">
+        <div>
+          <p className="text-sm text-muted-foreground">No block selected</p>
+          <p className="mt-1 text-xs text-muted-foreground/70">
+            Select a block to view its details
+          </p>
+        </div>
       </div>
     )
   }
-  const contents = block.contents as { markdown?: string }
+
   return (
-    <div className="space-y-2 text-sm text-muted-foreground">
-      <p>Name: {block.name}</p>
-      <p>Type: {block.block_type}</p>
-      <p>Owner: {block.owner}</p>
-      <p>Block ID: {block.block_id}</p>
-      <p>Content preview: {contents?.markdown?.slice(0, 80) || '—'}</p>
+    <div className="space-y-4">
+      {/* Block Name - Prominent */}
+      <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Name
+        </p>
+        <p className="text-base font-semibold text-foreground">{block.name}</p>
+      </div>
+
+      {/* Description - Always visible, editable */}
+      <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Description
+          </p>
+          {!isEditingDescription && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 w-6 p-0"
+              onClick={handleStartEdit}
+            >
+              <Edit2 className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+
+        {isEditingDescription ? (
+          <div className="space-y-2">
+            <Textarea
+              ref={textareaRef}
+              value={editedDescription}
+              onChange={(e) => {
+                setEditedDescription(e.target.value)
+                // Auto-resize
+                e.target.style.height = 'auto'
+                e.target.style.height = e.target.scrollHeight + 'px'
+              }}
+              className="min-h-[60px] resize-none text-sm"
+              placeholder="Enter a description for this block..."
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="default"
+                className="h-7 text-xs"
+                onClick={handleSaveDescription}
+                disabled={isSaving}
+              >
+                <Check className="mr-1 h-3 w-3" />
+                {isSaving ? 'Saving...' : 'Save'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={handleCancelEdit}
+              >
+                <X className="mr-1 h-3 w-3" />
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm leading-relaxed text-foreground">
+            {description || (
+              <span className="italic text-muted-foreground">
+                No description yet. Click edit to add one.
+              </span>
+            )}
+          </p>
+        )}
+      </div>
+
+      {/* Metadata Grid */}
+      <div className="grid gap-3">
+        <div className="flex items-center justify-between rounded-lg border border-border/30 p-3">
+          <p className="text-xs font-medium text-muted-foreground">Type</p>
+          <p className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+            {block.block_type}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between rounded-lg border border-border/30 p-3">
+          <p className="text-xs font-medium text-muted-foreground">Owner</p>
+          <p className="text-xs font-medium text-foreground">{block.owner}</p>
+        </div>
+
+        {createdAt && (
+          <div className="flex items-center justify-between rounded-lg border border-border/30 p-3">
+            <p className="text-xs font-medium text-muted-foreground">Created</p>
+            <p className="text-xs text-foreground">{formatDate(createdAt)}</p>
+          </div>
+        )}
+
+        {updatedAt && (
+          <div className="flex items-center justify-between rounded-lg border border-border/30 p-3">
+            <p className="text-xs font-medium text-muted-foreground">Updated</p>
+            <p className="text-xs text-foreground">{formatDate(updatedAt)}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Block ID - Technical Info */}
+      <div className="rounded-lg border border-border/30 bg-muted/10 p-3">
+        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Block ID
+        </p>
+        <p className="break-all font-mono text-[10px] leading-relaxed text-muted-foreground">
+          {block.block_id}
+        </p>
+      </div>
     </div>
   )
 }
@@ -97,18 +294,18 @@ const TimelineTab = ({ events }: { events: Event[] }) => {
 }
 
 const ContextPanel = () => {
-  const {
-    currentFileId,
-    selectedBlockId,
-    getBlock,
-    getEvents,
-    getEditors,
-    getGrants,
-  } = useAppStore()
-  const block: Block | null =
+  const currentFileId = useAppStore((state) => state.currentFileId)
+  const selectedBlockId = useAppStore((state) => state.selectedBlockId)
+  const getEvents = useAppStore((state) => state.getEvents)
+  const getEditors = useAppStore((state) => state.getEditors)
+  const getGrants = useAppStore((state) => state.getGrants)
+
+  // Subscribe to block changes by accessing it through a selector
+  const block: Block | null = useAppStore((state) =>
     currentFileId && selectedBlockId
-      ? getBlock(currentFileId, selectedBlockId) || null
+      ? state.getBlock(currentFileId, selectedBlockId) || null
       : null
+  )
 
   const events = useMemo(() => {
     if (!currentFileId) return []
@@ -176,7 +373,7 @@ const ContextPanel = () => {
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-6 p-4">
             <TabsContent value="info" className="mt-0">
-              <InfoTab block={block} />
+              <InfoTab block={block} fileId={currentFileId} />
             </TabsContent>
 
             <TabsContent value="collaborators" className="mt-0">
