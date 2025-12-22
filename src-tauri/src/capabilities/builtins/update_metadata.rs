@@ -1,11 +1,12 @@
 use crate::capabilities::core::{create_event, CapResult};
-use crate::models::{Block, Command, Event, UpdateMetadataPayload};
+use crate::models::{Block, BlockMetadata, Command, Event, UpdateMetadataPayload};
 use capability_macros::capability;
 
 /// Handler for core.update_metadata capability.
 ///
 /// Updates the metadata of a block by merging new metadata with existing metadata.
 /// This allows partial updates without replacing the entire metadata object.
+/// Uses strongly-typed BlockMetadata for type safety and consistency.
 #[capability(id = "core.update_metadata", target = "core/*")]
 fn handle_update_metadata(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for core.update_metadata")?;
@@ -14,31 +15,27 @@ fn handle_update_metadata(cmd: &Command, block: Option<&Block>) -> CapResult<Vec
     let payload: UpdateMetadataPayload = serde_json::from_value(cmd.payload.clone())
         .map_err(|e| format!("Invalid payload for core.update_metadata: {}", e))?;
 
-    // Convert BlockMetadata to JSON for merging
-    let mut current_json = block.metadata.to_json();
+    // Clone existing metadata (strongly-typed)
+    let mut new_metadata = block.metadata.clone();
 
-    // Merge new metadata with existing metadata
-    if let Some(current_obj) = current_json.as_object_mut() {
-        if let Some(new_obj) = payload.metadata.as_object() {
-            for (key, value) in new_obj {
-                current_obj.insert(key.clone(), value.clone());
-            }
+    // Parse and merge user-provided fields
+    if let Ok(partial) = BlockMetadata::from_json(&payload.metadata) {
+        // Merge standard fields (only if provided)
+        if partial.description.is_some() {
+            new_metadata.description = partial.description;
         }
+        // Merge custom fields
+        new_metadata.custom.extend(partial.custom);
     }
 
-    // Add updated_at timestamp
-    if let Some(obj) = current_json.as_object_mut() {
-        obj.insert(
-            "updated_at".to_string(),
-            serde_json::json!(chrono::Utc::now().to_rfc3339()),
-        );
-    }
+    // Use touch() method to update timestamp
+    new_metadata.touch();
 
     // Create event with updated metadata
     let event = create_event(
         block.block_id.clone(),
         "core.update_metadata",
-        serde_json::json!({ "metadata": current_json }),
+        serde_json::json!({ "metadata": new_metadata.to_json() }),
         &cmd.editor_id,
         1, // Placeholder - engine actor updates with correct count
     );
