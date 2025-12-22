@@ -111,7 +111,6 @@ pub fn run() {
         commands::block::execute_command,
         commands::block::get_block,
         commands::block::get_all_blocks,
-        commands::block::rename_block,
         commands::block::update_block_metadata,
         // Editor operations
         commands::editor::create_editor,
