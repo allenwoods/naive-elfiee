@@ -92,6 +92,9 @@ pub struct EditorCreatePayload {
     /// The type of editor (Human or Bot), defaults to Human if not specified
     #[serde(default)]
     pub editor_type: Option<String>,
+    /// Optional explicitly provided editor ID (e.g. system editor ID)
+    #[serde(default)]
+    pub editor_id: Option<String>,
 }
 
 /// Default value for target_block field (wildcard)
@@ -197,5 +200,17 @@ mod tests {
         });
         let payload: EditorCreatePayload = serde_json::from_value(json).unwrap();
         assert_eq!(payload.name, "Alice");
+        assert!(payload.editor_id.is_none());
+    }
+
+    #[test]
+    fn test_editor_create_payload_with_id() {
+        let json = serde_json::json!({
+            "name": "System",
+            "editor_id": "sys-123"
+        });
+        let payload: EditorCreatePayload = serde_json::from_value(json).unwrap();
+        assert_eq!(payload.name, "System");
+        assert_eq!(payload.editor_id, Some("sys-123".to_string()));
     }
 }

@@ -220,6 +220,27 @@ export const commands = {
     }
   },
   /**
+   * Get the global system editor ID from config.
+   *
+   * This returns the persistent system editor ID that is stored in
+   * the user's home directory config file (`$USER_HOME/.elf/config.json`).
+   *
+   * # Returns
+   * * `Ok(String)` - The system editor ID (UUID)
+   * * `Err(message)` - Error if config cannot be read
+   */
+  async getSystemEditorIdFromConfig(): Promise<Result<string, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('get_system_editor_id_from_config'),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * Execute a command on a block in the specified file.
    *
    * This is the primary way to modify blocks. Commands are processed by the engine actor,
@@ -709,6 +730,10 @@ export type EditorCreatePayload = {
    * The type of editor (Human or Bot), defaults to Human if not specified
    */
   editor_type?: string | null
+  /**
+   * Optional explicitly provided editor ID (e.g. system editor ID)
+   */
+  editor_id?: string | null
 }
 export type EditorType = 'Human' | 'Bot'
 export type Event = {

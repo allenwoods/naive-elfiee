@@ -13,8 +13,10 @@ fn handle_editor_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<
     let payload: EditorCreatePayload = serde_json::from_value(cmd.payload.clone())
         .map_err(|e| format!("Invalid payload for editor.create: {}", e))?;
 
-    // Generate new editor ID
-    let editor_id = uuid::Uuid::new_v4().to_string();
+    // Use provided editor_id from payload, or generate new one if not provided
+    let editor_id = payload
+        .editor_id
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
     // Determine editor_type (default to "Human" if not specified)
     let editor_type = payload.editor_type.unwrap_or_else(|| "Human".to_string());
@@ -148,5 +150,34 @@ mod tests {
         let event = &result[0];
         // Attribute should be "{editor_id}/{capability_id}"
         assert_eq!(event.attribute, "test-editor/editor.create");
+    }
+
+    #[test]
+    fn test_editor_create_with_provided_editor_id() {
+        // Test that when editor_id is provided in payload, it's used instead of generating a new one
+        let provided_id = "8e6075dd-9a14-46e7-b6cf-bab2d1019ea0";
+        let cmd = Command {
+            cmd_id: uuid::Uuid::new_v4().to_string(),
+            editor_id: provided_id.to_string(),
+            cap_id: "editor.create".to_string(),
+            block_id: "system".to_string(),
+            payload: serde_json::json!({
+                "name": "System",
+                "editor_id": provided_id
+            }),
+            timestamp: chrono::Utc::now(),
+        };
+
+        let result = handle_editor_create(&cmd, None);
+        assert!(result.is_ok());
+
+        let events = result.unwrap();
+        assert_eq!(events.len(), 1);
+
+        let event = &events[0];
+        // Entity should be the provided editor_id
+        assert_eq!(event.entity, provided_id);
+        // Value should also contain the same editor_id
+        assert_eq!(event.value["editor_id"], provided_id);
     }
 }

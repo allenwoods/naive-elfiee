@@ -1,3 +1,4 @@
+use crate::config;
 use crate::models::{Command, Editor, Grant};
 use crate::state::AppState;
 use specta::specta;
@@ -29,10 +30,12 @@ pub async fn create_editor(
         .get_engine(&file_id)
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
-    // Get current active editor (or use "system")
+    // Get current active editor (or fallback to system editor)
+    // In normal cases, bootstrap ensures an active editor exists.
+    // This fallback handles edge cases where active editor is missing.
     let creator_editor_id = state
         .get_active_editor(&file_id)
-        .unwrap_or_else(|| "system".to_string());
+        .unwrap_or_else(|| config::get_system_editor_id().unwrap_or_else(|_| "system".to_string()));
 
     // Create command to create editor with optional editor_type
     let mut payload = serde_json::json!({ "name": name });

@@ -1,5 +1,6 @@
 pub mod capabilities;
 pub mod commands;
+pub mod config;
 pub mod elf;
 pub mod engine;
 pub mod extensions;
@@ -36,6 +37,7 @@ pub fn run() {
                 commands::file::rename_file,
                 commands::file::delete_file,
                 commands::file::duplicate_file,
+                commands::file::get_system_editor_id_from_config,
                 // Block operations (core)
                 commands::block::execute_command,
                 commands::block::get_block,
@@ -107,6 +109,7 @@ pub fn run() {
         commands::file::rename_file,
         commands::file::delete_file,
         commands::file::duplicate_file,
+        commands::file::get_system_editor_id_from_config,
         // Block operations (core)
         commands::block::execute_command,
         commands::block::get_block,
