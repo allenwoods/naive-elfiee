@@ -1,19 +1,12 @@
 use crate::capabilities::core::{create_event, CapResult};
-use crate::models::{Block, Command, Event};
+use crate::models::{Block, ChangeTypePayload, Command, Event};
 use capability_macros::capability;
-use serde::{Deserialize, Serialize};
-use specta::Type;
-
-/// Payload for core.change_type capability
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct ChangeTypePayload {
-    /// New block type (e.g., "markdown", "code")
-    pub block_type: String,
-}
+use serde_json::json;
 
 /// Handler for core.change_type capability.
 ///
 /// Changes the block_type field of a block.
+/// Also updates the updated_at timestamp.
 /// WARNING: This does not validate that the new type is compatible with existing contents.
 #[capability(id = "core.change_type", target = "core/*")]
 fn handle_change_type(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
@@ -22,15 +15,24 @@ fn handle_change_type(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Eve
     let payload: ChangeTypePayload = serde_json::from_value(cmd.payload.clone())
         .map_err(|e| format!("Invalid payload for core.change_type: {}", e))?;
 
+    let block_type = payload.block_type.trim();
+
     // Validate block_type is not empty
-    if payload.block_type.trim().is_empty() {
+    if block_type.is_empty() {
         return Err("Block type cannot be empty".to_string());
     }
+
+    // Update timestamp
+    let mut new_metadata = block.metadata.clone();
+    new_metadata.touch();
 
     let event = create_event(
         block.block_id.clone(),
         "core.change_type",
-        serde_json::json!({ "block_type": payload.block_type }),
+        json!({
+            "block_type": block_type,
+            "metadata": new_metadata.to_json()
+        }),
         &cmd.editor_id,
         1,
     );

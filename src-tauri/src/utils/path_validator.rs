@@ -2,16 +2,36 @@ use std::fs;
 use std::path::Path;
 
 /// 检查路径是否安全（防止路径遍历攻击）
+
 pub fn is_safe_path(path: &Path) -> Result<(), String> {
-    // 1. 获取规范路径（如果路径存在）
-    // 注意：如果路径不存在，canonicalize 会失败。
-    // 对于导入/刷新，路径必须存在。
+    // 1. Check for symlinks BEFORE canonicalization
+
+    // canonicalize() resolves symlinks, so we must check first.
+
+    let metadata =
+        fs::symlink_metadata(path).map_err(|e| format!("Failed to read metadata: {}", e))?;
+
+    if metadata.is_symlink() {
+        return Err("Symbolic links are not allowed".to_string());
+    }
+
+    // 2. Resolve path to check against forbidden directories
+
     let canonical = path
         .canonicalize()
         .map_err(|e| format!("Invalid path: {}", e))?;
 
-    // 2. 拒绝系统敏感目录 (简单检查)
+    // 3. Reject system sensitive directories
+
+    #[cfg(unix)]
     let forbidden = ["/etc", "/sys", "/proc", "/dev", "/bin", "/sbin"];
+
+    #[cfg(windows)]
+    let forbidden = ["C:\\Windows\\System32", "C:\\Windows\\SysWOW64"];
+
+    #[cfg(not(any(unix, windows)))]
+    let forbidden: &[&str] = &[];
+
     for forbidden_dir in &forbidden {
         if canonical.starts_with(forbidden_dir) {
             return Err(format!(
@@ -19,14 +39,6 @@ pub fn is_safe_path(path: &Path) -> Result<(), String> {
                 forbidden_dir
             ));
         }
-    }
-
-    // 3. 检测符号链接
-    let metadata =
-        fs::symlink_metadata(&canonical).map_err(|e| format!("Failed to read metadata: {}", e))?;
-
-    if metadata.is_symlink() {
-        return Err("Symbolic links are not allowed".to_string());
     }
 
     Ok(())

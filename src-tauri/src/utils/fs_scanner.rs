@@ -1,37 +1,41 @@
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-/// 文件信息结构
+/// Information about a scanned file.
+///
+/// This struct holds metadata and path information for files found during
+/// directory scanning. It is used by import and refresh operations to
+/// process external files into blocks.
 #[derive(Debug, Clone)]
 pub struct FileInfo {
-    /// 绝对路径
+    /// Absolute path to the file
     pub absolute_path: PathBuf,
-    /// 相对路径（相对于扫描根目录）
+    /// Relative path from the scan root
     pub relative_path: String,
-    /// 文件名
+    /// File name including extension
     pub file_name: String,
-    /// 文件扩展名（不含点）
+    /// File extension (without dot)
     pub extension: String,
-    /// 文件大小（字节）
+    /// File size in bytes
     pub size: u64,
-    /// 是否为目录
+    /// Whether this entry is a directory
     pub is_directory: bool,
 }
 
-/// 扫描选项
+/// Options for directory scanning
 #[derive(Debug, Clone)]
 pub struct ScanOptions {
-    /// 最大递归深度
+    /// Maximum recursion depth
     pub max_depth: usize,
-    /// 是否跟随符号链接
+    /// Whether to follow symbolic links
     pub follow_symlinks: bool,
-    /// 是否忽略隐藏文件
+    /// Whether to ignore hidden files (starting with dot)
     pub ignore_hidden: bool,
-    /// 忽略的目录名称列表
+    /// List of directory names to ignore
     pub ignore_patterns: Vec<String>,
-    /// 最大文件大小（字节）
+    /// Maximum file size in bytes to include
     pub max_file_size: u64,
-    /// 最大文件数量
+    /// Maximum number of files to scan
     pub max_files: usize,
 }
 
@@ -55,7 +59,7 @@ impl Default for ScanOptions {
     }
 }
 
-/// 扫描目录并返回文件列表
+/// Scan a directory and return a list of files
 pub fn scan_directory(root: &Path, options: &ScanOptions) -> Result<Vec<FileInfo>, String> {
     let mut files = Vec::new();
     let mut count = 0;
@@ -68,13 +72,13 @@ pub fn scan_directory(root: &Path, options: &ScanOptions) -> Result<Vec<FileInfo
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let path = entry.path();
 
-        // 检查文件数量限制
+        // Check file count limit
         count += 1;
         if count > options.max_files {
             return Err(format!("Too many files (limit: {})", options.max_files));
         }
 
-        // 跳过隐藏文件
+        // Skip hidden files
         if options.ignore_hidden {
             if let Some(name) = path.file_name() {
                 if name.to_string_lossy().starts_with('.') {
@@ -83,7 +87,7 @@ pub fn scan_directory(root: &Path, options: &ScanOptions) -> Result<Vec<FileInfo
             }
         }
 
-        // 跳过忽略的目录
+        // Skip ignored directories
         let should_skip = options.ignore_patterns.iter().any(|pattern| {
             path.components()
                 .any(|c| c.as_os_str().to_string_lossy() == *pattern)
@@ -96,9 +100,9 @@ pub fn scan_directory(root: &Path, options: &ScanOptions) -> Result<Vec<FileInfo
             .metadata()
             .map_err(|e| format!("Failed to read metadata: {}", e))?;
 
-        // 跳过大文件
+        // Skip large files
         if metadata.is_file() && metadata.len() > options.max_file_size {
-            // log::warn!("Skipping large file: {:?} ({} bytes)", path, metadata.len());
+            log::warn!("Skipping large file: {:?} ({} bytes)", path, metadata.len());
             continue;
         }
 
@@ -108,7 +112,7 @@ pub fn scan_directory(root: &Path, options: &ScanOptions) -> Result<Vec<FileInfo
             .to_string_lossy()
             .to_string();
 
-        // 跳过根目录本身
+        // Skip root directory itself
         if relative_path.is_empty() {
             continue;
         }

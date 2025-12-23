@@ -1,4 +1,4 @@
-/// 根据文件扩展名推断 Block 类型
+/// Infer Block Type from file extension
 pub fn infer_block_type(extension: &str) -> Option<String> {
     let ext = extension.to_lowercase();
 
@@ -22,7 +22,7 @@ pub fn infer_block_type(extension: &str) -> Option<String> {
         // SQL
         "sql" => Some("code".to_string()),
 
-        // 未支持的类型
+        // Unsupported types
         _ => None,
     }
 }

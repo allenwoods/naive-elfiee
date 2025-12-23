@@ -169,6 +169,12 @@ impl StateProjector {
                     if let Some(name) = event.value.get("name").and_then(|v| v.as_str()) {
                         block.name = name.to_string();
                     }
+                    // Update metadata if present (e.g. updated_at)
+                    if let Some(new_metadata) = event.value.get("metadata") {
+                        if let Ok(parsed) = BlockMetadata::from_json(new_metadata) {
+                            block.metadata = parsed;
+                        }
+                    }
                 }
             }
 
@@ -178,6 +184,12 @@ impl StateProjector {
                     if let Some(block_type) = event.value.get("block_type").and_then(|v| v.as_str())
                     {
                         block.block_type = block_type.to_string();
+                    }
+                    // Update metadata if present (e.g. updated_at)
+                    if let Some(new_metadata) = event.value.get("metadata") {
+                        if let Ok(parsed) = BlockMetadata::from_json(new_metadata) {
+                            block.metadata = parsed;
+                        }
                     }
                 }
             }

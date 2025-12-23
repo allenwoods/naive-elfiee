@@ -1,19 +1,12 @@
 use crate::capabilities::core::{create_event, CapResult};
-use crate::models::{Block, Command, Event};
+use crate::models::{Block, Command, Event, RenamePayload};
 use capability_macros::capability;
-use serde::{Deserialize, Serialize};
-use specta::Type;
-
-/// Payload for core.rename capability
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct RenamePayload {
-    /// New name for the block
-    pub name: String,
-}
+use serde_json::json;
 
 /// Handler for core.rename capability.
 ///
 /// Updates the name field of a block.
+/// Also updates the updated_at timestamp.
 #[capability(id = "core.rename", target = "core/*")]
 fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for core.rename")?;
@@ -21,15 +14,24 @@ fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
     let payload: RenamePayload = serde_json::from_value(cmd.payload.clone())
         .map_err(|e| format!("Invalid payload for core.rename: {}", e))?;
 
+    let name = payload.name.trim();
+
     // Validate name is not empty
-    if payload.name.trim().is_empty() {
+    if name.is_empty() {
         return Err("Block name cannot be empty".to_string());
     }
+
+    // Update timestamp
+    let mut new_metadata = block.metadata.clone();
+    new_metadata.touch();
 
     let event = create_event(
         block.block_id.clone(),
         "core.rename",
-        serde_json::json!({ "name": payload.name }),
+        json!({
+            "name": name,
+            "metadata": new_metadata.to_json()
+        }),
         &cmd.editor_id,
         1,
     );
