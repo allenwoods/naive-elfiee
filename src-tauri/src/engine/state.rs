@@ -163,6 +163,25 @@ impl StateProjector {
                 self.blocks.remove(&event.entity);
             }
 
+            // Block rename
+            "core.rename" => {
+                if let Some(block) = self.blocks.get_mut(&event.entity) {
+                    if let Some(name) = event.value.get("name").and_then(|v| v.as_str()) {
+                        block.name = name.to_string();
+                    }
+                }
+            }
+
+            // Block type change
+            "core.change_type" => {
+                if let Some(block) = self.blocks.get_mut(&event.entity) {
+                    if let Some(block_type) = event.value.get("block_type").and_then(|v| v.as_str())
+                    {
+                        block.block_type = block_type.to_string();
+                    }
+                }
+            }
+
             // Block metadata update
             "core.update_metadata" => {
                 if let Some(block) = self.blocks.get_mut(&event.entity) {

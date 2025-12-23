@@ -91,6 +91,20 @@ pub struct EditorCreatePayload {
     pub name: String,
 }
 
+/// Payload for core.rename capability
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct RenamePayload {
+    /// The new name for the block
+    pub name: String,
+}
+
+/// Payload for core.change_type capability
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct ChangeTypePayload {
+    /// The new block type
+    pub block_type: String,
+}
+
 /// Default value for target_block field (wildcard)
 fn default_wildcard() -> String {
     "*".to_string()

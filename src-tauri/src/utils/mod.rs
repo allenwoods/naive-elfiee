@@ -1,3 +1,6 @@
+pub mod block_type_inference;
+pub mod fs_scanner;
+pub mod path_validator;
 /// Utility modules for Elfiee application
 ///
 /// This module provides common utility functions used throughout the application.
@@ -8,3 +11,7 @@ pub mod time;
 pub use time::{
     now_utc, // The ONLY public function: Get current UTC timestamp in RFC 3339 format
 };
+
+pub use block_type_inference::infer_block_type;
+pub use fs_scanner::{scan_directory, FileInfo, ScanOptions};
+pub use path_validator::is_safe_path;
