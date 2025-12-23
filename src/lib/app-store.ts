@@ -29,6 +29,8 @@ interface AppStore {
   openFile: (path: string) => Promise<string>
   setCurrentFile: (fileId: string | null) => void
   getFileMetadata: (fileId: string) => FileMetadata | null
+  getAllFiles: () => string[]
+  initializeOpenFiles: () => Promise<void>
   saveFile: (fileId: string) => Promise<void>
 
   // Block operations
@@ -60,6 +62,11 @@ interface AppStore {
 
   // Editor operations
   loadEditors: (fileId: string) => Promise<void>
+  createEditor: (
+    fileId: string,
+    name: string,
+    editorType?: string
+  ) => Promise<Editor>
   setActiveEditor: (fileId: string, editorId: string) => Promise<void>
   getActiveEditor: (fileId: string) => Editor | undefined
   getEditors: (fileId: string) => Editor[]
@@ -68,6 +75,18 @@ interface AppStore {
   getEvents: (fileId: string) => Event[]
   getGrants: (fileId: string) => Grant[]
   loadGrants: (fileId: string) => Promise<void>
+  grantCapability: (
+    fileId: string,
+    targetEditor: string,
+    capability: string,
+    targetBlock?: string
+  ) => Promise<void>
+  revokeCapability: (
+    fileId: string,
+    targetEditor: string,
+    capability: string,
+    targetBlock?: string
+  ) => Promise<void>
 
   // Computed state
   selectedBlockId: string | null
@@ -120,6 +139,50 @@ export const useAppStore = create<AppStore>((set, get) => ({
   getFileMetadata: (fileId: string) => {
     const fileState = get().files.get(fileId)
     return fileState?.metadata || null
+  },
+
+  getAllFiles: () => {
+    return Array.from(get().files.keys())
+  },
+
+  initializeOpenFiles: async () => {
+    try {
+      // Get all open files from backend
+      const fileIds = await TauriClient.file.listOpenFiles()
+
+      // Load metadata and editors for each file
+      const files = new Map(get().files)
+
+      for (const fileId of fileIds) {
+        // Skip if already loaded
+        if (files.has(fileId)) continue
+
+        // Get file metadata
+        const metadata = await TauriClient.file.getFileInfo(fileId)
+
+        // Initialize file state
+        files.set(fileId, {
+          fileId,
+          metadata,
+          editors: [],
+          activeEditorId: null,
+          blocks: [],
+          selectedBlockId: null,
+          events: [],
+          grants: [],
+        })
+      }
+
+      set({ files })
+
+      // Load editors for each file
+      for (const fileId of fileIds) {
+        await get().loadEditors(fileId)
+      }
+    } catch (error) {
+      console.error('Failed to initialize open files:', error)
+      // Don't show toast on initialization failure - this is background work
+    }
   },
 
   saveFile: async (fileId: string) => {
@@ -315,6 +378,25 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  createEditor: async (fileId: string, name: string, editorType?: string) => {
+    try {
+      const newEditor = await TauriClient.editor.createEditor(
+        fileId,
+        name,
+        editorType
+      )
+      // Reload editors to get the updated list
+      await get().loadEditors(fileId)
+      toast.success(`User "${name}" created successfully`)
+      return newEditor
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to create user: ${errorMessage}`)
+      throw error
+    }
+  },
+
   setActiveEditor: async (fileId: string, editorId: string) => {
     try {
       await TauriClient.editor.setActiveEditor(fileId, editorId)
@@ -368,6 +450,54 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const errorMessage =
         error instanceof Error ? error.message : String(error)
       toast.error(`Failed to load grants: ${errorMessage}`)
+    }
+  },
+
+  grantCapability: async (
+    fileId: string,
+    targetEditor: string,
+    capability: string,
+    targetBlock: string = '*'
+  ) => {
+    try {
+      await TauriClient.editor.grantCapability(
+        fileId,
+        targetEditor,
+        capability,
+        targetBlock
+      )
+      // Reload grants to update UI
+      await get().loadGrants(fileId)
+      toast.success('Permission granted')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to grant permission: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  revokeCapability: async (
+    fileId: string,
+    targetEditor: string,
+    capability: string,
+    targetBlock: string = '*'
+  ) => {
+    try {
+      await TauriClient.editor.revokeCapability(
+        fileId,
+        targetEditor,
+        capability,
+        targetBlock
+      )
+      // Reload grants to update UI
+      await get().loadGrants(fileId)
+      toast.success('Permission revoked')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to revoke permission: ${errorMessage}`)
+      throw error
     }
   },
 }))

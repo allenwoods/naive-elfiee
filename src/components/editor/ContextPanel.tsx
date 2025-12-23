@@ -1,12 +1,14 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
-import { Clock, Shield, Edit2, Check, X } from 'lucide-react'
+import { Calendar, Clock, User, FileText, Tag, Edit2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useAppStore } from '@/lib/app-store'
-import type { Block, Event, Grant, Editor } from '@/bindings'
+import { CollaboratorList } from '@/components/permission/CollaboratorList'
+import type { Block, Event } from '@/bindings'
 
 const formatTime = (timestamp: Partial<{ [key: string]: number }>): string => {
   const values = Object.values(timestamp).filter(
@@ -29,7 +31,7 @@ const InfoTab = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { updateBlockMetadata } = useAppStore()
 
-  // Extract metadata before early return
+  // Extract metadata
   const metadata = block?.metadata as {
     description?: string
     created_at?: string
@@ -40,18 +42,15 @@ const InfoTab = ({
   const updatedAt = metadata?.updated_at
 
   const formatDate = (isoString?: string) => {
-    if (!isoString) return null
+    if (!isoString) return '-'
     try {
-      const date = new Date(isoString)
-      return date.toLocaleString('zh-CN', {
+      return new Date(isoString).toLocaleDateString('zh-CN', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
       })
     } catch {
-      return null
+      return '-'
     }
   }
 
@@ -79,62 +78,64 @@ const InfoTab = ({
       setIsEditingDescription(false)
     } catch (error) {
       console.error('Failed to save description:', error)
-      // Error toast is already shown by app-store
     } finally {
       setIsSaving(false)
     }
   }
 
-  // Auto-focus and resize textarea when editing
-  // This hook must be called before any early returns
   useEffect(() => {
     if (isEditingDescription && textareaRef.current) {
       const textarea = textareaRef.current
       textarea.focus()
-      // Auto-resize
       textarea.style.height = 'auto'
       textarea.style.height = textarea.scrollHeight + 'px'
     }
   }, [isEditingDescription])
 
-  // Early return AFTER all hooks
   if (!block) {
     return (
-      <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50 text-center">
-        <div>
-          <p className="text-sm text-muted-foreground">No block selected</p>
-          <p className="mt-1 text-xs text-muted-foreground/70">
-            Select a block to view its details
-          </p>
-        </div>
+      <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+        <FileText className="mb-3 h-10 w-10 opacity-20" />
+        <p className="text-sm font-medium">No block selected</p>
+        <p className="text-xs opacity-70">Select a block to view its details</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
-      {/* Block Name - Prominent */}
-      <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-        <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Name
-        </p>
-        <p className="text-base font-semibold text-foreground">{block.name}</p>
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <h2 className="text-lg font-semibold leading-tight tracking-tight text-foreground">
+            {block.name}
+          </h2>
+          <Badge
+            variant="secondary"
+            className="shrink-0 font-mono text-[10px] uppercase"
+          >
+            {block.block_type}
+          </Badge>
+        </div>
       </div>
 
-      {/* Description - Always visible, editable */}
-      <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <Separator />
+
+      {/* Description Section */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <FileText className="h-3.5 w-3.5" />
             Description
-          </p>
+          </h3>
           {!isEditingDescription && (
             <Button
-              size="sm"
               variant="ghost"
-              className="h-6 w-6 p-0"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
               onClick={handleStartEdit}
             >
-              <Edit2 className="h-3 w-3" />
+              <Edit2 className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
@@ -146,83 +147,94 @@ const InfoTab = ({
               value={editedDescription}
               onChange={(e) => {
                 setEditedDescription(e.target.value)
-                // Auto-resize
                 e.target.style.height = 'auto'
                 e.target.style.height = e.target.scrollHeight + 'px'
               }}
-              className="min-h-[60px] resize-none text-sm"
-              placeholder="Enter a description for this block..."
+              className="min-h-[80px] resize-none text-sm"
+              placeholder="Add a description..."
             />
-            <div className="flex gap-2">
+            <div className="flex justify-end gap-2">
               <Button
                 size="sm"
-                variant="default"
-                className="h-7 text-xs"
-                onClick={handleSaveDescription}
-                disabled={isSaving}
+                variant="ghost"
+                className="h-7 px-3 text-xs"
+                onClick={handleCancelEdit}
               >
-                <Check className="mr-1 h-3 w-3" />
-                {isSaving ? 'Saving...' : 'Save'}
+                Cancel
               </Button>
               <Button
                 size="sm"
-                variant="outline"
-                className="h-7 text-xs"
-                onClick={handleCancelEdit}
+                className="h-7 px-3 text-xs"
+                onClick={handleSaveDescription}
+                disabled={isSaving}
               >
-                <X className="mr-1 h-3 w-3" />
-                Cancel
+                {isSaving ? 'Saving...' : 'Save'}
               </Button>
             </div>
           </div>
         ) : (
-          <p className="text-sm leading-relaxed text-foreground">
-            {description || (
-              <span className="italic text-muted-foreground">
-                No description yet. Click edit to add one.
+          <div className="rounded-md bg-muted/20 p-3 text-sm leading-relaxed text-foreground">
+            {description ? (
+              description
+            ) : (
+              <span className="italic text-muted-foreground/60">
+                No description provided.
               </span>
             )}
-          </p>
-        )}
-      </div>
-
-      {/* Metadata Grid */}
-      <div className="grid gap-3">
-        <div className="flex items-center justify-between rounded-lg border border-border/30 p-3">
-          <p className="text-xs font-medium text-muted-foreground">Type</p>
-          <p className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-            {block.block_type}
-          </p>
-        </div>
-
-        <div className="flex items-center justify-between rounded-lg border border-border/30 p-3">
-          <p className="text-xs font-medium text-muted-foreground">Owner</p>
-          <p className="text-xs font-medium text-foreground">{block.owner}</p>
-        </div>
-
-        {createdAt && (
-          <div className="flex items-center justify-between rounded-lg border border-border/30 p-3">
-            <p className="text-xs font-medium text-muted-foreground">Created</p>
-            <p className="text-xs text-foreground">{formatDate(createdAt)}</p>
-          </div>
-        )}
-
-        {updatedAt && (
-          <div className="flex items-center justify-between rounded-lg border border-border/30 p-3">
-            <p className="text-xs font-medium text-muted-foreground">Updated</p>
-            <p className="text-xs text-foreground">{formatDate(updatedAt)}</p>
           </div>
         )}
       </div>
 
-      {/* Block ID - Technical Info */}
-      <div className="rounded-lg border border-border/30 bg-muted/10 p-3">
-        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Block ID
-        </p>
-        <p className="break-all font-mono text-[10px] leading-relaxed text-muted-foreground">
-          {block.block_id}
-        </p>
+      <Separator />
+
+      {/* Details Grid */}
+      <div className="grid gap-4">
+        <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Tag className="h-3.5 w-3.5" />
+          Details
+        </h3>
+
+        <div className="overflow-hidden rounded-lg border border-border/50 bg-background text-sm shadow-sm">
+          {/* Owner Row */}
+          <div className="flex items-center justify-between border-b border-border/50 bg-muted/20 px-4 py-3">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <User className="h-3.5 w-3.5" />
+              <span>Owner</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]" />
+              <span className="font-semibold text-foreground">
+                {block.owner}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid gap-y-3 p-4">
+            {createdAt && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="h-3.5 w-3.5 opacity-70" />
+                  <span>Created</span>
+                </div>
+                <span className="font-mono text-xs text-muted-foreground">
+                  {formatDate(createdAt)}
+                </span>
+              </div>
+            )}
+
+            {updatedAt && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5 opacity-70" />
+                  <span>Updated</span>
+                </div>
+                <span className="font-mono text-xs text-muted-foreground">
+                  {formatDate(updatedAt)}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -230,42 +242,26 @@ const InfoTab = ({
 
 const CollaboratorsTab = ({
   block,
-  editors,
-  grants,
+  fileId,
 }: {
   block: Block | null
-  editors: Editor[]
-  grants: Grant[]
+  fileId: string | null
 }) => {
-  if (!block) {
+  if (!block || !fileId) {
     return (
-      <div className="text-sm text-muted-foreground">No block selected.</div>
+      <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50 text-center">
+        <div>
+          <p className="text-sm text-muted-foreground">No block selected</p>
+          <p className="mt-1 text-xs text-muted-foreground/70">
+            Select a block to manage collaborators
+          </p>
+        </div>
+      </div>
     )
   }
-  const blockGrants = grants.filter((g) => g.block_id === block.block_id)
+
   return (
-    <div className="space-y-3 text-sm text-muted-foreground">
-      {blockGrants.length === 0 && <p>No grants for this block.</p>}
-      {blockGrants.map((g) => {
-        const editor = editors.find((e) => e.editor_id === g.editor_id)
-        return (
-          <div
-            key={`${g.editor_id}-${g.cap_id}-${g.block_id}`}
-            className="flex items-center justify-between rounded-lg border px-3 py-2"
-          >
-            <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              <div>
-                <p className="text-foreground">{editor?.name || g.editor_id}</p>
-                <p className="text-xs text-muted-foreground">
-                  Capability: {g.cap_id}
-                </p>
-              </div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
+    <CollaboratorList fileId={fileId} blockId={block.block_id} block={block} />
   )
 }
 
@@ -297,8 +293,6 @@ const ContextPanel = () => {
   const currentFileId = useAppStore((state) => state.currentFileId)
   const selectedBlockId = useAppStore((state) => state.selectedBlockId)
   const getEvents = useAppStore((state) => state.getEvents)
-  const getEditors = useAppStore((state) => state.getEditors)
-  const getGrants = useAppStore((state) => state.getGrants)
 
   // Subscribe to block changes by accessing it through a selector
   const block: Block | null = useAppStore((state) =>
@@ -312,15 +306,6 @@ const ContextPanel = () => {
     const all = getEvents(currentFileId)
     return block ? all.filter((e) => e.entity === block.block_id) : all
   }, [currentFileId, block, getEvents])
-
-  const editors = useMemo(
-    () => (currentFileId ? getEditors(currentFileId) : []),
-    [currentFileId, getEditors]
-  )
-  const grants = useMemo(
-    () => (currentFileId ? getGrants(currentFileId) : []),
-    [currentFileId, getGrants]
-  )
 
   if (!currentFileId) {
     return (
@@ -377,11 +362,7 @@ const ContextPanel = () => {
             </TabsContent>
 
             <TabsContent value="collaborators" className="mt-0">
-              <CollaboratorsTab
-                block={block}
-                editors={editors}
-                grants={grants}
-              />
+              <CollaboratorsTab block={block} fileId={currentFileId} />
             </TabsContent>
 
             <TabsContent value="timeline" className="mt-0">

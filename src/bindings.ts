@@ -343,12 +343,13 @@ export const commands = {
    */
   async createEditor(
     fileId: string,
-    name: string
+    name: string,
+    editorType: string | null
   ): Promise<Result<Editor, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('create_editor', { fileId, name }),
+        data: await TAURI_INVOKE('create_editor', { fileId, name, editorType }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -689,7 +690,11 @@ export type CreateBlockPayload = {
    */
   metadata?: JsonValue | null
 }
-export type Editor = { editor_id: string; name: string }
+export type Editor = {
+  editor_id: string
+  name: string
+  editor_type?: EditorType
+}
 /**
  * Payload for editor.create capability
  *
@@ -700,7 +705,12 @@ export type EditorCreatePayload = {
    * The display name for the new editor
    */
   name: string
+  /**
+   * The type of editor (Human or Bot), defaults to Human if not specified
+   */
+  editor_type?: string | null
 }
+export type EditorType = 'Human' | 'Bot'
 export type Event = {
   event_id: string
   entity: string

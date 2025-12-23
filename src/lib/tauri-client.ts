@@ -287,8 +287,12 @@ export class BlockOperations {
  * Editor Operations
  */
 export class EditorOperations {
-  static async createEditor(fileId: string, name: string): Promise<Editor> {
-    const result = await commands.createEditor(fileId, name)
+  static async createEditor(
+    fileId: string,
+    name: string,
+    editorType?: string
+  ): Promise<Editor> {
+    const result = await commands.createEditor(fileId, name, editorType ?? null)
     if (result.status === 'ok') {
       return result.data
     } else {

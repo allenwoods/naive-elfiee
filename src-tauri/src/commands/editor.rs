@@ -20,6 +20,7 @@ use tauri::State;
 pub async fn create_editor(
     file_id: String,
     name: String,
+    editor_type: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Editor, String> {
     // Get engine handle for this file
@@ -33,18 +34,23 @@ pub async fn create_editor(
         .get_active_editor(&file_id)
         .unwrap_or_else(|| "system".to_string());
 
-    // Create command to create editor
+    // Create command to create editor with optional editor_type
+    let mut payload = serde_json::json!({ "name": name });
+    if let Some(et) = editor_type {
+        payload["editor_type"] = serde_json::json!(et);
+    }
+
     let cmd = Command::new(
         creator_editor_id,
         "editor.create".to_string(),
         "".to_string(), // No block_id for system commands
-        serde_json::json!({ "name": name }),
+        payload,
     );
 
     // Process command
     let events = handle.process_command(cmd).await?;
 
-    // Extract editor_id from created event
+    // Extract editor from created event
     // The event entity is the new editor_id
     if let Some(event) = events.first() {
         let editor_id = event.entity.clone();
@@ -55,9 +61,24 @@ pub async fn create_editor(
             .ok_or("Missing name in event")?
             .to_string();
 
+        let editor_type_str = event
+            .value
+            .get("editor_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Human")
+            .to_string();
+
+        // Parse editor_type string to EditorType enum
+        use crate::models::EditorType;
+        let editor_type = match editor_type_str.as_str() {
+            "Bot" => EditorType::Bot,
+            _ => EditorType::Human,
+        };
+
         Ok(Editor {
             editor_id,
             name: editor_name,
+            editor_type,
         })
     } else {
         Err("No events generated for editor creation".to_string())

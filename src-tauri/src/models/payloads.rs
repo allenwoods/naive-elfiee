@@ -89,6 +89,9 @@ pub struct UpdateMetadataPayload {
 pub struct EditorCreatePayload {
     /// The display name for the new editor
     pub name: String,
+    /// The type of editor (Human or Bot), defaults to Human if not specified
+    #[serde(default)]
+    pub editor_type: Option<String>,
 }
 
 /// Default value for target_block field (wildcard)

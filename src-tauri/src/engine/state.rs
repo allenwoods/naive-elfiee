@@ -185,23 +185,50 @@ impl StateProjector {
                 }
             }
 
-            // Grant/Revoke - delegate to GrantsTable
+            // Grant/Revoke - update the grants table directly
             "core.grant" | "core.revoke" => {
-                // GrantsTable already handles these in from_events
-                // We need to update the grants table
-                let events_slice = std::slice::from_ref(event);
-                let updated_grants = GrantsTable::from_events(events_slice);
-                // Merge the grants
-                for (editor_id, grants) in updated_grants.as_map() {
-                    for (cap_id, block_id) in grants {
-                        if event.attribute.ends_with("/core.grant") {
+                if event.attribute.ends_with("/core.grant") {
+                    // Process grant event
+                    if let Some(grant_obj) = event.value.as_object() {
+                        let editor = grant_obj
+                            .get("editor")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        let capability = grant_obj
+                            .get("capability")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        let block = grant_obj
+                            .get("block")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("*");
+
+                        if !editor.is_empty() && !capability.is_empty() {
                             self.grants.add_grant(
-                                editor_id.clone(),
-                                cap_id.clone(),
-                                block_id.clone(),
+                                editor.to_string(),
+                                capability.to_string(),
+                                block.to_string(),
                             );
-                        } else {
-                            self.grants.remove_grant(editor_id, cap_id, block_id);
+                        }
+                    }
+                } else if event.attribute.ends_with("/core.revoke") {
+                    // Process revoke event
+                    if let Some(revoke_obj) = event.value.as_object() {
+                        let editor = revoke_obj
+                            .get("editor")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        let capability = revoke_obj
+                            .get("capability")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        let block = revoke_obj
+                            .get("block")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("*");
+
+                        if !editor.is_empty() && !capability.is_empty() {
+                            self.grants.remove_grant(editor, capability, block);
                         }
                     }
                 }
@@ -544,5 +571,267 @@ mod tests {
             block.metadata.updated_at,
             Some("2025-12-17T03:00:00Z".to_string())
         );
+    }
+
+    #[test]
+    fn test_grant_event_adds_permission() {
+        let mut state = StateProjector::new();
+
+        let grant_event = Event::new(
+            "alice".to_string(),
+            "alice/core.grant".to_string(),
+            serde_json::json!({
+                "editor": "bob",
+                "capability": "markdown.write",
+                "block": "block1"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 1);
+                ts
+            },
+        );
+
+        state.apply_event(&grant_event);
+
+        // Verify grant was added
+        assert!(state.grants.has_grant("bob", "markdown.write", "block1"));
+        assert!(!state.grants.has_grant("bob", "markdown.read", "block1"));
+    }
+
+    #[test]
+    fn test_revoke_event_removes_permission() {
+        let mut state = StateProjector::new();
+
+        // First grant permission
+        let grant_event = Event::new(
+            "alice".to_string(),
+            "alice/core.grant".to_string(),
+            serde_json::json!({
+                "editor": "bob",
+                "capability": "markdown.write",
+                "block": "block1"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 1);
+                ts
+            },
+        );
+        state.apply_event(&grant_event);
+
+        // Verify grant exists
+        assert!(state.grants.has_grant("bob", "markdown.write", "block1"));
+
+        // Now revoke it
+        let revoke_event = Event::new(
+            "alice".to_string(),
+            "alice/core.revoke".to_string(),
+            serde_json::json!({
+                "editor": "bob",
+                "capability": "markdown.write",
+                "block": "block1"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 2);
+                ts
+            },
+        );
+        state.apply_event(&revoke_event);
+
+        // CRITICAL: Verify revoke actually removed the grant (bug fix validation)
+        assert!(!state.grants.has_grant("bob", "markdown.write", "block1"));
+    }
+
+    #[test]
+    fn test_grant_and_revoke_multiple_permissions() {
+        let mut state = StateProjector::new();
+
+        // Grant multiple permissions
+        let events = vec![
+            Event::new(
+                "alice".to_string(),
+                "alice/core.grant".to_string(),
+                serde_json::json!({
+                    "editor": "bob",
+                    "capability": "markdown.write",
+                    "block": "block1"
+                }),
+                {
+                    let mut ts = StdHashMap::new();
+                    ts.insert("alice".to_string(), 1);
+                    ts
+                },
+            ),
+            Event::new(
+                "alice".to_string(),
+                "alice/core.grant".to_string(),
+                serde_json::json!({
+                    "editor": "bob",
+                    "capability": "markdown.read",
+                    "block": "block1"
+                }),
+                {
+                    let mut ts = StdHashMap::new();
+                    ts.insert("alice".to_string(), 2);
+                    ts
+                },
+            ),
+        ];
+
+        for event in events {
+            state.apply_event(&event);
+        }
+
+        // Both permissions should exist
+        assert!(state.grants.has_grant("bob", "markdown.write", "block1"));
+        assert!(state.grants.has_grant("bob", "markdown.read", "block1"));
+
+        // Revoke one permission
+        let revoke_event = Event::new(
+            "alice".to_string(),
+            "alice/core.revoke".to_string(),
+            serde_json::json!({
+                "editor": "bob",
+                "capability": "markdown.write",
+                "block": "block1"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 3);
+                ts
+            },
+        );
+        state.apply_event(&revoke_event);
+
+        // Only the revoked one should be removed
+        assert!(!state.grants.has_grant("bob", "markdown.write", "block1"));
+        assert!(state.grants.has_grant("bob", "markdown.read", "block1"));
+    }
+
+    #[test]
+    fn test_wildcard_grant_applies_to_all_blocks() {
+        let mut state = StateProjector::new();
+
+        // Grant with wildcard block
+        let grant_event = Event::new(
+            "alice".to_string(),
+            "alice/core.grant".to_string(),
+            serde_json::json!({
+                "editor": "bob",
+                "capability": "markdown.read",
+                "block": "*"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 1);
+                ts
+            },
+        );
+        state.apply_event(&grant_event);
+
+        // Should have permission on any block with wildcard
+        assert!(state.grants.has_grant("bob", "markdown.read", "*"));
+    }
+
+    #[test]
+    fn test_editor_create_event_adds_to_state() {
+        let mut state = StateProjector::new();
+
+        let editor_create_event = Event::new(
+            "editor-123".to_string(),
+            "system/editor.create".to_string(),
+            serde_json::json!({
+                "editor_id": "editor-123",
+                "name": "Alice",
+                "editor_type": "Human"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("system".to_string(), 1);
+                ts
+            },
+        );
+
+        state.apply_event(&editor_create_event);
+
+        // Verify editor was added to state
+        assert_eq!(state.editors.len(), 1);
+        let editor = state.editors.get("editor-123").unwrap();
+        assert_eq!(editor.name, "Alice");
+        assert_eq!(editor.editor_type, crate::models::EditorType::Human);
+    }
+
+    #[test]
+    fn test_editor_create_event_with_bot_type() {
+        let mut state = StateProjector::new();
+
+        let editor_create_event = Event::new(
+            "bot-456".to_string(),
+            "system/editor.create".to_string(),
+            serde_json::json!({
+                "editor_id": "bot-456",
+                "name": "CodeReviewer",
+                "editor_type": "Bot"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("system".to_string(), 1);
+                ts
+            },
+        );
+
+        state.apply_event(&editor_create_event);
+
+        // Verify bot editor was added
+        let editor = state.editors.get("bot-456").unwrap();
+        assert_eq!(editor.name, "CodeReviewer");
+        assert_eq!(editor.editor_type, crate::models::EditorType::Bot);
+    }
+
+    #[test]
+    fn test_grant_revoke_with_empty_fields_ignored() {
+        let mut state = StateProjector::new();
+
+        // Grant event with empty editor field - should be ignored
+        let grant_event = Event::new(
+            "alice".to_string(),
+            "alice/core.grant".to_string(),
+            serde_json::json!({
+                "editor": "",
+                "capability": "markdown.write",
+                "block": "block1"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 1);
+                ts
+            },
+        );
+        state.apply_event(&grant_event);
+
+        // Should not have added grant with empty editor
+        assert!(!state.grants.has_grant("", "markdown.write", "block1"));
+
+        // Grant event with empty capability - should be ignored
+        let grant_event2 = Event::new(
+            "alice".to_string(),
+            "alice/core.grant".to_string(),
+            serde_json::json!({
+                "editor": "bob",
+                "capability": "",
+                "block": "block1"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 2);
+                ts
+            },
+        );
+        state.apply_event(&grant_event2);
+
+        // Should not have added grant with empty capability
+        assert!(!state.grants.has_grant("bob", "", "block1"));
     }
 }
