@@ -139,6 +139,7 @@ mod tests {
 
     #[test]
     fn test_get_config_path() {
+        // Test with temp config (env var set)
         with_temp_config(|temp_dir| {
             let path = get_config_path().expect("Failed to get config path");
             let expected = temp_dir.path().join("config.json");
@@ -147,6 +148,14 @@ mod tests {
 
         // Also test default path (when env var is unset)
         // Note: This relies on home_dir existing
+        // Use mutex to ensure env var is not set by other concurrent tests
+        let _guard = ENV_MUTEX.lock().unwrap();
+
+        // Explicitly remove env var to ensure clean state
+        unsafe {
+            std::env::remove_var("ELF_TEST_CONFIG_PATH");
+        }
+
         if let Some(home) = dirs::home_dir() {
             let path = get_config_path().expect("Failed to get config path");
             assert!(path.starts_with(home));

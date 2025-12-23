@@ -1,6 +1,7 @@
 use crate::config;
 use crate::models::{Command, Editor, Grant};
 use crate::state::AppState;
+use log;
 use specta::specta;
 use tauri::State;
 
@@ -75,7 +76,14 @@ pub async fn create_editor(
         use crate::models::EditorType;
         let editor_type = match editor_type_str.as_str() {
             "Bot" => EditorType::Bot,
-            _ => EditorType::Human,
+            "Human" => EditorType::Human,
+            _ => {
+                log::warn!(
+                    "create_editor received unsupported editor_type '{}'. Defaulting to Human.",
+                    editor_type_str
+                );
+                EditorType::Human
+            }
         };
 
         Ok(Editor {
@@ -86,6 +94,50 @@ pub async fn create_editor(
     } else {
         Err("No events generated for editor creation".to_string())
     }
+}
+
+/// Delete an editor identity from the specified file.
+///
+/// This generates a Command with editor.delete capability and processes it through
+/// the engine actor. The editor and associated grants are removed from the state.
+///
+/// # Arguments
+/// * `file_id` - Unique identifier of the file
+/// * `editor_id` - Unique identifier of the editor to delete
+///
+/// # Returns
+/// * `Ok(())` - Success
+/// * `Err(message)` - Error description if deletion fails
+#[tauri::command]
+#[specta]
+pub async fn delete_editor(
+    file_id: String,
+    editor_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    // Get engine handle for this file
+    let handle = state
+        .engine_manager
+        .get_engine(&file_id)
+        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
+
+    // Get current active editor
+    let active_editor_id = state
+        .get_active_editor(&file_id)
+        .unwrap_or_else(|| config::get_system_editor_id().unwrap_or_else(|_| "system".to_string()));
+
+    // Create command to delete editor
+    let cmd = Command::new(
+        active_editor_id,
+        "editor.delete".to_string(),
+        "".to_string(),
+        serde_json::json!({ "editor_id": editor_id }),
+    );
+
+    // Process command
+    handle.process_command(cmd).await?;
+
+    Ok(())
 }
 
 /// List all editors for the specified file.

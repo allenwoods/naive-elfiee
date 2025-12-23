@@ -57,6 +57,7 @@ impl CapabilityRegistry {
         self.register(Arc::new(CoreRevokeCapability));
         self.register(Arc::new(CoreUpdate_metadataCapability));
         self.register(Arc::new(EditorCreateCapability));
+        self.register(Arc::new(EditorDeleteCapability));
     }
 
     /// Register all extension capabilities.

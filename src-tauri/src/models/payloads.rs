@@ -97,6 +97,15 @@ pub struct EditorCreatePayload {
     pub editor_id: Option<String>,
 }
 
+/// Payload for editor.delete capability
+///
+/// This payload is used to delete an editor identity from the file.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct EditorDeletePayload {
+    /// The editor ID to delete
+    pub editor_id: String,
+}
+
 /// Default value for target_block field (wildcard)
 fn default_wildcard() -> String {
     "*".to_string()

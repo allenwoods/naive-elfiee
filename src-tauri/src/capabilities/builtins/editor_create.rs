@@ -180,4 +180,19 @@ mod tests {
         // Value should also contain the same editor_id
         assert_eq!(event.value["editor_id"], provided_id);
     }
+
+    #[test]
+    fn test_editor_create_with_invalid_type() {
+        let cmd = create_test_command("InvalidTypeEditor", Some("Robot".to_string()));
+        let result = handle_editor_create(&cmd, None);
+
+        assert!(result.is_ok());
+        let events = result.unwrap();
+        assert_eq!(events.len(), 1);
+
+        let event = &events[0];
+        let value = &event.value;
+        assert_eq!(value["name"], "InvalidTypeEditor");
+        assert_eq!(value["editor_type"], "Robot"); // Capability handler should pass the invalid type as is
+    }
 }

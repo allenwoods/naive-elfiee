@@ -241,6 +241,13 @@ impl StateProjector {
                 }
             }
 
+            // Editor deletion
+            "editor.delete" => {
+                self.editors.remove(&event.entity);
+                // Also remove all grants for this editor to prevent leaks in GrantsTable
+                self.grants.remove_all_grants_for_editor(&event.entity);
+            }
+
             _ => {
                 // Unknown capability - ignore for now
             }
@@ -788,6 +795,72 @@ mod tests {
         let editor = state.editors.get("bot-456").unwrap();
         assert_eq!(editor.name, "CodeReviewer");
         assert_eq!(editor.editor_type, crate::models::EditorType::Bot);
+    }
+
+    #[test]
+    fn test_state_projector_delete_editor() {
+        let mut state = StateProjector::new();
+
+        // 1. Create editor
+        let editor_id = "editor-123".to_string();
+        let create_event = Event::new(
+            editor_id.clone(),
+            "system/editor.create".to_string(),
+            serde_json::json!({
+                "editor_id": &editor_id,
+                "name": "Alice",
+                "editor_type": "Human"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("system".to_string(), 1);
+                ts
+            },
+        );
+        state.apply_event(&create_event);
+
+        // 2. Grant some permissions
+        let grant_event = Event::new(
+            "system".to_string(),
+            "system/core.grant".to_string(),
+            serde_json::json!({
+                "editor": &editor_id,
+                "capability": "markdown.write",
+                "block": "block1"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("system".to_string(), 2);
+                ts
+            },
+        );
+        state.apply_event(&grant_event);
+
+        assert_eq!(state.editors.len(), 1);
+        assert!(state
+            .grants
+            .has_grant(&editor_id, "markdown.write", "block1"));
+
+        // 3. Delete editor
+        let delete_event = Event::new(
+            editor_id.clone(),
+            "system/editor.delete".to_string(),
+            serde_json::json!({ "deleted": true }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("system".to_string(), 3);
+                ts
+            },
+        );
+        state.apply_event(&delete_event);
+
+        // 4. Verify editor and grants are gone
+        assert_eq!(state.editors.len(), 0);
+        assert!(state.editors.get(&editor_id).is_none());
+        assert!(!state
+            .grants
+            .has_grant(&editor_id, "markdown.write", "block1"));
+        assert!(state.grants.get_grants(&editor_id).is_none());
     }
 
     #[test]

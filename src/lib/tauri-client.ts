@@ -326,6 +326,15 @@ export class EditorOperations {
     }
   }
 
+  static async deleteEditor(fileId: string, editorId: string): Promise<void> {
+    const result = await commands.deleteEditor(fileId, editorId)
+    if (result.status === 'ok') {
+      return
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
   static async listEditors(fileId: string): Promise<Editor[]> {
     const result = await commands.listEditors(fileId)
     if (result.status === 'ok') {

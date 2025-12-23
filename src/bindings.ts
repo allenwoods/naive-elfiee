@@ -378,6 +378,34 @@ export const commands = {
     }
   },
   /**
+   * Delete an editor identity from the specified file.
+   *
+   * This generates a Command with editor.delete capability and processes it through
+   * the engine actor. The editor and associated grants are removed from the state.
+   *
+   * # Arguments
+   * * `file_id` - Unique identifier of the file
+   * * `editor_id` - Unique identifier of the editor to delete
+   *
+   * # Returns
+   * * `Ok(())` - Success
+   * * `Err(message)` - Error description if deletion fails
+   */
+  async deleteEditor(
+    fileId: string,
+    editorId: string
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('delete_editor', { fileId, editorId }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * List all editors for the specified file.
    *
    * Reads the editors from the StateProjector which is built from event replay.
@@ -734,6 +762,17 @@ export type EditorCreatePayload = {
    * Optional explicitly provided editor ID (e.g. system editor ID)
    */
   editor_id?: string | null
+}
+/**
+ * Payload for editor.delete capability
+ *
+ * This payload is used to delete an editor identity from the file.
+ */
+export type EditorDeletePayload = {
+  /**
+   * The editor ID to delete
+   */
+  editor_id: string
 }
 export type EditorType = 'Human' | 'Bot'
 export type Event = {

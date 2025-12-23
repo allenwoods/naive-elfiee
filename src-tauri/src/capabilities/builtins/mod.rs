@@ -1,6 +1,7 @@
 mod create;
 mod delete;
 mod editor_create;
+mod editor_delete;
 mod grant;
 mod link;
 mod revoke;
@@ -10,6 +11,7 @@ mod update_metadata;
 pub use create::CoreCreateCapability;
 pub use delete::CoreDeleteCapability;
 pub use editor_create::EditorCreateCapability;
+pub use editor_delete::EditorDeleteCapability;
 pub use grant::CoreGrantCapability;
 pub use link::CoreLinkCapability;
 pub use revoke::CoreRevokeCapability;

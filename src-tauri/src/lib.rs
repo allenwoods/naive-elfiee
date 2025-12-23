@@ -45,6 +45,7 @@ pub fn run() {
                 commands::block::update_block_metadata,
                 // Editor operations
                 commands::editor::create_editor,
+                commands::editor::delete_editor,
                 commands::editor::list_editors,
                 commands::editor::get_editor,
                 commands::editor::set_active_editor,
@@ -72,6 +73,7 @@ pub fn run() {
             .typ::<models::RevokePayload>()
             .typ::<models::UpdateMetadataPayload>()
             .typ::<models::EditorCreatePayload>()
+            .typ::<models::EditorDeletePayload>()
             // Extension payload types
             .typ::<extensions::markdown::MarkdownWritePayload>()
             .typ::<extensions::terminal::TerminalSavePayload>()

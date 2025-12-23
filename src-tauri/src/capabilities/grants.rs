@@ -95,11 +95,18 @@ impl GrantsTable {
         if let Some(editor_grants) = self.grants.get_mut(editor_id) {
             editor_grants.retain(|(cap, blk)| !(cap == cap_id && blk == block_id));
 
-            // Clean up empty entries
+            /// Clean up empty entries
             if editor_grants.is_empty() {
                 self.grants.remove(editor_id);
             }
         }
+    }
+
+    /// Remove all grants for a specific editor.
+    ///
+    /// This is used when an editor is deleted from the system.
+    pub fn remove_all_grants_for_editor(&mut self, editor_id: &str) {
+        self.grants.remove(editor_id);
     }
 
     /// Get all grants for a specific editor.
@@ -194,6 +201,27 @@ mod tests {
         let grants = table.get_grants("alice").unwrap();
         assert_eq!(grants.len(), 1);
         assert_eq!(grants[0], ("core.link".to_string(), "block2".to_string()));
+    }
+
+    #[test]
+    fn test_remove_all_grants_for_editor() {
+        let mut table = GrantsTable::new();
+
+        table.add_grant(
+            "alice".to_string(),
+            "markdown.write".to_string(),
+            "block1".to_string(),
+        );
+        table.add_grant(
+            "alice".to_string(),
+            "core.link".to_string(),
+            "block2".to_string(),
+        );
+
+        table.remove_all_grants_for_editor("alice");
+
+        assert!(table.get_grants("alice").is_none());
+        assert!(!table.has_grant("alice", "markdown.write", "block1"));
     }
 
     #[test]
