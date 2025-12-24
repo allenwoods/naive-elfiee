@@ -29,11 +29,10 @@ vi.mock('@myst-theme/providers', () => ({
 
 // Mock app-store
 const mockStore = {
-  currentFileId: 'test-file-id',
-  selectedBlockId: 'block-1',
+  currentFileId: 'test-file-id' as string | null,
+  selectedBlockId: 'test-block-id' as string | null,
   getBlock: vi.fn(),
   updateBlock: vi.fn(),
-  saveFile: vi.fn(),
 }
 
 vi.mock('@/lib/app-store', () => ({

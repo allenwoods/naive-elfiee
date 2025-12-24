@@ -1,19 +1,6 @@
-import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAppStore } from '@/lib/app-store'
 import type { Block } from '@/bindings'
-
-// --- Components ---
-
-const PermissionsTab = ({ block }: { block: Block }) => {
-  return (
-    <div className="space-y-3 text-sm text-muted-foreground">
-      <p>Capabilities are managed via grants in Tauri backend.</p>
-      <p>Block ID: {block.block_id}</p>
-      <p>Owner: {block.owner}</p>
-    </div>
-  )
-}
 
 // --- Main Views ---
 

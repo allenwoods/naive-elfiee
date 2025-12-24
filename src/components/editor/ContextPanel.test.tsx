@@ -6,30 +6,17 @@ import type { Block, Editor, Event as BlockEvent, Grant } from '@/bindings'
 
 // Mock app-store
 const mockStore = {
-  currentFileId: 'test-file-id',
-  selectedBlockId: 'block-1',
-  files: new Map([
-    [
-      'test-file-id',
-      {
-        fileId: 'test-file-id',
-        metadata: null,
-        editors: [],
-        activeEditorId: null,
-        blocks: [],
-        selectedBlockId: 'block-1',
-        events: [],
-        grants: [],
-      },
-    ],
-  ]),
+  currentFileId: 'test-file-id' as string | null,
+  selectedBlockId: 'test-block-id' as string | null,
+  files: new Map(),
   getBlock: vi.fn(),
   getEvents: vi.fn(() => []),
   getEditors: vi.fn(() => []),
   getGrants: vi.fn(() => []),
-  updateBlockMetadata: vi.fn(),
+  getBlockGrants: vi.fn(() => []),
   grantCapability: vi.fn(),
   revokeCapability: vi.fn(),
+  updateBlockMetadata: vi.fn(),
 }
 
 vi.mock('@/lib/app-store', () => ({

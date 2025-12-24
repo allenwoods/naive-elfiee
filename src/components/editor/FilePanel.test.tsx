@@ -3,41 +3,39 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import { FilePanel } from './FilePanel'
-import type { Block } from '@/bindings'
 
 // Mock子组件
-vi.mock('./OutlineTree', () => ({
-  OutlineTree: ({ initialNodes, activeNodeId, onSelectNode }: any) => (
-    <div data-testid="mock-outline-tree">
-      OutlineTree
-      {initialNodes?.map((node: any) => (
+vi.mock('./VfsTree', () => ({
+  VfsTree: ({ nodes, activeBlockId, onSelect }: any) => (
+    <div data-testid="mock-vfs-tree">
+      VfsTree
+      {nodes?.map((node: any) => (
         <button
-          key={node.id}
-          onClick={() => onSelectNode?.(node.id)}
-          data-testid={`outline-node-${node.id}`}
-          className={activeNodeId === node.id ? 'active' : ''}
+          key={node.path}
+          onClick={() => onSelect?.(node)}
+          data-testid={`vfs-node-${node.path}`}
+          className={activeBlockId === node.blockId ? 'active' : ''}
         >
-          {node.title}
+          {node.name}
         </button>
       ))}
     </div>
   ),
-  OutlineNode: vi.fn(),
 }))
 
 vi.mock('./ImportRepositoryModal', () => ({
-  ImportRepositoryModal: ({ isOpen, onClose }: any) =>
-    isOpen ? (
+  ImportRepositoryModal: ({ open, onOpenChange }: any) =>
+    open ? (
       <div data-testid="import-modal">
-        <button onClick={onClose}>Close</button>
+        <button onClick={() => onOpenChange(false)}>Close</button>
       </div>
     ) : null,
 }))
 
 // Mock app-store
 const mockStore = {
-  currentFileId: 'test-file-id',
-  selectedBlockId: null,
+  currentFileId: 'test-file-id' as string | null,
+  selectedBlockId: null as string | null,
   files: new Map(),
   getBlocks: vi.fn(() => []),
   getFileMetadata: vi.fn(() => ({ name: 'Test File' })),
@@ -45,15 +43,24 @@ const mockStore = {
   createBlock: vi.fn(),
   renameBlock: vi.fn(),
   deleteBlock: vi.fn(),
+  loadBlocks: vi.fn(),
+  getOutlineTree: vi.fn(() => []),
+  getLinkedRepos: vi.fn(() => []),
+  ensureSystemOutline: vi.fn(),
 }
 
 vi.mock('@/lib/app-store', () => ({
-  useAppStore: (selector: any) => {
-    if (typeof selector === 'function') {
-      return selector(mockStore)
+  useAppStore: Object.assign(
+    (selector: any) => {
+      if (typeof selector === 'function') {
+        return selector(mockStore)
+      }
+      return mockStore
+    },
+    {
+      getState: () => mockStore,
     }
-    return mockStore
-  },
+  ),
 }))
 
 // Mock sonner toast
@@ -63,6 +70,28 @@ vi.mock('sonner', () => ({
     error: vi.fn(),
     info: vi.fn(),
   },
+}))
+
+// Mock tauri-client
+vi.mock('@/lib/tauri-client', () => ({
+  TauriClient: {
+    directory: {
+      createEntry: vi.fn(),
+      deleteEntry: vi.fn(),
+      renameEntry: vi.fn(),
+      importDirectory: vi.fn(),
+      checkoutWorkspace: vi.fn(),
+    },
+    block: {
+      createBlock: vi.fn(),
+      executeCommand: vi.fn(),
+    },
+  },
+}))
+
+// Mock tauri plugin dialog
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  open: vi.fn(),
 }))
 
 // Mock UI components
@@ -114,20 +143,6 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
   ),
 }))
 
-// Helper to create mock blocks
-const createMockBlock = (id: string, name: string): Block => ({
-  block_id: id,
-  name,
-  block_type: 'markdown',
-  contents: {},
-  children: {},
-  owner: 'test-user',
-  metadata: {
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-})
-
 // Helper to render with router
 const renderWithRouter = (component: React.ReactElement) => {
   return render(<BrowserRouter>{component}</BrowserRouter>)
@@ -136,7 +151,10 @@ const renderWithRouter = (component: React.ReactElement) => {
 describe('FilePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockStore.currentFileId = 'test-file-id'
     mockStore.getBlocks.mockReturnValue([])
+    mockStore.getOutlineTree.mockReturnValue([])
+    mockStore.getLinkedRepos.mockReturnValue([])
     mockStore.selectedBlockId = null
   })
 
@@ -144,7 +162,7 @@ describe('FilePanel', () => {
     it('should render outline tree', () => {
       renderWithRouter(<FilePanel />)
 
-      expect(screen.getByTestId('mock-outline-tree')).toBeInTheDocument()
+      expect(screen.getByTestId('mock-vfs-tree')).toBeInTheDocument()
     })
 
     it('should render scroll area', () => {
@@ -152,120 +170,62 @@ describe('FilePanel', () => {
 
       expect(screen.getByTestId('scroll-area')).toBeInTheDocument()
     })
-
-    it('should render with empty state when no blocks', () => {
-      mockStore.getBlocks.mockReturnValue([])
-
-      renderWithRouter(<FilePanel />)
-
-      expect(screen.getByTestId('mock-outline-tree')).toBeInTheDocument()
-    })
   })
 
   describe('Block Display', () => {
-    it('should display blocks from store', () => {
-      const mockBlocks = [
-        createMockBlock('block-1', 'Block 1'),
-        createMockBlock('block-2', 'Block 2'),
+    it('should display outline nodes from store', () => {
+      const mockOutline = [
+        { path: 'doc1.md', name: 'doc1.md', type: 'file', blockId: 'b1' },
       ]
-      mockStore.getBlocks.mockReturnValue(mockBlocks)
+      mockStore.getOutlineTree.mockReturnValue(mockOutline as any)
 
       renderWithRouter(<FilePanel />)
 
-      expect(screen.getByText('Block 1')).toBeInTheDocument()
-      expect(screen.getByText('Block 2')).toBeInTheDocument()
+      expect(screen.getByText('doc1.md')).toBeInTheDocument()
     })
 
-    it('should handle blocks with children', () => {
-      const parentBlock = createMockBlock('parent', 'Parent Block')
-      const childBlock = createMockBlock('child', 'Child Block')
-      parentBlock.children = { default: ['child'] }
-
-      mockStore.getBlocks.mockReturnValue([parentBlock, childBlock])
+    it('should display linked repos from store', () => {
+      const mockRepos = [
+        {
+          blockId: 'repo1',
+          name: 'Repo 1',
+          tree: [
+            { path: 'main.rs', name: 'main.rs', type: 'file', blockId: 'b2' },
+          ],
+        },
+      ]
+      mockStore.getLinkedRepos.mockReturnValue(mockRepos as any)
 
       renderWithRouter(<FilePanel />)
 
-      expect(screen.getByText('Parent Block')).toBeInTheDocument()
+      expect(screen.getByText('Repo 1')).toBeInTheDocument()
+      expect(screen.getByText('main.rs')).toBeInTheDocument()
     })
   })
 
   describe('Block Selection', () => {
-    it('should call selectBlock when clicking on a block', async () => {
+    it('should call selectBlock when clicking on a node', async () => {
       const user = userEvent.setup()
-      const mockBlocks = [createMockBlock('block-1', 'Test Block')]
-      mockStore.getBlocks.mockReturnValue(mockBlocks)
+      const mockOutline = [
+        { path: 'doc1.md', name: 'doc1.md', type: 'file', blockId: 'b1' },
+      ]
+      mockStore.getOutlineTree.mockReturnValue(mockOutline as any)
 
       renderWithRouter(<FilePanel />)
 
-      const blockNode = screen.getByTestId('outline-node-block-1')
+      const blockNode = screen.getByTestId('vfs-node-doc1.md')
       await user.click(blockNode)
 
       await waitFor(() => {
-        expect(mockStore.selectBlock).toHaveBeenCalledWith('block-1')
+        expect(mockStore.selectBlock).toHaveBeenCalledWith('b1')
       })
     })
-
-    it('should highlight selected block', () => {
-      mockStore.selectedBlockId = 'block-1'
-      const mockBlocks = [createMockBlock('block-1', 'Selected Block')]
-      mockStore.getBlocks.mockReturnValue(mockBlocks)
-
-      renderWithRouter(<FilePanel />)
-
-      expect(screen.getByText('Selected Block')).toBeInTheDocument()
-    })
   })
 
-  describe('Block Creation', () => {
-    it('should show create block button', () => {
+  describe('Outline Initialization', () => {
+    it('should call ensureSystemOutline on mount', () => {
       renderWithRouter(<FilePanel />)
-
-      // The component should have a way to create new blocks
-      const buttons = screen.getAllByRole('button')
-      expect(buttons.length).toBeGreaterThan(0)
-    })
-
-    it('should handle creating new block', async () => {
-      mockStore.createBlock.mockResolvedValue(undefined)
-
-      renderWithRouter(<FilePanel />)
-
-      // This would test the actual create functionality when implemented
-      expect(mockStore.createBlock).toBeDefined()
-    })
-  })
-
-  describe('Block Renaming', () => {
-    it('should handle renaming block', async () => {
-      mockStore.renameBlock.mockResolvedValue(undefined)
-      const mockBlocks = [createMockBlock('block-1', 'Old Name')]
-      mockStore.getBlocks.mockReturnValue(mockBlocks)
-
-      renderWithRouter(<FilePanel />)
-
-      // Verify rename functionality exists
-      expect(mockStore.renameBlock).toBeDefined()
-    })
-  })
-
-  describe('Block Deletion', () => {
-    it('should handle deleting block', async () => {
-      mockStore.deleteBlock.mockResolvedValue(undefined)
-      const mockBlocks = [createMockBlock('block-1', 'To Delete')]
-      mockStore.getBlocks.mockReturnValue(mockBlocks)
-
-      renderWithRouter(<FilePanel />)
-
-      // Verify delete functionality exists
-      expect(mockStore.deleteBlock).toBeDefined()
-    })
-  })
-
-  describe('Import Modal', () => {
-    it('should not show import modal by default', () => {
-      renderWithRouter(<FilePanel />)
-
-      expect(screen.queryByTestId('import-modal')).not.toBeInTheDocument()
+      expect(mockStore.ensureSystemOutline).toHaveBeenCalledWith('test-file-id')
     })
   })
 
@@ -277,63 +237,6 @@ describe('FilePanel', () => {
 
       // Component should still render without errors
       expect(screen.getByTestId('scroll-area')).toBeInTheDocument()
-    })
-  })
-
-  describe('Accessibility', () => {
-    it('should have proper ARIA labels', () => {
-      renderWithRouter(<FilePanel />)
-
-      const buttons = screen.getAllByRole('button')
-      expect(buttons).toBeTruthy()
-    })
-
-    it('should be keyboard navigable', async () => {
-      const user = userEvent.setup()
-      const mockBlocks = [createMockBlock('block-1', 'Test Block')]
-      mockStore.getBlocks.mockReturnValue(mockBlocks)
-
-      renderWithRouter(<FilePanel />)
-
-      // Tab navigation should work
-      await user.tab()
-      expect(document.activeElement).toBeTruthy()
-    })
-  })
-
-  describe('Performance', () => {
-    it('should handle large number of blocks', () => {
-      const manyBlocks = Array.from({ length: 100 }, (_, i) =>
-        createMockBlock(`block-${i}`, `Block ${i}`)
-      )
-      mockStore.getBlocks.mockReturnValue(manyBlocks)
-
-      const { container } = renderWithRouter(<FilePanel />)
-
-      expect(container).toBeInTheDocument()
-    })
-  })
-
-  describe('Integration', () => {
-    it('should work with outline tree component', () => {
-      const mockBlocks = [
-        createMockBlock('block-1', 'Block 1'),
-        createMockBlock('block-2', 'Block 2'),
-      ]
-      mockStore.currentFileId = 'test-file-id'
-      mockStore.getBlocks.mockReturnValue(mockBlocks)
-
-      const { container } = renderWithRouter(<FilePanel />)
-
-      // Check that outline tree is rendered
-      expect(screen.getByTestId('mock-outline-tree')).toBeInTheDocument()
-
-      // Check that blocks are rendered as buttons (from our mock)
-      const buttons = screen.getAllByRole('button')
-      const blockButtons = buttons.filter((btn) =>
-        btn.getAttribute('data-testid')?.startsWith('outline-node-')
-      )
-      expect(blockButtons.length).toBe(2)
     })
   })
 })

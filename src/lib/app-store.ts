@@ -8,6 +8,11 @@ import { create } from 'zustand'
 import { TauriClient } from './tauri-client'
 import type { Editor, Block, FileMetadata, Event, Grant } from '@/bindings'
 import { toast } from 'sonner'
+import {
+  buildTreeFromEntries,
+  type VfsNode,
+  type DirectoryEntry,
+} from '@/utils/vfs-tree'
 
 interface FileState {
   fileId: string
@@ -60,6 +65,13 @@ interface AppStore {
     metadata: Record<string, unknown>
   ) => Promise<void>
 
+  // Directory/VFS operations
+  getOutlineTree: (fileId: string) => VfsNode[]
+  getLinkedRepos: (
+    fileId: string
+  ) => { blockId: string; name: string; tree: VfsNode[] }[]
+  ensureSystemOutline: (fileId: string) => Promise<void>
+
   // Editor operations
   loadEditors: (fileId: string) => Promise<void>
   createEditor: (
@@ -75,6 +87,7 @@ interface AppStore {
   // Event and Grant operations
   getEvents: (fileId: string) => Event[]
   getGrants: (fileId: string) => Grant[]
+  getBlockGrants: (fileId: string, blockId: string) => Grant[]
   loadGrants: (fileId: string) => Promise<void>
   grantCapability: (
     fileId: string,
@@ -361,6 +374,68 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  // Directory/VFS operations
+  getOutlineTree: (fileId: string) => {
+    const blocks = get().getBlocks(fileId)
+    const outlineBlock = blocks.find((b) => b.block_id === '__system_outline__')
+    if (!outlineBlock || outlineBlock.block_type !== 'directory') {
+      return []
+    }
+
+    const contents = outlineBlock.contents as {
+      entries?: Record<string, DirectoryEntry>
+    }
+    return buildTreeFromEntries(contents.entries || {}, blocks)
+  },
+
+  getLinkedRepos: (fileId: string) => {
+    const blocks = get().getBlocks(fileId)
+    const directoryBlocks = blocks.filter(
+      (b) => b.block_type === 'directory' && b.block_id !== '__system_outline__'
+    )
+
+    return directoryBlocks.map((block) => {
+      const contents = block.contents as {
+        entries?: Record<string, DirectoryEntry>
+      }
+      return {
+        blockId: block.block_id,
+        name: block.name,
+        tree: buildTreeFromEntries(contents.entries || {}, blocks),
+      }
+    })
+  },
+
+  ensureSystemOutline: async (fileId: string) => {
+    const blocks = get().getBlocks(fileId)
+    const hasOutline = blocks.some((b) => b.block_id === '__system_outline__')
+
+    if (!hasOutline) {
+      try {
+        const systemEditorId = await TauriClient.file.getSystemEditorId()
+        await TauriClient.block.executeCommand(fileId, {
+          cmd_id: crypto.randomUUID(),
+          editor_id: systemEditorId,
+          cap_id: 'core.create',
+          block_id: '__system_outline__', // Explicitly specify block_id for system blocks
+          payload: {
+            name: 'Outline',
+            block_type: 'directory',
+            metadata: {
+              description: 'System-generated root for documents',
+            },
+          } as any,
+          timestamp: new Date().toISOString(),
+        })
+
+        // Reload blocks to reflect the new Outline block
+        await get().loadBlocks(fileId)
+      } catch (error) {
+        console.error('Failed to initialize system outline:', error)
+      }
+    }
+  },
+
   // Editor operations
   loadEditors: async (fileId: string) => {
     try {
@@ -474,6 +549,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   getGrants: (fileId: string) => {
     const fileState = get().files.get(fileId)
     return fileState?.grants || []
+  },
+
+  getBlockGrants: (fileId: string, blockId: string) => {
+    const fileState = get().files.get(fileId)
+    if (!fileState) return []
+    return fileState.grants.filter(
+      (g) => g.block_id === blockId || g.block_id === '*'
+    )
   },
 
   loadGrants: async (fileId: string) => {

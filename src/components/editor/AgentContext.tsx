@@ -48,9 +48,13 @@ const getBlockTypeConfig = (blockType: string | undefined) => {
   }
 }
 
-const formatTimestamp = (timestamp: Record<string, number>): string => {
+const formatTimestamp = (
+  timestamp: Partial<Record<string, number>>
+): string => {
   // Simple timestamp formatting - can be improved
-  const values = Object.values(timestamp)
+  const values = Object.values(timestamp).filter(
+    (v): v is number => v !== undefined
+  )
   if (values.length === 0) return '00:00'
   const max = Math.max(...values)
   const hours = Math.floor(max / 3600) % 24

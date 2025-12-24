@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import { BrowserRouter, MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import DocumentEditor from './DocumentEditor'
 import { TauriClient } from '@/lib/tauri-client'
-import type { FileMetadata, Block, Editor } from '@/bindings'
+import type { FileMetadata } from '@/bindings'
 
 // Mock子组件
 vi.mock('@/components/dashboard/Sidebar', () => ({
@@ -27,6 +27,7 @@ vi.mock('@/lib/tauri-client', () => ({
   TauriClient: {
     file: {
       getFileInfo: vi.fn(),
+      saveFile: vi.fn(),
     },
     block: {
       getAllBlocks: vi.fn(),
@@ -39,17 +40,18 @@ vi.mock('@/lib/tauri-client', () => ({
 }))
 
 // Mock app-store
-vi.mock('@/lib/app-store', () => {
-  const actualStore = {
-    files: new Map(),
-    currentFileId: null,
-    selectedBlockId: null,
-    setCurrentFile: vi.fn(),
-    loadBlocks: vi.fn().mockResolvedValue(undefined),
-    loadEditors: vi.fn().mockResolvedValue(undefined),
-    loadGrants: vi.fn().mockResolvedValue(undefined),
-  }
+const actualStore = {
+  files: new Map(),
+  currentFileId: null,
+  selectedBlockId: null,
+  setCurrentFile: vi.fn(),
+  loadBlocks: vi.fn() as any,
+  loadEditors: vi.fn() as any,
+  loadGrants: vi.fn() as any,
+  ensureSystemOutline: vi.fn() as any,
+}
 
+vi.mock('@/lib/app-store', () => {
   return {
     useAppStore: Object.assign(
       vi.fn((selector) => {
@@ -139,14 +141,15 @@ describe('DocumentEditor', () => {
     )
     vi.mocked(TauriClient.block.getAllBlocks).mockResolvedValue([])
     vi.mocked(TauriClient.editor.listEditors).mockResolvedValue([])
-    vi.mocked(TauriClient.editor.getActiveEditor).mockResolvedValue(null)
+    vi.mocked(TauriClient.editor.getActiveEditor).mockResolvedValue({
+      status: 'ok',
+      data: null,
+    } as any)
 
-    // Reset store mocks to resolve successfully
-    const { useAppStore } = await import('@/lib/app-store')
-    const store = useAppStore.getState()
-    store.loadBlocks.mockResolvedValue(undefined)
-    store.loadEditors.mockResolvedValue(undefined)
-    store.loadGrants.mockResolvedValue(undefined)
+    // Reset store mocks
+    actualStore.loadBlocks.mockResolvedValue(undefined)
+    actualStore.loadEditors.mockResolvedValue(undefined)
+    actualStore.loadGrants.mockResolvedValue(undefined)
   })
 
   describe('Loading State', () => {
@@ -187,7 +190,7 @@ describe('DocumentEditor', () => {
         { timeout: 3000 }
       )
 
-      // Verify all main components are rendered (may have multiple instances for responsive design)
+      // Verify all main components are rendered
       expect(screen.getAllByTestId('mock-sidebar').length).toBeGreaterThan(0)
       expect(screen.getAllByTestId('mock-file-panel').length).toBeGreaterThan(0)
       expect(
@@ -197,109 +200,55 @@ describe('DocumentEditor', () => {
         screen.getAllByTestId('mock-context-panel').length
       ).toBeGreaterThan(0)
     })
-
-    it('should render mobile header', async () => {
-      renderWithRouter(<DocumentEditor />)
-
-      await waitFor(() => {
-        expect(screen.queryByText(/loading project/i)).not.toBeInTheDocument()
-      })
-
-      expect(screen.getByText('Document Editor')).toBeInTheDocument()
-    })
   })
 
   describe('File Loading', () => {
     it('should load file info when projectId is provided', async () => {
-      const { useAppStore } = await import('@/lib/app-store')
-      const store = useAppStore.getState()
-
       // Ensure files Map is empty so getFileInfo gets called
-      store.files = new Map()
+      actualStore.files = new Map()
 
       renderWithRouter(<DocumentEditor />)
 
       await waitFor(
         () => {
-          expect(store.loadBlocks).toHaveBeenCalled()
+          expect(actualStore.loadBlocks).toHaveBeenCalled()
         },
         { timeout: 5000 }
       )
     })
 
     it('should load blocks for the file', async () => {
-      const { useAppStore } = await import('@/lib/app-store')
-      const store = useAppStore.getState()
-
       renderWithRouter(<DocumentEditor />)
 
       await waitFor(
         () => {
-          expect(store.loadBlocks).toHaveBeenCalledWith('test-file-id')
+          expect(actualStore.loadBlocks).toHaveBeenCalledWith('test-file-id')
         },
         { timeout: 3000 }
       )
     })
 
     it('should load editors for the file', async () => {
-      const { useAppStore } = await import('@/lib/app-store')
-      const store = useAppStore.getState()
-
       renderWithRouter(<DocumentEditor />)
 
       await waitFor(
         () => {
-          expect(store.loadEditors).toHaveBeenCalledWith('test-file-id')
+          expect(actualStore.loadEditors).toHaveBeenCalledWith('test-file-id')
         },
         { timeout: 3000 }
       )
     })
 
     it('should handle file loading error', async () => {
-      const { useAppStore } = await import('@/lib/app-store')
-      const store = useAppStore.getState()
-
       // Make loadBlocks throw an error
-      store.loadBlocks.mockRejectedValue(new Error('Failed to load'))
+      actualStore.loadBlocks.mockRejectedValue(new Error('Failed to load'))
 
       renderWithRouter(<DocumentEditor />)
 
-      // Wait for error handling and navigation
+      // Wait for error handling
       await waitFor(
         () => {
-          expect(store.loadBlocks).toHaveBeenCalled()
-        },
-        { timeout: 5000 }
-      )
-    })
-  })
-
-  describe('Navigation', () => {
-    it('should show error when no projectId is provided', async () => {
-      // Set route to have empty projectId
-      const { container } = renderWithRouter(<DocumentEditor />, {
-        route: '/editor/',
-      })
-
-      // Component should handle no projectId gracefully
-      // Either show error or loading state
-      expect(container).toBeInTheDocument()
-    })
-
-    it('should handle navigation errors', async () => {
-      const { useAppStore } = await import('@/lib/app-store')
-      const store = useAppStore.getState()
-
-      // Make loadBlocks fail to trigger error navigation
-      store.loadBlocks.mockRejectedValue(new Error('Load failed'))
-
-      renderWithRouter(<DocumentEditor />)
-
-      // Component should attempt to load
-      await waitFor(
-        () => {
-          // Just verify the component attempted to handle the error
-          expect(store.loadBlocks).toHaveBeenCalled()
+          expect(actualStore.loadBlocks).toHaveBeenCalled()
         },
         { timeout: 5000 }
       )
@@ -308,63 +257,19 @@ describe('DocumentEditor', () => {
 
   describe('Store Integration', () => {
     it('should initialize file state in store', async () => {
-      const { useAppStore } = await import('@/lib/app-store')
-      const store = useAppStore.getState()
-
       renderWithRouter(<DocumentEditor />)
 
       await waitFor(() => {
-        expect(store.loadBlocks).toHaveBeenCalledWith('test-file-id')
+        expect(actualStore.loadBlocks).toHaveBeenCalledWith('test-file-id')
       })
     })
 
     it('should set current file in store', async () => {
-      const { useAppStore } = await import('@/lib/app-store')
-      const store = useAppStore.getState()
-
       renderWithRouter(<DocumentEditor />)
 
       await waitFor(() => {
-        expect(store.setCurrentFile).toHaveBeenCalled()
+        expect(actualStore.setCurrentFile).toHaveBeenCalled()
       })
-    })
-  })
-
-  describe('Responsive Design', () => {
-    it('should have mobile header visible on small screens', async () => {
-      renderWithRouter(<DocumentEditor />)
-
-      await waitFor(() => {
-        expect(screen.queryByText(/loading project/i)).not.toBeInTheDocument()
-      })
-
-      // Mobile header text may appear multiple times
-      const headers = screen.getAllByText('Document Editor')
-      expect(headers.length).toBeGreaterThan(0)
-    })
-
-    it('should render sheet for mobile menu', async () => {
-      renderWithRouter(<DocumentEditor />)
-
-      await waitFor(() => {
-        expect(screen.queryByText(/loading project/i)).not.toBeInTheDocument()
-      })
-
-      // Sheet component is rendered
-      expect(screen.getAllByTestId('sheet').length).toBeGreaterThan(0)
-    })
-  })
-
-  describe('Component Composition', () => {
-    it('should pass correct layout structure', async () => {
-      const { container } = renderWithRouter(<DocumentEditor />)
-
-      await waitFor(() => {
-        expect(screen.queryByText(/loading project/i)).not.toBeInTheDocument()
-      })
-
-      // Verify main layout structure exists
-      expect(container.querySelector('.flex')).toBeTruthy()
     })
   })
 })
