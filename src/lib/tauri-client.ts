@@ -17,6 +17,7 @@ import {
   type GrantPayload,
   type RevokePayload,
   type FileMetadata,
+  type DirectoryExportPayload,
 } from '@/bindings'
 
 /**
@@ -685,6 +686,89 @@ export class EditorOperations {
 }
 
 /**
+ * Event Operations
+ */
+export class EventOperations {
+  /**
+   * 获取所有事件
+   */
+  static async getAllEvents(fileId: string): Promise<Event[]> {
+    const result = await commands.getAllEvents(fileId)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * 按向量时钟对事件排序（降序：最新在前）
+   */
+  static sortEventsByVectorClock(events: Event[]): Event[] {
+    return [...events].sort((a, b) => {
+      // 降序排列（最新事件在前）
+      return -compareVectorClocks(a.timestamp, b.timestamp)
+    })
+  }
+
+  /**
+   * 解析 Event，提取操作信息
+   */
+  static parseEvent(event: Event): {
+    operator: string // 操作人员
+    operatorName: string // 操作人员显示名称
+    action: string // 操作描述（简洁版本）
+  } {
+    const [editorId, capId] = event.attribute.split('/')
+
+    return {
+      operator: editorId,
+      operatorName: editorId === 'system' ? 'System' : editorId,
+      action: getActionDescription(capId),
+    }
+  }
+}
+
+/**
+ * 向量时钟比较函数
+ */
+function compareVectorClocks(
+  vc1: Record<string, number>,
+  vc2: Record<string, number>
+): number {
+  const allEditors = new Set([...Object.keys(vc1), ...Object.keys(vc2)])
+
+  let vc1Greater = false
+  let vc2Greater = false
+
+  for (const editor of allEditors) {
+    const v1 = vc1[editor] || 0
+    const v2 = vc2[editor] || 0
+
+    if (v1 > v2) vc1Greater = true
+    if (v2 > v1) vc2Greater = true
+  }
+
+  if (vc1Greater && !vc2Greater) return 1
+  if (vc2Greater && !vc1Greater) return -1
+  return 0
+}
+
+/**
+ * 获取操作的简洁描述
+ */
+function getActionDescription(capId: string): string {
+  const labels: Record<string, string> = {
+    'core.create': '创建了文件',
+    'markdown.write': '修改了文件内容',
+    'core.delete': '删除了文件',
+    'core.grant': '授予了权限',
+    'core.revoke': '撤销了权限',
+  }
+  return labels[capId] || capId
+}
+
+/**
  * Main Tauri Client export
  */
 export const TauriClient = {
@@ -692,4 +776,5 @@ export const TauriClient = {
   block: BlockOperations,
   editor: EditorOperations,
   directory: DirectoryOperations,
+  event: EventOperations,
 }

@@ -87,6 +87,7 @@ interface AppStore {
 
   // Event and Grant operations
   getEvents: (fileId: string) => Event[]
+  loadEvents: (fileId: string) => Promise<void>
   getGrants: (fileId: string) => Grant[]
   getBlockGrants: (fileId: string, blockId: string) => Grant[]
   loadGrants: (fileId: string) => Promise<void>
@@ -511,6 +512,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
   getEvents: (fileId: string) => {
     const fileState = get().files.get(fileId)
     return fileState?.events || []
+  },
+
+  loadEvents: async (fileId: string) => {
+    try {
+      const events = await TauriClient.event.getAllEvents(fileId)
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState) {
+        files.set(fileId, { ...fileState, events })
+        set({ files })
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to load events: ${errorMessage}`)
+    }
   },
 
   getGrants: (fileId: string) => {

@@ -63,10 +63,11 @@ const DocumentEditor = () => {
           useAppStore.setState({ files: newFiles, currentFileId: projectId })
         }
 
-        // Load blocks, editors, and grants for this file
+        // Load blocks, editors, grants, and events for this file
         await store.loadBlocks(projectId)
         await store.loadEditors(projectId)
         await store.loadGrants(projectId)
+        await store.loadEvents(projectId)
 
         // Mark as loaded
         if (outputMounted) {

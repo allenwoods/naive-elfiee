@@ -510,8 +510,14 @@ print('Hello, World!')
 
 // Main EditorCanvas Component
 export const EditorCanvas = () => {
-  const { currentFileId, selectedBlockId, getBlock, updateBlock, saveFile } =
-    useAppStore()
+  const {
+    currentFileId,
+    selectedBlockId,
+    getBlock,
+    updateBlock,
+    saveFile,
+    loadEvents,
+  } = useAppStore()
   const [isSaving, setIsSaving] = useState(false)
   const [documentContent, setDocumentContent] = useState<string>('')
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null)
@@ -588,6 +594,9 @@ export const EditorCanvas = () => {
       // Step 2: Save file to disk (.elf file)
       await saveFile(currentFileId)
 
+      // Step 3: Reload events to show the new event in Timeline
+      await loadEvents(currentFileId)
+
       toast.success('Document and file saved successfully')
     } catch (error) {
       console.error('Failed to save:', error)
@@ -602,6 +611,7 @@ export const EditorCanvas = () => {
     documentContent,
     updateBlock,
     saveFile,
+    loadEvents,
   ])
 
   // Handle content change from sub-editors

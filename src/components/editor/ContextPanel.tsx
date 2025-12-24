@@ -1,5 +1,13 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
-import { Calendar, Clock, User, FileText, Tag, Edit2 } from 'lucide-react'
+import {
+  Calendar,
+  Clock,
+  User,
+  FileText,
+  Tag,
+  Edit2,
+  RotateCcw,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -265,26 +273,111 @@ const CollaboratorsTab = ({
   )
 }
 
-const TimelineTab = ({ events }: { events: Event[] }) => {
-  if (events.length === 0) {
-    return <div className="text-sm text-muted-foreground">No events yet.</div>
+const TimelineTab = ({
+  events,
+  fileId,
+  blockId,
+}: {
+  events: Event[]
+  fileId: string | null
+  blockId: string | null
+}) => {
+  const [sortedEvents, setSortedEvents] = useState<Event[]>([])
+  const [isRestoring, setIsRestoring] = useState(false)
+
+  // 按时间排序（最新在上）
+  useEffect(() => {
+    // 暂时使用简单排序，后续可以使用 TauriClient.event.sortEventsByVectorClock
+    const sorted = [...events].sort((a, b) => {
+      const aMax = Math.max(...Object.values(a.timestamp), 0)
+      const bMax = Math.max(...Object.values(b.timestamp), 0)
+      return bMax - aMax // 降序
+    })
+    setSortedEvents(sorted)
+  }, [events])
+
+  // 处理 restore 操作（暂时禁用，等待后端实现）
+  const handleRestore = async (eventId: string) => {
+    if (!fileId || !blockId) {
+      return
+    }
+    // TODO: 实现 restore 功能（依赖后端 get_block_content_at_event）
+    console.log('Restore to event:', eventId)
   }
+
+  if (sortedEvents.length === 0) {
+    return (
+      <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50 text-center">
+        <div>
+          <p className="text-sm text-muted-foreground">暂无操作记录</p>
+          <p className="mt-1 text-xs text-muted-foreground/70">
+            编辑文档后将显示操作历史
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
-      {events.map((e) => (
-        <div
-          key={e.event_id}
-          className="flex items-center gap-3 rounded-lg border px-3 py-2"
-        >
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <div className="min-w-0">
-            <p className="text-sm text-foreground">{e.attribute}</p>
-            <p className="text-xs text-muted-foreground">
-              {formatTime(e.timestamp)}
-            </p>
+      {sortedEvents.map((event) => {
+        // 解析事件
+        const [editorId, capId] = event.attribute.split('/')
+        const operatorName = editorId === 'system' ? 'System' : editorId
+
+        // 获取操作描述
+        const actionLabels: Record<string, string> = {
+          'core.create': '创建了文件',
+          'markdown.write': '修改了文件内容',
+          'core.delete': '删除了文件',
+          'core.grant': '授予了权限',
+          'core.revoke': '撤销了权限',
+        }
+        const action = actionLabels[capId] || capId
+
+        // 格式化时间
+        const timestamp = Math.max(...Object.values(event.timestamp), 0)
+        const timeStr = `操作 #${timestamp}`
+
+        return (
+          <div
+            key={event.event_id}
+            className="rounded-lg border border-border bg-background p-3 transition-colors hover:bg-muted/20"
+          >
+            {/* Event Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="font-medium text-foreground">
+                    {operatorName}
+                  </span>
+                  <span className="text-muted-foreground">{action}</span>
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <Clock className="h-3 w-3 text-muted-foreground/70" />
+                  <span className="text-xs text-muted-foreground">
+                    {timeStr}
+                  </span>
+                </div>
+              </div>
+
+              {/* Restore Button (暂时禁用) */}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={() => handleRestore(event.event_id)}
+                disabled={true} // 暂时禁用，等待后端实现
+                title="还原功能开发中"
+              >
+                <RotateCcw className="mr-1.5 h-3 w-3" />
+                还原
+              </Button>
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -366,7 +459,11 @@ const ContextPanel = () => {
             </TabsContent>
 
             <TabsContent value="timeline" className="mt-0">
-              <TimelineTab events={events} />
+              <TimelineTab
+                events={events}
+                fileId={currentFileId}
+                blockId={selectedBlockId}
+              />
             </TabsContent>
           </div>
         </ScrollArea>
