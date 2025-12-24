@@ -56,6 +56,8 @@ impl CapabilityRegistry {
         self.register(Arc::new(CoreGrantCapability));
         self.register(Arc::new(CoreRevokeCapability));
         self.register(Arc::new(CoreUpdate_metadataCapability));
+        self.register(Arc::new(CoreRenameCapability));
+        self.register(Arc::new(CoreChange_typeCapability));
         self.register(Arc::new(EditorCreateCapability));
         self.register(Arc::new(EditorDeleteCapability));
     }
