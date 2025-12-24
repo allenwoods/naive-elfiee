@@ -17,6 +17,7 @@ import {
   type GrantPayload,
   type RevokePayload,
   type MarkdownWritePayload,
+  type LinkBlockPayload,
   type FileMetadata,
 } from '@/bindings'
 
@@ -306,6 +307,45 @@ export class BlockOperations {
     } else {
       throw new Error(result.error)
     }
+  }
+
+  static async renameBlock(
+    fileId: string,
+    blockId: string,
+    newName: string
+  ): Promise<Event[]> {
+    const result = await commands.renameBlock(fileId, blockId, newName)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  static async linkBlock(
+    fileId: string,
+    sourceBlockId: string,
+    targetBlockId: string,
+    relation: string,
+    editorId?: string
+  ): Promise<Event[]> {
+    // Get active editor if not provided
+    const activeEditorId =
+      editorId ||
+      (await EditorOperations.getActiveEditor(fileId)) ||
+      (await getSystemEditorId())
+
+    const payload: LinkBlockPayload = {
+      relation,
+      target_id: targetBlockId,
+    }
+    const cmd = createCommand(
+      activeEditorId,
+      'core.link',
+      sourceBlockId,
+      payload as unknown as JsonValue
+    )
+    return await this.executeCommand(fileId, cmd)
   }
 }
 

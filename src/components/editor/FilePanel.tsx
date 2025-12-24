@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ChevronDown,
@@ -10,9 +10,7 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { useAppStore } from '@/lib/app-store'
-import type { Block } from '@/bindings'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -313,24 +311,113 @@ const deleteNodeFromTree = (
 
 // --- Main Component ---
 export const FilePanel = () => {
-  const { currentFileId, selectedBlockId, getBlocks, selectBlock } =
-    useAppStore()
+  const {
+    currentFileId,
+    selectedBlockId,
+    getBlocks,
+    selectBlock,
+    createBlock,
+    renameBlock,
+    deleteBlock,
+  } = useAppStore()
   const [linkedRepos, setLinkedRepos] = useState(mockLinkedRepos)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
-  const outlineTreeRef = useRef<{ addAtRoot: () => void } | null>(null)
 
   // Convert blocks to outline nodes
   const blocks = currentFileId ? getBlocks(currentFileId) : []
-  const outlineNodes: OutlineNode[] = blocks
-    .filter(
-      (block) =>
-        block.block_type === 'markdown' || block.block_type === 'document'
-    )
-    .map((block) => ({
-      id: block.block_id,
-      title: block.name,
-      children: [],
-    }))
+
+  // Reconstruct tree structure from block relations
+  const outlineNodes: OutlineNode[] = useMemo(() => {
+    // 1. Map all blocks to OutlineNodes
+    const nodeMap = new Map<string, OutlineNode>()
+    blocks
+      .filter(
+        (block) =>
+          block.block_type === 'markdown' || block.block_type === 'document'
+      )
+      .forEach((block) => {
+        nodeMap.set(block.block_id, {
+          id: block.block_id,
+          title: block.name,
+          children: [],
+        })
+      })
+
+    // 2. Build the tree
+    const rootNodes: OutlineNode[] = []
+    const processedChildren = new Set<string>()
+
+    // Identify children from block relations
+    blocks.forEach((block) => {
+      // If this block is in our map (is a displayable node)
+      if (nodeMap.has(block.block_id)) {
+        // Check its children - Handle potentially different property access or missing field
+        const childrenMap = block.children as any
+        const childrenIds =
+          childrenMap?.children || childrenMap?.['children'] || []
+
+        if (childrenIds.length > 0) {
+          console.log(
+            `[FilePanel] Block ${block.name} (${block.block_id}) has children:`,
+            childrenIds
+          )
+        }
+        childrenIds.forEach((childId: string) => {
+          const childNode = nodeMap.get(childId)
+          const parentNode = nodeMap.get(block.block_id)
+
+          if (childNode && parentNode) {
+            // Add to parent's children
+            parentNode.children = parentNode.children || []
+            parentNode.children.push(childNode)
+            processedChildren.add(childId)
+          } else {
+            if (!childNode)
+              console.warn(`[FilePanel] Child node ${childId} not found in map`)
+          }
+        })
+      }
+    })
+
+    // 3. Collect root nodes (nodes that are not children of any other node)
+    nodeMap.forEach((node, id) => {
+      if (!processedChildren.has(id)) {
+        rootNodes.push(node)
+      }
+    })
+
+    return rootNodes
+  }, [blocks])
+
+  // Handle Create Node (from OutlineTree)
+  const handleCreateNode = async (parentId: string | null, name: string) => {
+    if (!currentFileId) return
+    try {
+      await createBlock(currentFileId, name, 'markdown', parentId)
+    } catch (error) {
+      console.error('Failed to create block:', error)
+    }
+  }
+
+  // Handle Rename Node (from OutlineTree)
+  const handleRenameNode = async (id: string, newName: string) => {
+    if (!currentFileId) return
+    try {
+      await renameBlock(currentFileId, id, newName)
+    } catch (error) {
+      console.error('Failed to rename block:', error)
+    }
+  }
+
+  // Handle Delete Node (from OutlineTree)
+  const handleDeleteNode = async (id: string) => {
+    if (!currentFileId) return
+    try {
+      await deleteBlock(currentFileId, id)
+    } catch (error) {
+      console.error('Failed to delete block:', error)
+    }
+  }
 
   // Handle Import from modal
   const handleImportRepo = (name: string, source: string) => {
@@ -429,8 +516,11 @@ export const FilePanel = () => {
             {/* Advanced Outline Tree */}
             <OutlineTree
               initialNodes={outlineNodes}
-              activeNodeId={selectedBlockId || undefined}
+              activeNodeId={selectedBlockId}
               onSelectNode={handleSelectNode}
+              onCreateNode={handleCreateNode}
+              onRenameNode={handleRenameNode}
+              onDeleteNode={handleDeleteNode}
             />
           </div>
 

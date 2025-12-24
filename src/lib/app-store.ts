@@ -46,7 +46,8 @@ interface AppStore {
   createBlock: (
     fileId: string,
     name: string,
-    blockType: string
+    blockType: string,
+    parentId?: string | null
   ) => Promise<void>
   deleteBlock: (fileId: string, blockId: string) => Promise<void>
   renameBlock: (
@@ -252,13 +253,55 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  createBlock: async (fileId: string, name: string, blockType: string) => {
+  createBlock: async (
+    fileId: string,
+    name: string,
+    blockType: string,
+    parentId?: string | null
+  ) => {
     try {
-      await TauriClient.block.createBlock(fileId, name, blockType)
+      console.log(
+        `[createBlock] Creating block "${name}" (parent: ${parentId})`
+      )
+      // 1. Create the block
+      const events = await TauriClient.block.createBlock(
+        fileId,
+        name,
+        blockType
+      )
+      console.log('[createBlock] Created events:', events)
+
+      // 2. Link to parent if provided
+      if (parentId) {
+        // Extract new block ID from the create event
+        // The first event should be core.create, and its entity is the new block ID
+        const createEvent = events.find((e) =>
+          e.attribute.endsWith('/core.create')
+        )
+        if (createEvent) {
+          const newBlockId = createEvent.entity
+          console.log(`[createBlock] Linking ${parentId} -> ${newBlockId}`)
+          await TauriClient.block.linkBlock(
+            fileId,
+            parentId,
+            newBlockId,
+            'children'
+          )
+          console.log('[createBlock] Linked successfully')
+        } else {
+          console.warn(
+            'Could not find core.create event to extract block ID',
+            events
+          )
+        }
+      }
+
       // Reload blocks to get the new block
       await get().loadBlocks(fileId)
+      console.log('[createBlock] Blocks reloaded')
       toast.success('Block created successfully')
     } catch (error) {
+      console.error('[createBlock] Error:', error)
       const errorMessage =
         error instanceof Error ? error.message : String(error)
       toast.error(`Failed to create block: ${errorMessage}`)
@@ -282,53 +325,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   renameBlock: async (fileId: string, blockId: string, newName: string) => {
     try {
-      // Get the original block
-      const originalBlock = get().getBlock(fileId, blockId)
-      if (!originalBlock) {
-        throw new Error('Block not found')
-      }
-
-      // Create a new block with the new name but same type and metadata
-      await TauriClient.block.createBlock(
-        fileId,
-        newName,
-        originalBlock.block_type
-      )
-
-      // Reload blocks to get the newly created block
+      await TauriClient.block.renameBlock(fileId, blockId, newName)
+      // Reload blocks to reflect the changes
       await get().loadBlocks(fileId)
-
-      // Find the newly created block (it should be the last one with the new name)
-      const blocks = get().getBlocks(fileId)
-      const newBlock = blocks.find(
-        (b) => b.name === newName && b.block_id !== blockId
-      )
-
-      if (!newBlock) {
-        throw new Error('Failed to find newly created block')
-      }
-
-      // Copy content from old block to new block if it's a markdown block
-      if (originalBlock.block_type === 'markdown' && originalBlock.contents) {
-        const content = originalBlock.contents as { markdown?: string }
-        if (content.markdown) {
-          await TauriClient.block.writeBlock(
-            fileId,
-            newBlock.block_id,
-            content.markdown
-          )
-        }
-      }
-
-      // Delete the old block
-      await TauriClient.block.deleteBlock(fileId, blockId)
-
-      // Reload blocks to reflect all changes
-      await get().loadBlocks(fileId)
-
-      // Select the new block
-      get().selectBlock(newBlock.block_id)
-
       toast.success('Block renamed successfully')
     } catch (error) {
       const errorMessage =

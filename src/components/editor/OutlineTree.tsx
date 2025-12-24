@@ -318,12 +318,18 @@ interface OutlineTreeProps {
   initialNodes?: OutlineNode[]
   activeNodeId: string | null
   onSelectNode: (id: string) => void
+  onCreateNode?: (parentId: string | null, name: string) => void
+  onRenameNode?: (id: string, newName: string) => void
+  onDeleteNode?: (id: string) => void
 }
 
 export const OutlineTree = ({
   initialNodes,
   activeNodeId,
   onSelectNode,
+  onCreateNode,
+  onRenameNode,
+  onDeleteNode,
 }: OutlineTreeProps) => {
   const [nodes, setNodes] = useState<OutlineNode[]>(
     initialNodes || [
@@ -348,6 +354,98 @@ export const OutlineTree = ({
   )
   const [isCreatingAtRoot, setIsCreatingAtRoot] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const lastCreatedParentRef = useRef<string | null>(null)
+  const prevInitialNodesRef = useRef<OutlineNode[]>(initialNodes || [])
+
+  // Sync with initialNodes when they change, preserving expansion state
+  useEffect(() => {
+    // Only run sync logic if initialNodes has actually changed
+    if (initialNodes && initialNodes !== prevInitialNodesRef.current) {
+      prevInitialNodesRef.current = initialNodes
+      console.log(
+        '[OutlineTree] Syncing initialNodes:',
+        initialNodes.length,
+        'nodes'
+      )
+
+      setNodes((currentNodes) => {
+        // Create a set of currently expanded node IDs
+        const expandedIds = new Set<string>()
+        const collectExpanded = (nodes: OutlineNode[]) => {
+          nodes.forEach((node) => {
+            if (node.isExpanded) expandedIds.add(node.id)
+            if (node.children) collectExpanded(node.children)
+          })
+        }
+        collectExpanded(currentNodes)
+
+        // Force expand the parent of the last created node
+        if (lastCreatedParentRef.current) {
+          expandedIds.add(lastCreatedParentRef.current)
+          // We don't clear it immediately to ensure it stays expanded during potential multi-step updates
+          // But we could rely on it being in expandedIds for future updates
+        }
+
+        // Apply expanded state to new nodes
+        const applyExpanded = (nodes: OutlineNode[]): OutlineNode[] => {
+          return nodes.map((node) => ({
+            ...node,
+            isExpanded: expandedIds.has(node.id) || node.isExpanded,
+            children: node.children ? applyExpanded(node.children) : undefined,
+          }))
+        }
+
+        const newNodes = applyExpanded(initialNodes)
+
+        // Helper to find node recursively
+        const findNodeRecursive = (
+          nodes: OutlineNode[],
+          id: string
+        ): OutlineNode | undefined => {
+          for (const node of nodes) {
+            if (node.id === id) return node
+            if (node.children) {
+              const found = findNodeRecursive(node.children, id)
+              if (found) return found
+            }
+          }
+          return undefined
+        }
+
+        // If we are creating a new node, preserve it from currentNodes
+        if (creatingInParentId || isCreatingAtRoot) {
+          const creatingNode = editingNodeId
+            ? findNodeRecursive(currentNodes, editingNodeId)
+            : undefined
+
+          if (creatingNode) {
+            if (isCreatingAtRoot) {
+              return [...newNodes, creatingNode]
+            } else if (creatingInParentId) {
+              // Add to specific parent
+              const addTempChild = (items: OutlineNode[]): OutlineNode[] => {
+                return items.map((item) => {
+                  if (item.id === creatingInParentId) {
+                    return {
+                      ...item,
+                      children: [creatingNode, ...(item.children || [])],
+                    }
+                  }
+                  if (item.children) {
+                    return { ...item, children: addTempChild(item.children) }
+                  }
+                  return item
+                })
+              }
+              return addTempChild(newNodes)
+            }
+          }
+        }
+
+        return newNodes
+      })
+    }
+  }, [initialNodes, editingNodeId, creatingInParentId, isCreatingAtRoot])
 
   // Toggle expand/collapse
   const handleToggle = useCallback((id: string) => {
@@ -441,24 +539,44 @@ export const OutlineTree = ({
   }, [])
 
   // Rename a node
-  const handleRename = useCallback((id: string, newTitle: string) => {
-    const renameInTree = (items: OutlineNode[]): OutlineNode[] => {
-      return items.map((item) => {
-        if (item.id === id) {
-          return { ...item, title: newTitle }
+  const handleRename = useCallback(
+    (id: string, newTitle: string) => {
+      if (creatingInParentId || isCreatingAtRoot) {
+        // Creation mode: Call parent handler
+        // Don't remove temp node immediately, perform optimistic update instead
+        if (creatingInParentId) {
+          lastCreatedParentRef.current = creatingInParentId
         }
-        if (item.children) {
-          return { ...item, children: renameInTree(item.children) }
+        if (onCreateNode) {
+          onCreateNode(creatingInParentId, newTitle)
         }
-        return item
-      })
-    }
-    setNodes(renameInTree)
-    setEditingNodeId(null)
-    setCreatingInParentId(null)
-    setIsCreatingAtRoot(false)
-    toast.success(`Renamed to "${newTitle}"`)
-  }, [])
+      } else {
+        // Rename mode: Call parent handler
+        if (onRenameNode) {
+          onRenameNode(id, newTitle)
+        }
+      }
+
+      // Optimistic update for both creation (temp node) and rename
+      const renameInTree = (items: OutlineNode[]): OutlineNode[] => {
+        return items.map((item) => {
+          if (item.id === id) {
+            return { ...item, title: newTitle }
+          }
+          if (item.children) {
+            return { ...item, children: renameInTree(item.children) }
+          }
+          return item
+        })
+      }
+      setNodes(renameInTree)
+
+      setEditingNodeId(null)
+      setCreatingInParentId(null)
+      setIsCreatingAtRoot(false)
+    },
+    [creatingInParentId, isCreatingAtRoot, onCreateNode, onRenameNode]
+  )
 
   // Cancel rename (remove if it was being created)
   const handleCancelRename = useCallback(() => {
@@ -542,20 +660,27 @@ export const OutlineTree = ({
   }, [])
 
   // Delete a node
-  const handleDelete = useCallback((id: string) => {
-    const deleteFromTree = (items: OutlineNode[]): OutlineNode[] => {
-      return items
-        .filter((item) => item.id !== id)
-        .map((item) => {
-          if (item.children) {
-            return { ...item, children: deleteFromTree(item.children) }
-          }
-          return item
-        })
-    }
-    setNodes(deleteFromTree)
-    toast.success('Deleted')
-  }, [])
+  const handleDelete = useCallback(
+    (id: string) => {
+      if (onDeleteNode) {
+        onDeleteNode(id)
+      }
+
+      // Optimistic delete
+      const deleteFromTree = (items: OutlineNode[]): OutlineNode[] => {
+        return items
+          .filter((item) => item.id !== id)
+          .map((item) => {
+            if (item.children) {
+              return { ...item, children: deleteFromTree(item.children) }
+            }
+            return item
+          })
+      }
+      setNodes(deleteFromTree)
+    },
+    [onDeleteNode]
+  )
 
   return (
     <div className="w-full" ref={scrollContainerRef}>
