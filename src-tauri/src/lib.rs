@@ -41,6 +41,9 @@ pub fn run() {
                 commands::block::get_block,
                 commands::block::get_all_blocks,
                 commands::block::update_block_metadata,
+                commands::block::rename_block,
+                commands::block::update_block_type,
+                commands::block::check_permission,
                 // Editor operations
                 commands::editor::create_editor,
                 commands::editor::list_editors,
@@ -51,6 +54,8 @@ pub fn run() {
                 commands::editor::list_grants,
                 commands::editor::get_editor_grants,
                 commands::editor::get_block_grants,
+                // Workspace/Checkout operations
+                commands::checkout::checkout_workspace,
                 // Terminal operations
                 extensions::terminal::pty::async_init_terminal,
                 extensions::terminal::pty::write_to_pty,
@@ -118,6 +123,9 @@ pub fn run() {
         commands::block::get_block,
         commands::block::get_all_blocks,
         commands::block::update_block_metadata,
+        commands::block::rename_block,
+        commands::block::update_block_type,
+        commands::block::check_permission,
         // Editor operations
         commands::editor::create_editor,
         commands::editor::list_editors,
@@ -128,6 +136,8 @@ pub fn run() {
         commands::editor::list_grants,
         commands::editor::get_editor_grants,
         commands::editor::get_block_grants,
+        // Workspace/Checkout operations
+        commands::checkout::checkout_workspace,
         // Terminal operations
         extensions::terminal::pty::async_init_terminal,
         extensions::terminal::pty::write_to_pty,
