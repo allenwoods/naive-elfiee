@@ -4,7 +4,11 @@ import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/lib/app-store'
 import { CollaboratorItem } from './CollaboratorItem'
 import { AddCollaboratorDialog } from './AddCollaboratorDialog'
+import { toast } from 'sonner'
 import type { Block } from '@/bindings'
+
+// Default capability granted to new collaborators
+const DEFAULT_CAPABILITY = 'markdown.read' as const
 
 interface CollaboratorListProps {
   fileId: string
@@ -86,12 +90,15 @@ export const CollaboratorList = ({
     const editorGrants = relevantGrants.filter((g) => g.editor_id === editorId)
 
     try {
-      // Revoke all grants for this editor
-      for (const grant of editorGrants) {
-        await revokeCapability(fileId, editorId, grant.cap_id, grant.block_id)
-      }
+      // Revoke all grants atomically using Promise.all
+      await Promise.all(
+        editorGrants.map((grant) =>
+          revokeCapability(fileId, editorId, grant.cap_id, grant.block_id)
+        )
+      )
     } catch (error) {
       console.error('Failed to remove access:', error)
+      toast.error('Failed to remove access. Please try again.')
       throw error
     }
   }
@@ -102,11 +109,14 @@ export const CollaboratorList = ({
       await grantCapability(
         fileId,
         newEditor.editor_id,
-        'markdown.read',
+        DEFAULT_CAPABILITY,
         blockId
       )
     } catch (error) {
       console.error('Failed to grant default read permission:', error)
+      toast.warning(
+        'Collaborator created but failed to grant read permission. You can manually grant permissions.'
+      )
       // Don't throw - the editor was created successfully
     }
   }

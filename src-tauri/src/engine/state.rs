@@ -1,5 +1,5 @@
 use crate::capabilities::grants::GrantsTable;
-use crate::models::{Block, BlockMetadata, Editor, Event};
+use crate::models::{Block, BlockMetadata, Editor, EditorType, Event};
 use log;
 use std::collections::HashMap;
 
@@ -234,10 +234,37 @@ impl StateProjector {
                 }
             }
 
-            // Editor creation (future extension)
+            // Editor creation
             "editor.create" => {
-                if let Ok(editor) = serde_json::from_value::<Editor>(event.value.clone()) {
-                    self.editors.insert(editor.editor_id.clone(), editor);
+                if let Some(editor_obj) = event.value.as_object() {
+                    let editor_id = editor_obj
+                        .get("editor_id")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let name = editor_obj
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let editor_type_str = editor_obj
+                        .get("editor_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Human");
+
+                    if !editor_id.is_empty() && !name.is_empty() {
+                        let editor_type = match editor_type_str {
+                            "Bot" => EditorType::Bot,
+                            _ => EditorType::Human,
+                        };
+
+                        self.editors.insert(
+                            editor_id.to_string(),
+                            Editor {
+                                editor_id: editor_id.to_string(),
+                                name: name.to_string(),
+                                editor_type,
+                            },
+                        );
+                    }
                 }
             }
 

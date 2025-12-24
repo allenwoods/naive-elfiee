@@ -1,5 +1,5 @@
 use crate::capabilities::core::{create_event, CapResult};
-use crate::models::{Block, Command, EditorCreatePayload, Event};
+use crate::models::{Block, Command, EditorCreatePayload, EditorType, Event};
 use capability_macros::capability;
 
 /// Handler for editor.create capability.
@@ -18,8 +18,18 @@ fn handle_editor_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<
         .editor_id
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-    // Determine editor_type (default to "Human" if not specified)
-    let editor_type = payload.editor_type.unwrap_or_else(|| "Human".to_string());
+    // Validate and parse editor_type
+    let editor_type = match payload.editor_type.as_deref() {
+        Some("Human") => EditorType::Human,
+        Some("Bot") => EditorType::Bot,
+        None => EditorType::Human, // Default to Human if not specified
+        Some(invalid) => {
+            return Err(format!(
+                "Invalid editor_type: '{}'. Must be 'Human' or 'Bot'",
+                invalid
+            ))
+        }
+    };
 
     // Create event with full editor data
     // Entity is the new editor_id
@@ -29,7 +39,7 @@ fn handle_editor_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<
         serde_json::json!({
             "editor_id": editor_id,
             "name": payload.name,
-            "editor_type": editor_type
+            "editor_type": editor_type  // Enum serializes to "Human" or "Bot"
         }),
         &cmd.editor_id,
         1, // Placeholder - engine actor updates with correct count (actor.rs:227)
@@ -186,13 +196,11 @@ mod tests {
         let cmd = create_test_command("InvalidTypeEditor", Some("Robot".to_string()));
         let result = handle_editor_create(&cmd, None);
 
-        assert!(result.is_ok());
-        let events = result.unwrap();
-        assert_eq!(events.len(), 1);
-
-        let event = &events[0];
-        let value = &event.value;
-        assert_eq!(value["name"], "InvalidTypeEditor");
-        assert_eq!(value["editor_type"], "Robot"); // Capability handler should pass the invalid type as is
+        // ✅ Should now reject invalid editor_type
+        assert!(result.is_err(), "Invalid editor_type should be rejected");
+        assert!(
+            result.unwrap_err().contains("Invalid editor_type"),
+            "Error message should mention invalid editor_type"
+        );
     }
 }

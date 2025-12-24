@@ -95,7 +95,7 @@ impl GrantsTable {
         if let Some(editor_grants) = self.grants.get_mut(editor_id) {
             editor_grants.retain(|(cap, blk)| !(cap == cap_id && blk == block_id));
 
-            /// Clean up empty entries
+            // Clean up empty entries
             if editor_grants.is_empty() {
                 self.grants.remove(editor_id);
             }
