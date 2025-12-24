@@ -63,6 +63,12 @@ pub fn run() {
             // NOTE: When adding a new extension with payload types, register them here.
             // TODO: Consider automating this with a macro if extensions grow beyond ~10
             // Core payload types (used by builtin capabilities)
+            .typ::<extensions::directory::DirectoryRenamePayload>()
+            .typ::<extensions::directory::DirectoryDeletePayload>()
+            .typ::<extensions::directory::DirectoryCreatePayload>()
+            .typ::<extensions::directory::DirectoryRefreshPayload>()
+            .typ::<extensions::directory::DirectoryExportPayload>()
+            .typ::<extensions::directory::DirectoryImportPayload>()
             .typ::<models::CreateBlockPayload>()
             .typ::<models::LinkBlockPayload>()
             .typ::<models::UnlinkBlockPayload>()

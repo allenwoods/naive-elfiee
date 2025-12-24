@@ -63,6 +63,8 @@ impl CapabilityRegistry {
 
     /// Register all extension capabilities.
     fn register_extensions(&mut self) {
+        use crate::extensions::directory::*;
+
         use crate::extensions::markdown::*;
         use crate::extensions::terminal::*;
 
@@ -72,6 +74,12 @@ impl CapabilityRegistry {
 
         // Terminal extension
         self.register(Arc::new(TerminalSaveCapability));
+        self.register(Arc::new(DirectoryImportCapability));
+        self.register(Arc::new(DirectoryExportCapability));
+        self.register(Arc::new(DirectoryRefreshCapability));
+        self.register(Arc::new(DirectoryCreateCapability));
+        self.register(Arc::new(DirectoryDeleteCapability));
+        self.register(Arc::new(DirectoryRenameCapability));
     }
 }
 
