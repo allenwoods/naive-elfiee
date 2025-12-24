@@ -33,7 +33,10 @@ pub fn infer_block_type(extension: &str) -> Option<String> {
 
         // 3. Fallback: Treat everything else as plain text 'code' block
         // This ensures we don't miss .env, .gitignore, license files, etc.
-        _ => Some("code".to_string()),
+        _ => {
+            log::debug!("Unknown extension '{}', defaulting to code block type", ext);
+            Some("code".to_string())
+        }
     }
 }
 

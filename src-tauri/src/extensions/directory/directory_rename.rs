@@ -37,7 +37,16 @@ fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
     let payload: DirectoryRenamePayload = serde_json::from_value(cmd.payload.clone())
         .map_err(|e| format!("Invalid payload for directory.rename: {}", e))?;
 
-    // Step 3: Parse current Directory Block contents
+    // Step 3: Validate path security
+    use std::path::Component;
+    if std::path::Path::new(&payload.new_path)
+        .components()
+        .any(|c| matches!(c, Component::ParentDir))
+    {
+        return Err("New path cannot contain '..' components (traversal forbidden)".to_string());
+    }
+
+    // Step 4: Parse current Directory Block contents
     let contents = block
         .contents
         .as_object()

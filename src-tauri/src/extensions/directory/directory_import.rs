@@ -139,6 +139,8 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
                     "id": file_block_id,
                     "type": "file",
                     "source": "linked",
+                    // external_path: Stored for future use in conflict detection bypass and auditing.
+                    // It tracks the original location from which the file was imported.
                     "external_path": file_info.absolute_path.to_string_lossy(),
                     "updated_at": now_utc()
                 }),
