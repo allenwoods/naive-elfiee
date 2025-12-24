@@ -952,3 +952,61 @@ fn test_security_path_traversal_create() {
     assert!(result.is_err(), "Should reject path traversal attempts");
     assert!(result.unwrap_err().contains("traversal forbidden"));
 }
+
+#[test]
+fn test_security_path_matching_isolation() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("directory.delete").unwrap();
+
+    // Create directory block with overlapping names
+    let mut block = Block::new(
+        "Isolation Test".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+    block.contents = serde_json::json!({
+        "entries": {
+            "foo": {
+                "id": "dir-foo",
+                "type": "directory"
+            },
+            "foo/file.md": {
+                "id": "block-foo-file",
+                "type": "file"
+            },
+            "foobar": {
+                "id": "block-foobar",
+                "type": "file"
+            }
+        }
+    });
+
+    // Attempt to delete "foo"
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.delete".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "path": "foo"
+        }),
+    );
+
+    let events = cap.handler(&cmd, Some(&block)).unwrap();
+
+    // Verify directory.write event
+    let dir_write = events
+        .iter()
+        .find(|e| e.attribute.ends_with("/directory.write"))
+        .unwrap();
+    let new_entries = dir_write.value["contents"]["entries"].as_object().unwrap();
+
+    // "foo" and its children should be gone
+    assert!(!new_entries.contains_key("foo"));
+    assert!(!new_entries.contains_key("foo/file.md"));
+
+    // CRITICAL: "foobar" should remain untouched!
+    assert!(
+        new_entries.contains_key("foobar"),
+        "Deleting 'foo' should NOT delete 'foobar'"
+    );
+}

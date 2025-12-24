@@ -83,7 +83,9 @@ fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         // Rename directory: recursively update all children
         let children: Vec<_> = entries
             .iter()
-            .filter(|(path, _)| path.starts_with(&payload.old_path))
+            .filter(|(path, _)| {
+                *path == &payload.old_path || path.starts_with(&format!("{}/", payload.old_path))
+            })
             .collect();
 
         for (child_path, child_entry) in children {
@@ -104,6 +106,9 @@ fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
                     1,
                 ));
             }
+            // NOTE: "directory" entries are virtual structural markers and don't
+            // have corresponding Block entities to rename. Their paths are
+            // updated in the entries map in Step 7.
         }
     }
 
@@ -111,7 +116,7 @@ fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
     let mut new_entries = serde_json::Map::new();
 
     for (path, entry_value) in entries {
-        if path.starts_with(&payload.old_path) || path == &payload.old_path {
+        if path == &payload.old_path || path.starts_with(&format!("{}/", payload.old_path)) {
             // Rename this path
             let new_path = if path == &payload.old_path {
                 payload.new_path.clone()

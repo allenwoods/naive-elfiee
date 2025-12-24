@@ -60,12 +60,14 @@ fn handle_delete(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         // Recursively delete all children
         let children: Vec<_> = entries
             .iter()
-            .filter(|(path, _)| path.starts_with(&payload.path))
+            .filter(|(path, _)| {
+                *path == &payload.path || path.starts_with(&format!("{}/", payload.path))
+            })
             .collect();
 
         for (_, child_entry) in children {
             if child_entry["type"] == "file" {
-                // Delete child Content Block
+                // Delete child Content Block (Markdown, Code, etc.)
                 let child_id = child_entry["id"]
                     .as_str()
                     .ok_or("Missing block ID in entry")?;
@@ -78,6 +80,10 @@ fn handle_delete(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
                     1,
                 ));
             }
+            // NOTE: Entries of type "directory" are virtual and don't have
+            // corresponding Block entities in the Event Store, so no explicit
+            // deletion event is needed for them. They are cleaned up from
+            // the entries map in Step 6.
         }
     } else if entry["type"] == "file" {
         // Delete single file's Content Block
@@ -96,7 +102,7 @@ fn handle_delete(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
     let mut new_entries = entries.clone();
     let paths_to_remove: Vec<_> = new_entries
         .keys()
-        .filter(|k| k.starts_with(&payload.path) || *k == &payload.path)
+        .filter(|k| *k == &payload.path || k.starts_with(&format!("{}/", payload.path)))
         .cloned()
         .collect();
 

@@ -133,7 +133,12 @@ pub async fn checkout_workspace(
                     // Write to file
                     let file_path = target_root.join(virtual_path);
                     if let Some(parent) = file_path.parent() {
-                        fs::create_dir_all(parent).ok();
+                        fs::create_dir_all(parent).map_err(|e| {
+                            format!(
+                                "Failed to create parent directory for '{}': {}",
+                                virtual_path, e
+                            )
+                        })?;
                     }
                     fs::write(file_path, content)
                         .map_err(|e| format!("Failed to write file '{}': {}", virtual_path, e))?;
