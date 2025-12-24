@@ -220,6 +220,27 @@ export const commands = {
     }
   },
   /**
+   * Get the global system editor ID from config.
+   *
+   * This returns the persistent system editor ID that is stored in
+   * the user's home directory config file (`$USER_HOME/.elf/config.json`).
+   *
+   * # Returns
+   * * `Ok(String)` - The system editor ID (UUID)
+   * * `Err(message)` - Error if config cannot be read
+   */
+  async getSystemEditorIdFromConfig(): Promise<Result<string, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('get_system_editor_id_from_config'),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * Execute a command on a block in the specified file.
    *
    * This is the primary way to modify blocks. Commands are processed by the engine actor,
@@ -343,12 +364,41 @@ export const commands = {
    */
   async createEditor(
     fileId: string,
-    name: string
+    name: string,
+    editorType: string | null
   ): Promise<Result<Editor, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('create_editor', { fileId, name }),
+        data: await TAURI_INVOKE('create_editor', { fileId, name, editorType }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Delete an editor identity from the specified file.
+   *
+   * This generates a Command with editor.delete capability and processes it through
+   * the engine actor. The editor and associated grants are removed from the state.
+   *
+   * # Arguments
+   * * `file_id` - Unique identifier of the file
+   * * `editor_id` - Unique identifier of the editor to delete
+   *
+   * # Returns
+   * * `Ok(())` - Success
+   * * `Err(message)` - Error description if deletion fails
+   */
+  async deleteEditor(
+    fileId: string,
+    editorId: string
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('delete_editor', { fileId, editorId }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -689,7 +739,11 @@ export type CreateBlockPayload = {
    */
   metadata?: JsonValue | null
 }
-export type Editor = { editor_id: string; name: string }
+export type Editor = {
+  editor_id: string
+  name: string
+  editor_type?: EditorType
+}
 /**
  * Payload for editor.create capability
  *
@@ -700,7 +754,27 @@ export type EditorCreatePayload = {
    * The display name for the new editor
    */
   name: string
+  /**
+   * The type of editor (Human or Bot), defaults to Human if not specified
+   */
+  editor_type?: string | null
+  /**
+   * Optional explicitly provided editor ID (e.g. system editor ID)
+   */
+  editor_id?: string | null
 }
+/**
+ * Payload for editor.delete capability
+ *
+ * This payload is used to delete an editor identity from the file.
+ */
+export type EditorDeletePayload = {
+  /**
+   * The editor ID to delete
+   */
+  editor_id: string
+}
+export type EditorType = 'Human' | 'Bot'
 export type Event = {
   event_id: string
   entity: string

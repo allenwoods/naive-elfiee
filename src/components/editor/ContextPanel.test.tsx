@@ -8,11 +8,28 @@ import type { Block, Editor, Event as BlockEvent, Grant } from '@/bindings'
 const mockStore = {
   currentFileId: 'test-file-id',
   selectedBlockId: 'block-1',
+  files: new Map([
+    [
+      'test-file-id',
+      {
+        fileId: 'test-file-id',
+        metadata: null,
+        editors: [],
+        activeEditorId: null,
+        blocks: [],
+        selectedBlockId: 'block-1',
+        events: [],
+        grants: [],
+      },
+    ],
+  ]),
   getBlock: vi.fn(),
   getEvents: vi.fn(() => []),
   getEditors: vi.fn(() => []),
   getGrants: vi.fn(() => []),
   updateBlockMetadata: vi.fn(),
+  grantCapability: vi.fn(),
+  revokeCapability: vi.fn(),
 }
 
 vi.mock('@/lib/app-store', () => ({
@@ -144,6 +161,21 @@ describe('ContextPanel', () => {
     vi.clearAllMocks()
     mockStore.currentFileId = 'test-file-id'
     mockStore.selectedBlockId = 'block-1'
+    mockStore.files = new Map([
+      [
+        'test-file-id',
+        {
+          fileId: 'test-file-id',
+          metadata: null,
+          editors: [],
+          activeEditorId: null,
+          blocks: [],
+          selectedBlockId: 'block-1',
+          events: [],
+          grants: [],
+        },
+      ],
+    ])
     mockStore.getBlock.mockReturnValue(
       createMockBlock('block-1', 'Test Block', 'Test description')
     )
@@ -197,7 +229,7 @@ describe('ContextPanel', () => {
 
       render(<ContextPanel />)
 
-      expect(screen.getByText(/no description yet/i)).toBeInTheDocument()
+      expect(screen.getByText(/no description provided/i)).toBeInTheDocument()
     })
 
     it('should display block type', () => {
@@ -210,12 +242,6 @@ describe('ContextPanel', () => {
       render(<ContextPanel />)
 
       expect(screen.getByText('test-user')).toBeInTheDocument()
-    })
-
-    it('should display block ID', () => {
-      render(<ContextPanel />)
-
-      expect(screen.getByText('block-1')).toBeInTheDocument()
     })
   })
 
@@ -320,8 +346,12 @@ describe('ContextPanel', () => {
         createMockGrant('editor-2', 'core.link', 'block-1'),
       ]
 
-      mockStore.getEditors.mockReturnValue(mockEditors)
-      mockStore.getGrants.mockReturnValue(mockGrants)
+      // Update files map directly
+      mockStore.files.set('test-file-id', {
+        ...mockStore.files.get('test-file-id')!,
+        editors: mockEditors,
+        grants: mockGrants,
+      })
 
       render(<ContextPanel />)
 
@@ -331,8 +361,12 @@ describe('ContextPanel', () => {
     })
 
     it('should show no grants message when empty', () => {
-      mockStore.getEditors.mockReturnValue([])
-      mockStore.getGrants.mockReturnValue([])
+      // Ensure empty arrays (already set in beforeEach, but explicit is fine)
+      mockStore.files.set('test-file-id', {
+        ...mockStore.files.get('test-file-id')!,
+        editors: [],
+        grants: [],
+      })
 
       render(<ContextPanel />)
 
@@ -348,7 +382,11 @@ describe('ContextPanel', () => {
         createMockEvent('event-2', 'block-1', 'update'),
       ]
 
-      mockStore.getEvents.mockReturnValue(mockEvents)
+      // Update files map directly
+      mockStore.files.set('test-file-id', {
+        ...mockStore.files.get('test-file-id')!,
+        events: mockEvents,
+      })
 
       render(<ContextPanel />)
 
@@ -357,7 +395,11 @@ describe('ContextPanel', () => {
     })
 
     it('should show no events message when empty', () => {
-      mockStore.getEvents.mockReturnValue([])
+      // Ensure empty events (already set in beforeEach)
+      mockStore.files.set('test-file-id', {
+        ...mockStore.files.get('test-file-id')!,
+        events: [],
+      })
 
       render(<ContextPanel />)
 

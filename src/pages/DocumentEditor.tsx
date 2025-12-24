@@ -8,6 +8,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/lib/app-store'
+import { TauriClient } from '@/lib/tauri-client'
 import { toast } from 'sonner'
 
 const DocumentEditor = () => {
@@ -19,9 +20,11 @@ const DocumentEditor = () => {
 
   // Load file when projectId changes
   useEffect(() => {
+    let outputMounted = true
+
     const loadFile = async () => {
-      // Skip if already loading this file
-      if (!projectId || loadedFileId === projectId) {
+      // Skip if no project ID
+      if (!projectId) {
         setIsLoading(false)
         return
       }
@@ -41,7 +44,6 @@ const DocumentEditor = () => {
         } else {
           // File not in store, need to fetch metadata and initialize
           // This happens when user directly navigates to /editor/:fileId
-          const { TauriClient } = await import('@/lib/tauri-client')
           const metadata = await TauriClient.file.getFileInfo(projectId)
 
           // Initialize file state in store
@@ -67,19 +69,59 @@ const DocumentEditor = () => {
         await store.loadGrants(projectId)
 
         // Mark as loaded
-        setLoadedFileId(projectId)
+        if (outputMounted) {
+          setLoadedFileId(projectId)
+        }
       } catch (error) {
         console.error('Failed to load file:', error)
         toast.error(`Failed to load file: ${error}`)
         // Navigate back to projects page on error
-        navigate('/')
+        if (outputMounted) {
+          navigate('/')
+        }
       } finally {
-        setIsLoading(false)
+        if (outputMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
     loadFile()
-  }, [projectId, loadedFileId, navigate])
+
+    // Cleanup: Save and Close file on unmount
+    return () => {
+      outputMounted = false
+      if (projectId) {
+        // We use a self-executing async function for cleanup
+        ;(async () => {
+          try {
+            console.log(
+              `[DocumentEditor] Unmounting, saving file: ${projectId}`
+            )
+            // Save pending changes
+            await TauriClient.file.saveFile(projectId)
+
+            // NOTE: Temporarily disabled closeFile on unmount because in React Strict Mode (dev),
+            // components mount/unmount/mount rapidly. This causes the file to be closed
+            // immediately after opening, breaking the session for the second mount.
+            // For now, we leave the file open. The backend cleans up on app exit.
+            // await TauriClient.file.closeFile(projectId)
+
+            // Update store state if needed (optional, but good practice to clear current)
+            const store = useAppStore.getState()
+            if (store.currentFileId === projectId) {
+              store.setCurrentFile(null)
+            }
+          } catch (error) {
+            console.error(
+              '[DocumentEditor] Failed to save/close file on exit:',
+              error
+            )
+          }
+        })()
+      }
+    }
+  }, [projectId])
 
   // Show loading state
   if (isLoading) {

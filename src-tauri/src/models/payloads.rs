@@ -89,6 +89,21 @@ pub struct UpdateMetadataPayload {
 pub struct EditorCreatePayload {
     /// The display name for the new editor
     pub name: String,
+    /// The type of editor (Human or Bot), defaults to Human if not specified
+    #[serde(default)]
+    pub editor_type: Option<String>,
+    /// Optional explicitly provided editor ID (e.g. system editor ID)
+    #[serde(default)]
+    pub editor_id: Option<String>,
+}
+
+/// Payload for editor.delete capability
+///
+/// This payload is used to delete an editor identity from the file.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct EditorDeletePayload {
+    /// The editor ID to delete
+    pub editor_id: String,
 }
 
 /// Payload for core.rename capability
@@ -208,5 +223,17 @@ mod tests {
         });
         let payload: EditorCreatePayload = serde_json::from_value(json).unwrap();
         assert_eq!(payload.name, "Alice");
+        assert!(payload.editor_id.is_none());
+    }
+
+    #[test]
+    fn test_editor_create_payload_with_id() {
+        let json = serde_json::json!({
+            "name": "System",
+            "editor_id": "sys-123"
+        });
+        let payload: EditorCreatePayload = serde_json::from_value(json).unwrap();
+        assert_eq!(payload.name, "System");
+        assert_eq!(payload.editor_id, Some("sys-123".to_string()));
     }
 }

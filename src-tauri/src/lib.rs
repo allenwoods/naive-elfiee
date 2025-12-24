@@ -1,5 +1,6 @@
 pub mod capabilities;
 pub mod commands;
+pub mod config;
 pub mod elf;
 pub mod engine;
 pub mod extensions;
@@ -36,6 +37,7 @@ pub fn run() {
                 commands::file::rename_file,
                 commands::file::delete_file,
                 commands::file::duplicate_file,
+                commands::file::get_system_editor_id_from_config,
                 // Block operations (core)
                 commands::block::execute_command,
                 commands::block::get_block,
@@ -46,6 +48,7 @@ pub fn run() {
                 commands::block::check_permission,
                 // Editor operations
                 commands::editor::create_editor,
+                commands::editor::delete_editor,
                 commands::editor::list_editors,
                 commands::editor::get_editor,
                 commands::editor::set_active_editor,
@@ -81,6 +84,7 @@ pub fn run() {
             .typ::<models::RevokePayload>()
             .typ::<models::UpdateMetadataPayload>()
             .typ::<models::EditorCreatePayload>()
+            .typ::<models::EditorDeletePayload>()
             // Extension payload types
             .typ::<extensions::markdown::MarkdownWritePayload>()
             .typ::<extensions::terminal::TerminalSavePayload>()
@@ -118,6 +122,7 @@ pub fn run() {
         commands::file::rename_file,
         commands::file::delete_file,
         commands::file::duplicate_file,
+        commands::file::get_system_editor_id_from_config,
         // Block operations (core)
         commands::block::execute_command,
         commands::block::get_block,

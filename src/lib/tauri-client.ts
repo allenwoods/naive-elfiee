@@ -21,9 +21,35 @@ import {
 } from '@/bindings'
 
 /**
- * Default editor ID for single-user MVP
+ * Cache for system editor ID
  */
-const DEFAULT_EDITOR_ID = 'default-editor'
+let SYSTEM_EDITOR_ID_CACHE: string | null = null
+
+/**
+ * Get the system editor ID (with caching)
+ *
+ * This fetches the persistent system editor ID from the backend config.
+ * The ID is cached after first fetch to avoid repeated IPC calls.
+ */
+async function getSystemEditorId(): Promise<string> {
+  if (SYSTEM_EDITOR_ID_CACHE) {
+    return SYSTEM_EDITOR_ID_CACHE
+  }
+
+  try {
+    const result = await commands.getSystemEditorIdFromConfig()
+    if (result.status === 'ok') {
+      SYSTEM_EDITOR_ID_CACHE = result.data
+      return result.data
+    } else {
+      console.error('Failed to get system editor ID:', result.error)
+      return 'system' // Ultimate fallback
+    }
+  } catch (error) {
+    console.error('Error getting system editor ID:', error)
+    return 'system' // Ultimate fallback
+  }
+}
 
 /**
  * Helper to create a command
@@ -206,7 +232,7 @@ export class BlockOperations {
     const activeEditorId =
       editorId ||
       (await EditorOperations.getActiveEditor(fileId)) ||
-      DEFAULT_EDITOR_ID
+      (await getSystemEditorId())
 
     const payload: CreateBlockPayload = {
       name,
@@ -231,7 +257,7 @@ export class BlockOperations {
     const activeEditorId =
       editorId ||
       (await EditorOperations.getActiveEditor(fileId)) ||
-      DEFAULT_EDITOR_ID
+      (await getSystemEditorId())
 
     const payload: MarkdownWritePayload = {
       content,
@@ -254,7 +280,7 @@ export class BlockOperations {
     const activeEditorId =
       editorId ||
       (await EditorOperations.getActiveEditor(fileId)) ||
-      DEFAULT_EDITOR_ID
+      (await getSystemEditorId())
 
     const cmd = createCommand(
       activeEditorId,
@@ -287,10 +313,23 @@ export class BlockOperations {
  * Editor Operations
  */
 export class EditorOperations {
-  static async createEditor(fileId: string, name: string): Promise<Editor> {
-    const result = await commands.createEditor(fileId, name)
+  static async createEditor(
+    fileId: string,
+    name: string,
+    editorType?: string
+  ): Promise<Editor> {
+    const result = await commands.createEditor(fileId, name, editorType ?? null)
     if (result.status === 'ok') {
       return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  static async deleteEditor(fileId: string, editorId: string): Promise<void> {
+    const result = await commands.deleteEditor(fileId, editorId)
+    if (result.status === 'ok') {
+      return
     } else {
       throw new Error(result.error)
     }
@@ -377,7 +416,9 @@ export class EditorOperations {
   ): Promise<Event[]> {
     // Get active editor if not provided
     const activeEditorId =
-      editorId || (await this.getActiveEditor(fileId)) || DEFAULT_EDITOR_ID
+      editorId ||
+      (await this.getActiveEditor(fileId)) ||
+      (await getSystemEditorId())
 
     const payload: GrantPayload = {
       target_editor: targetEditor,
@@ -402,7 +443,9 @@ export class EditorOperations {
   ): Promise<Event[]> {
     // Get active editor if not provided
     const activeEditorId =
-      editorId || (await this.getActiveEditor(fileId)) || DEFAULT_EDITOR_ID
+      editorId ||
+      (await this.getActiveEditor(fileId)) ||
+      (await getSystemEditorId())
 
     const payload: RevokePayload = {
       target_editor: targetEditor,

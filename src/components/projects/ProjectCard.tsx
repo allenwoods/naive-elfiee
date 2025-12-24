@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { MoreHorizontal, Copy, Trash2, Pencil, Bot } from 'lucide-react'
+import { MoreHorizontal, Copy, Trash2, Pencil } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +33,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
 export type ProjectStatus = 'synced' | 'conflict' | 'editing' | 'archived'
 
@@ -106,8 +105,6 @@ export const ProjectCard = ({
   const [isHovered, setIsHovered] = useState(false)
 
   const statusConfig = getStatusConfig(project.status)
-  const hasCollaborators =
-    project.collaborators && project.collaborators.length > 0
 
   const handleCardClick = () => {
     navigate(`/editor/${project.id}`)
@@ -124,9 +121,6 @@ export const ProjectCard = ({
     e.stopPropagation()
     action()
   }
-
-  // Use collaborators from project or empty array
-  const collaborators: Collaborator[] = project.collaborators || []
 
   return (
     <TooltipProvider>
@@ -235,39 +229,6 @@ export const ProjectCard = ({
               </div>
 
               {/* Collaborator Avatars (View Only) */}
-              {hasCollaborators && (
-                <div className="ml-2 flex -space-x-2">
-                  {collaborators.slice(0, 3).map((collab) => (
-                    <Tooltip key={collab.id}>
-                      <TooltipTrigger asChild>
-                        <Avatar className="h-6 w-6 border-2 border-card">
-                          {collab.isAgent ? (
-                            <AvatarFallback className="bg-primary/10 text-xs text-primary">
-                              <Bot className="h-3 w-3" />
-                            </AvatarFallback>
-                          ) : collab.avatar ? (
-                            <AvatarImage src={collab.avatar} />
-                          ) : (
-                            <AvatarFallback className="bg-secondary text-xs">
-                              {collab.name
-                                .split(' ')
-                                .map((n) => n[0])
-                                .join('')
-                                .slice(0, 2)}
-                            </AvatarFallback>
-                          )}
-                        </Avatar>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>
-                          {collab.name}
-                          {collab.isAgent ? ' (Agent)' : ''}
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         </div>

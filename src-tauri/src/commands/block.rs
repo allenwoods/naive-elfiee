@@ -1,3 +1,4 @@
+use crate::config;
 use crate::models::{Block, Command, Event};
 use crate::state::AppState;
 use specta::specta;
@@ -117,10 +118,12 @@ pub async fn update_block_metadata(
         .get_engine(&file_id)
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
-    // Get current active editor
+    // Get current active editor (or fallback to system editor)
+    // Block metadata updates should be attributed to an editor identity.
+    // If no active editor is set, use the system editor as fallback.
     let editor_id = state
         .get_active_editor(&file_id)
-        .unwrap_or_else(|| "default-editor".to_string());
+        .unwrap_or_else(|| config::get_system_editor_id().unwrap_or_else(|_| "system".to_string()));
 
     // Create command to update metadata
     let cmd = Command::new(

@@ -1,3 +1,4 @@
+use crate::config;
 use crate::elf::ElfArchive;
 use crate::models::Command;
 use crate::state::{AppState, FileInfo};
@@ -39,21 +40,25 @@ async fn bootstrap_editors(file_id: &str, state: &AppState) -> Result<(), String
     let editors = handle.get_all_editors().await;
 
     if editors.is_empty() {
-        // Create system editor
+        // Get persistent system editor ID from global config
+        let system_editor_id = config::get_system_editor_id()
+            .map_err(|e| format!("Failed to get system editor ID: {}", e))?;
+
+        // Create system editor with the persistent ID
         let cmd = Command::new(
-            "system".to_string(),
+            system_editor_id.clone(),
             "editor.create".to_string(),
             "".to_string(),
-            serde_json::json!({ "name": "System" }),
+            serde_json::json!({
+                "name": "System",
+                "editor_id": system_editor_id.clone()
+            }),
         );
 
         let events = handle.process_command(cmd).await?;
 
-        // Extract editor_id from created event
-        if let Some(event) = events.first() {
-            let system_editor_id = event.entity.clone();
-
-            // Set as active editor
+        // Set as active editor if creation succeeded
+        if events.first().is_some() {
             state.set_active_editor(file_id.to_string(), system_editor_id);
         }
     } else {
@@ -625,4 +630,18 @@ mod tests {
 
         Ok(())
     }
+}
+
+/// Get the global system editor ID from config.
+///
+/// This returns the persistent system editor ID that is stored in
+/// the user's home directory config file (`$USER_HOME/.elf/config.json`).
+///
+/// # Returns
+/// * `Ok(String)` - The system editor ID (UUID)
+/// * `Err(message)` - Error if config cannot be read
+#[tauri::command]
+#[specta]
+pub async fn get_system_editor_id_from_config() -> Result<String, String> {
+    config::get_system_editor_id()
 }

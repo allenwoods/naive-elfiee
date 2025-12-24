@@ -59,6 +59,7 @@ impl CapabilityRegistry {
         self.register(Arc::new(CoreRenameCapability));
         self.register(Arc::new(CoreChange_typeCapability));
         self.register(Arc::new(EditorCreateCapability));
+        self.register(Arc::new(EditorDeleteCapability));
     }
     /// Register all extension capabilities.
     fn register_extensions(&mut self) {

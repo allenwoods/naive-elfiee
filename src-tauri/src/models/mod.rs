@@ -10,7 +10,7 @@ pub mod payloads;
 pub use block::Block;
 pub use capability::Capability;
 pub use command::Command;
-pub use editor::Editor;
+pub use editor::{Editor, EditorType};
 pub use event::Event;
 pub use grant::Grant;
 pub use metadata::BlockMetadata;
