@@ -317,6 +317,25 @@ impl StateProjector {
         self.blocks.get(block_id)
     }
 
+    /// Check if an editor is authorized to execute a capability on a block.
+    ///
+    /// Authorization logic:
+    /// 1. Block owner always has all permissions on their own block.
+    /// 2. Otherwise, check the grants table for explicit authorization.
+    pub fn is_authorized(&self, editor_id: &str, cap_id: &str, block_id: &str) -> bool {
+        // Special case: core.create and editor.create are usually handled at a higher level
+        // or have implicit permissions for any registered editor in this simple version.
+        // But for block-level capabilities:
+        if let Some(block) = self.get_block(block_id) {
+            if block.owner == editor_id {
+                return true;
+            }
+        }
+
+        // Check explicit grants
+        self.grants.has_grant(editor_id, cap_id, block_id)
+    }
+
     /// Get the current transaction count for an editor.
     pub fn get_editor_count(&self, editor_id: &str) -> i64 {
         *self.editor_counts.get(editor_id).unwrap_or(&0)
