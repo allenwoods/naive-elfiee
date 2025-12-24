@@ -349,6 +349,78 @@ export const commands = {
     }
   },
   /**
+   * Rename a block.
+   *
+   * # Arguments
+   * * `file_id` - Unique identifier of the file
+   * * `block_id` - Unique identifier of the block
+   * * `name` - New name for the block
+   */
+  async renameBlock(
+    fileId: string,
+    blockId: string,
+    name: string
+  ): Promise<Result<Event[], string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('rename_block', { fileId, blockId, name }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Update block type.
+   *
+   * # Arguments
+   * * `file_id` - Unique identifier of the file
+   * * `block_id` - Unique identifier of the block
+   * * `block_type` - New type for the block
+   */
+  async updateBlockType(
+    fileId: string,
+    blockId: string,
+    blockType: string
+  ): Promise<Result<Event[], string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('update_block_type', {
+          fileId,
+          blockId,
+          blockType,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Check if current editor has permission for a capability on a block.
+   */
+  async checkPermission(
+    fileId: string,
+    blockId: string,
+    capability: string
+  ): Promise<Result<boolean, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('check_permission', {
+          fileId,
+          blockId,
+          capability,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * Create a new editor for the specified file.
    *
    * This generates a Command with editor.create capability and processes it through
@@ -579,6 +651,32 @@ export const commands = {
     }
   },
   /**
+   * Materialize blocks to the external file system (Checkout).
+   *
+   * This command implements the bottom-layer I/O ability:
+   * 1. Calls the `directory.export` capability for authorization and auditing.
+   * 2. If authorized, performs the 'checkout' by writing block contents to the target path.
+   */
+  async checkoutWorkspace(
+    fileId: string,
+    blockId: string,
+    payload: DirectoryExportPayload
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('checkout_workspace', {
+          fileId,
+          blockId,
+          payload,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * Initialize a new PTY session for a block.
    */
   async asyncInitTerminal(
@@ -706,6 +804,19 @@ export type BlockMetadata =
      */
     updated_at?: string | null
   }
+/**
+ * Payload for CodeRead
+ */
+export type CodeReadPayload = Record<string, never>
+/**
+ * Payload for CodeWrite
+ */
+export type CodeWritePayload = {
+  /**
+   * The source code text content to write
+   */
+  content: string
+}
 export type Command = {
   cmd_id: string
   editor_id: string
@@ -738,6 +849,103 @@ export type CreateBlockPayload = {
    * Example: { "description": "项目需求文档" }
    */
   metadata?: JsonValue | null
+}
+/**
+ * Payload for DirectoryCreate
+ *
+ * Creates a new file or directory inside the Directory Block.
+ */
+export type DirectoryCreatePayload = {
+  /**
+   * Internal virtual path (e.g., "docs/README.md")
+   */
+  path: string
+  /**
+   * Entry type: "file" or "directory"
+   */
+  type: string
+  /**
+   * Initial content (for files only, optional)
+   */
+  content?: string | null
+  /**
+   * Block type (for files only)
+   * Example: "markdown", "code"
+   */
+  block_type?: string | null
+}
+/**
+ * Payload for DirectoryDelete
+ *
+ * Deletes a file or directory from the Directory Block (cascade delete).
+ */
+export type DirectoryDeletePayload = {
+  /**
+   * Virtual path to delete
+   */
+  path: string
+}
+/**
+ * Payload for DirectoryExport
+ *
+ * Exports files from Directory Block to external file system.
+ */
+export type DirectoryExportPayload = {
+  /**
+   * Target external path (where to write)
+   * Example: "/Users/me/output/exported-project"
+   */
+  target_path: string
+  /**
+   * Internal virtual path (optional, to export only a subdirectory)
+   * None means export entire project
+   * Example: "src"
+   */
+  source_path?: string | null
+}
+/**
+ * Payload for DirectoryImport
+ *
+ * Imports files from an external directory into the Directory Block.
+ */
+export type DirectoryImportPayload = {
+  /**
+   * External file system path (source)
+   * Example: "/Users/me/projects/my-app"
+   */
+  source_path: string
+  /**
+   * Internal virtual path prefix (target)
+   * None or "/" means import to root directory
+   * Example: "libs/external"
+   */
+  target_path?: string | null
+}
+/**
+ * Payload for DirectoryRename
+ *
+ * Renames or moves a file/directory, syncs Block.name for files.
+ */
+export type DirectoryRenamePayload = {
+  /**
+   * Old path
+   */
+  old_path: string
+  /**
+   * New path
+   */
+  new_path: string
+}
+/**
+ * Payload for directory.write capability.
+ *
+ * Used to directly update the entries map of a directory block.
+ */
+export type DirectoryWritePayload = {
+  /**
+   * The full entries map to be saved
+   */
+  entries: JsonValue
 }
 export type Editor = {
   editor_id: string
