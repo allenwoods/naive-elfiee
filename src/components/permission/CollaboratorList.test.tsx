@@ -41,6 +41,7 @@ vi.mock('./AddCollaboratorDialog', () => ({
 describe('CollaboratorList Component', () => {
   const mockGrantCapability = vi.fn()
   const mockRevokeCapability = vi.fn()
+  const mockDeleteEditor = vi.fn()
 
   const mockBlock: Block = {
     block_id: 'block-1',
@@ -106,6 +107,7 @@ describe('CollaboratorList Component', () => {
         ]),
         grantCapability: mockGrantCapability,
         revokeCapability: mockRevokeCapability,
+        deleteEditor: mockDeleteEditor,
       }
       return selector(state)
     })
@@ -158,6 +160,7 @@ describe('CollaboratorList Component', () => {
           ]),
           grantCapability: mockGrantCapability,
           revokeCapability: mockRevokeCapability,
+          deleteEditor: mockDeleteEditor,
         }
         return selector(state)
       })
@@ -232,14 +235,14 @@ describe('CollaboratorList Component', () => {
   })
 
   describe('Remove Access', () => {
-    it('should revoke all permissions when removing access', async () => {
-      mockRevokeCapability.mockResolvedValue(undefined)
+    it('should delete editor when removing access', async () => {
+      mockDeleteEditor.mockResolvedValue(undefined)
 
       render(
         <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
       )
 
-      // Click remove button for Alice (who has 2 grants)
+      // Click remove button for Alice
       const removeButtons = screen.getAllByRole('button', { name: 'Remove' })
       const aliceRemoveButton = removeButtons.find((btn) =>
         btn.closest('[data-testid="collaborator-collab-456"]')
@@ -249,14 +252,15 @@ describe('CollaboratorList Component', () => {
         await userEvent.click(aliceRemoveButton)
       }
 
-      // Should revoke all grants for this editor (2 grants)
+      // Should delete the editor (which also removes all grants)
       await waitFor(() => {
-        expect(mockRevokeCapability).toHaveBeenCalledTimes(2)
+        expect(mockDeleteEditor).toHaveBeenCalledTimes(1)
+        expect(mockDeleteEditor).toHaveBeenCalledWith('file-1', 'collab-456')
       })
     })
 
-    it('should call revokeCapability for each grant when removing access', async () => {
-      mockRevokeCapability.mockResolvedValue(undefined)
+    it('should call deleteEditor when removing access', async () => {
+      mockDeleteEditor.mockResolvedValue(undefined)
 
       render(
         <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
@@ -271,10 +275,10 @@ describe('CollaboratorList Component', () => {
         await userEvent.click(aliceRemoveButton)
       }
 
-      // Should revoke both grants (read + write) for Alice
+      // Should delete the editor
       await waitFor(
         () => {
-          expect(mockRevokeCapability).toHaveBeenCalledTimes(2)
+          expect(mockDeleteEditor).toHaveBeenCalledWith('file-1', 'collab-456')
         },
         { timeout: 3000 }
       )
@@ -318,13 +322,14 @@ describe('CollaboratorList Component', () => {
       })
       await userEvent.click(addConfirmButton)
 
-      // Should grant default read permission
+      // Should grant default read permission (with block owner as granter)
       await waitFor(() => {
         expect(mockGrantCapability).toHaveBeenCalledWith(
           'file-1',
           'new-editor',
           'markdown.read',
-          'block-1'
+          'block-1',
+          'owner-123' // Block owner as granter
         )
       })
     })
@@ -377,6 +382,7 @@ describe('CollaboratorList Component', () => {
           ]),
           grantCapability: mockGrantCapability,
           revokeCapability: mockRevokeCapability,
+          deleteEditor: mockDeleteEditor,
         }
         return selector(state)
       })
@@ -406,6 +412,7 @@ describe('CollaboratorList Component', () => {
           ]),
           grantCapability: mockGrantCapability,
           revokeCapability: mockRevokeCapability,
+          deleteEditor: mockDeleteEditor,
         }
         return selector(state)
       })
