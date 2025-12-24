@@ -29,9 +29,9 @@ fn inject_block_dir(
 ) -> Result<PathBuf, String> {
     let block_dir = temp_dir.join(format!("{}{}", BLOCK_DIR_PREFIX, block_id));
 
-    // Create block directory if it doesn't exist
-    std::fs::create_dir_all(&block_dir)
-        .map_err(|e| format!("Failed to create block directory: {}", e))?;
+    // Create block directory if it doesn't exist.
+    // .ok() handles the case where it might already exist.
+    std::fs::create_dir_all(&block_dir).ok();
 
     // Inject _block_dir into contents (runtime only, will be stripped before persistence)
     if let Some(obj) = contents.as_object_mut() {

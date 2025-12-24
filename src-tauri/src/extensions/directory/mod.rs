@@ -9,69 +9,85 @@ use specta::Type;
 // ============================================================================
 
 pub mod directory_import;
+
 pub use directory_import::*;
 
 pub mod directory_export;
+
 pub use directory_export::*;
 
-pub mod directory_refresh;
-pub use directory_refresh::*;
+pub mod directory_write;
+
+pub use directory_write::*;
 
 pub mod directory_create;
+
 pub use directory_create::*;
 
 pub mod directory_delete;
+
 pub use directory_delete::*;
 
 pub mod directory_rename;
+
 pub use directory_rename::*;
 
 // ============================================================================
+
 // Payload Definitions
+
 // ============================================================================
 
 /// Payload for DirectoryImport
+
 ///
+
 /// Imports files from an external directory into the Directory Block.
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+
 pub struct DirectoryImportPayload {
     /// External file system path (source)
+
     /// Example: "/Users/me/projects/my-app"
     pub source_path: String,
 
     /// Internal virtual path prefix (target)
+
     /// None or "/" means import to root directory
+
     /// Example: "libs/external"
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_path: Option<String>,
 }
 
 /// Payload for DirectoryExport
+
 ///
+
 /// Exports files from Directory Block to external file system.
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+
 pub struct DirectoryExportPayload {
     /// Target external path (where to write)
+
     /// Example: "/Users/me/output/exported-project"
     pub target_path: String,
 
     /// Internal virtual path (optional, to export only a subdirectory)
+
     /// None means export entire project
+
     /// Example: "src"
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_path: Option<String>,
 }
 
-/// Payload for DirectoryRefresh
-///
-/// Re-scans external directory and syncs with internal state (Mirror Sync).
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct DirectoryRefreshPayload {
-    /// Optional: force specify refresh source path
-    /// Usually not needed, will read from Block.metadata.custom.external_root_path
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_path: Option<String>,
-}
+/// Payload for DirectoryWrite
+pub use directory_write::DirectoryWritePayload;
 
 /// Payload for DirectoryCreate
 ///

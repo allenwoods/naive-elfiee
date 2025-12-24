@@ -55,32 +55,12 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         ));
     }
 
-    if !source.is_dir() {
-        return Err(format!(
-            "Source path is not a directory: {}",
-            payload.source_path
-        ));
-    }
-
     // Step 4: Scan external directory
     let options = ScanOptions::default();
     let files =
         scan_directory(source, &options).map_err(|e| format!("Failed to scan directory: {}", e))?;
 
-    // Step 5: Parse current Directory Block contents
-    let mut contents: serde_json::Map<String, serde_json::Value> =
-        block.contents.as_object().cloned().unwrap_or_default();
-
-    // Initialize entries if not exists
-    if !contents.contains_key("entries") {
-        contents.insert("entries".to_string(), json!({}));
-    }
-
-    let entries = contents
-        .get_mut("entries")
-        .and_then(|v| v.as_object_mut())
-        .ok_or("Invalid directory structure: entries must be an object")?;
-
+    let mut entries = serde_json::Map::new();
     let target_prefix = payload
         .target_path
         .unwrap_or_else(|| "/".to_string())
@@ -88,17 +68,18 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         .to_string();
 
     let mut events = Vec::new();
+    let mut warnings = Vec::new();
 
     // Step 6: Process each file
     for file_info in files {
+        let virtual_path = if target_prefix == "/" || target_prefix.is_empty() {
+            file_info.relative_path.clone()
+        } else {
+            format!("{}/{}", target_prefix, file_info.relative_path)
+        };
+
         if file_info.is_directory {
             // Add directory entry (virtual, no Block)
-            let virtual_path = if target_prefix == "/" || target_prefix.is_empty() {
-                file_info.relative_path.clone()
-            } else {
-                format!("{}/{}", target_prefix, file_info.relative_path)
-            };
-
             let dir_id = format!("dir-{}", uuid::Uuid::new_v4());
 
             entries.insert(
@@ -116,6 +97,7 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
                 Some(t) => t,
                 None => {
                     log::warn!("Skipping unsupported file: {:?}", file_info.absolute_path);
+                    warnings.push(format!("Skipped unsupported file type: {}", virtual_path));
                     continue;
                 }
             };
@@ -127,6 +109,14 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
             // Create Content Block
             let file_block_id = uuid::Uuid::new_v4().to_string();
 
+            // Unified field logic: markdown for markdown, text for others
+            let contents = if block_type == "markdown" {
+                json!({ "markdown": content })
+            } else {
+                json!({ "text": content })
+            };
+
+            // NOTE: count=1 is a placeholder. Engine actor will update it with correct vector clock.
             events.push(create_event(
                 file_block_id.clone(),
                 "core.create",
@@ -134,10 +124,7 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
                     "name": file_info.file_name,
                     "type": block_type,
                     "owner": cmd.editor_id,
-                    "contents": {
-                        "text": content,
-                        "language": file_info.extension
-                    },
+                    "contents": contents,
                     "children": {},
                     "metadata": {}
                 }),
@@ -146,12 +133,6 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
             ));
 
             // Add entry to Directory
-            let virtual_path = if target_prefix == "/" || target_prefix.is_empty() {
-                file_info.relative_path.clone()
-            } else {
-                format!("{}/{}", target_prefix, file_info.relative_path)
-            };
-
             entries.insert(
                 virtual_path,
                 json!({
@@ -166,10 +147,14 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
     }
 
     // Step 7: Update Directory Block contents
+    // Recording warnings in the payload so users/UI can see what was skipped.
     events.push(create_event(
         block.block_id.clone(),
         "directory.write",
-        json!({ "contents": { "entries": entries } }),
+        json!({
+            "contents": { "entries": entries },
+            "warnings": warnings
+        }),
         &cmd.editor_id,
         1,
     ));

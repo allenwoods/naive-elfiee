@@ -71,6 +71,16 @@ pub async fn checkout_workspace(
             continue;
         }
 
+        // Security: Path traversal check
+        use std::path::Component;
+        if Path::new(virtual_path)
+            .components()
+            .any(|c| matches!(c, Component::ParentDir))
+        {
+            log::warn!("Skipping path with traversal components: {}", virtual_path);
+            continue;
+        }
+
         let entry_type = entry_value["type"].as_str().unwrap_or("");
 
         if entry_type == "directory" {
@@ -82,40 +92,43 @@ pub async fn checkout_workspace(
             // Get content block
             let child_id = entry_value["id"].as_str().ok_or("Missing block ID")?;
 
-            // Check for READ permission on the specific file block (Inner Lock)
-            if !handle
-                .check_grant(
-                    editor_id.clone(),
-                    "core.read".to_string(),
-                    child_id.to_string(),
-                )
-                .await
-            {
-                log::warn!(
-                    "Skipping file '{}' due to lack of core.read permission",
-                    virtual_path
-                );
-                continue;
-            }
-
             // Fetch block content via engine
             match handle.get_block(child_id.to_string()).await {
                 Some(child_block) => {
-                    // Extract text content (from 'markdown' or 'code' format)
-                    let content = if child_block.block_type == "markdown" {
-                        child_block
-                            .contents
-                            .get("markdown")
-                            .or_else(|| child_block.contents.get("text"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                    } else {
-                        child_block
-                            .contents
-                            .get("text")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
+                    // --- Dynamic Permission Check ---
+                    // Determine which capability is required to "read" this block type
+                    let read_cap = match child_block.block_type.as_str() {
+                        "markdown" => Some("markdown.read"),
+                        "code" => Some("code.read"),
+                        _ => None, // Unknown type, will fall back to owner check only
                     };
+
+                    // Verify permission
+                    let authorized = if let Some(cap) = read_cap {
+                        handle
+                            .check_grant(editor_id.clone(), cap.to_string(), child_id.to_string())
+                            .await
+                    } else {
+                        // If no read capability is defined for this type, only the owner can export
+                        child_block.owner == editor_id
+                    };
+
+                    if !authorized {
+                        let cap_name = read_cap.unwrap_or("owner-only access");
+                        log::warn!(
+                            "Skipping file '{}' due to lack of {} permission",
+                            virtual_path,
+                            cap_name
+                        );
+                        continue;
+                    }
+                    // Standardized content field access: try 'text' then 'markdown'
+                    let content = child_block
+                        .contents
+                        .get("text")
+                        .or_else(|| child_block.contents.get("markdown"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
 
                     // Write to file
                     let file_path = target_root.join(virtual_path);
@@ -137,7 +150,6 @@ pub async fn checkout_workspace(
 
     Ok(())
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,11 +208,11 @@ mod tests {
         let events = handle.process_command(create_file_cmd).await.unwrap();
 
         // Find the generated block ID from the events
-        let _file_block_id = events
+        let file_block_id = events
             .iter()
             .find(|e| e.attribute.ends_with("/core.create"))
             .map(|e| e.entity.clone())
-            .unwrap();
+            .expect("Failed to find core.create event");
 
         // 4. Verify Checkout Logic
         let export_dir = TempDir::new().unwrap();
@@ -233,10 +245,19 @@ mod tests {
                 fs::create_dir_all(target_root.join(virtual_path)).unwrap();
             } else {
                 let child_id = entry_value["id"].as_str().unwrap();
+
+                // Assert the ID matches the one created
+                assert_eq!(child_id, file_block_id);
+
                 let child_block = handle.get_block(child_id.to_string()).await.unwrap();
 
-                // Get content from 'text' key (as produced by directory.create)
-                let content = child_block.contents["text"].as_str().unwrap();
+                // Standardized content field access: try 'text' then 'markdown'
+                let content = child_block
+                    .contents
+                    .get("text")
+                    .or_else(|| child_block.contents.get("markdown"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
 
                 let file_path = target_root.join(virtual_path);
                 fs::create_dir_all(file_path.parent().unwrap()).ok();

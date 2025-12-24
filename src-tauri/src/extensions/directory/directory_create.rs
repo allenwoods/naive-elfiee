@@ -38,13 +38,24 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
     let payload: DirectoryCreatePayload = serde_json::from_value(cmd.payload.clone())
         .map_err(|e| format!("Invalid payload for directory.create: {}", e))?;
 
-    // Step 3: Validate path format
+    // Step 3: Validate path format and security
     if payload.path.is_empty() {
         return Err("Path cannot be empty".to_string());
     }
 
     if payload.path.starts_with('/') {
         return Err("Path cannot start with '/'".to_string());
+    }
+
+    // Path traversal check
+    use std::path::Component;
+    for component in std::path::Path::new(&payload.path).components() {
+        if matches!(component, Component::ParentDir) {
+            return Err(format!(
+                "Invalid path (traversal forbidden): {}",
+                payload.path
+            ));
+        }
     }
 
     // Step 4: Parse current Directory Block contents
@@ -80,7 +91,15 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
             .to_string();
         let block_type = payload.block_type.unwrap_or_else(|| "markdown".to_string());
 
+        // Unified field logic
+        let contents = if block_type == "markdown" {
+            json!({ "markdown": payload.content.unwrap_or_default() })
+        } else {
+            json!({ "text": payload.content.unwrap_or_default() })
+        };
+
         // Event 1: Create Content Block (core.create)
+        // NOTE: count=1 is a placeholder. Engine actor will update it with correct vector clock.
         events.push(create_event(
             file_block_id.clone(),
             "core.create",
@@ -88,9 +107,7 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
                 "name": file_name,
                 "type": block_type,
                 "owner": cmd.editor_id,
-                "contents": {
-                    "text": payload.content.unwrap_or_default()
-                },
+                "contents": contents,
                 "children": {},
                 "metadata": {}
             }),

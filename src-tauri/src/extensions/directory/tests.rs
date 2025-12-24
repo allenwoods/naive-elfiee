@@ -339,249 +339,6 @@ fn test_export_authorization_non_owner_with_grant() {
 }
 
 // ============================================
-// DirectoryRefresh - Payload Tests
-// ============================================
-
-#[test]
-fn test_refresh_payload_deserialize() {
-    // Test with empty payload (source_path is optional)
-    let json = serde_json::json!({});
-
-    let result: Result<DirectoryRefreshPayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "Payload should deserialize successfully");
-
-    let payload = result.unwrap();
-    assert!(payload.source_path.is_none());
-
-    // Test with source_path
-    let json_with_path = serde_json::json!({
-        "source_path": "/Users/me/projects/my-app"
-    });
-    let result2: Result<DirectoryRefreshPayload, _> = serde_json::from_value(json_with_path);
-    assert!(result2.is_ok());
-    assert_eq!(
-        result2.unwrap().source_path,
-        Some("/Users/me/projects/my-app".to_string())
-    );
-}
-
-// ============================================
-// DirectoryRefresh - Functionality Tests
-// ============================================
-
-#[test]
-fn test_refresh_basic() {
-    let registry = CapabilityRegistry::new();
-    let cap = registry
-        .get("directory.refresh")
-        .expect("directory.refresh should be registered");
-
-    use std::fs;
-    use tempfile::TempDir;
-
-    // Create temporary directory with initial files
-    let temp_dir = TempDir::new().unwrap();
-    let temp_path = temp_dir.path();
-
-    fs::write(temp_path.join("existing.md"), "# Existing File").unwrap();
-    fs::write(temp_path.join("to_delete.md"), "Will be deleted").unwrap();
-
-    // Create directory block with existing entries (simulating previous import)
-    let mut block = Block::new(
-        "Test Block".to_string(),
-        "directory".to_string(),
-        "alice".to_string(),
-    );
-
-    block.contents = serde_json::json!({
-        "entries": {
-            "existing.md": {
-                "id": "block-existing",
-                "type": "file",
-                "source": "linked"
-            },
-            "to_delete.md": {
-                "id": "block-to-delete",
-                "type": "file",
-                "source": "linked"
-            }
-        }
-    });
-
-    block.metadata.custom.insert(
-        "external_root_path".to_string(),
-        serde_json::json!(temp_path.to_str().unwrap()),
-    );
-
-    // Simulate external directory changes
-    fs::write(temp_path.join("new_file.rs"), "fn main() {}").unwrap(); // ADDITION
-    fs::remove_file(temp_path.join("to_delete.md")).unwrap(); // DELETION
-    fs::write(temp_path.join("existing.md"), "# Modified Content").unwrap(); // MODIFICATION
-
-    let cmd = Command::new(
-        "alice".to_string(),
-        "directory.refresh".to_string(),
-        block.block_id.clone(),
-        serde_json::json!({
-            "source_path": null  // Will use metadata.external_root_path
-        }),
-    );
-
-    let result = cap.handler(&cmd, Some(&block));
-    assert!(
-        result.is_ok(),
-        "Handler should execute successfully: {:?}",
-        result
-    );
-
-    let events = result.unwrap();
-
-    // Should generate multiple events:
-    // - 1 × core.create (new_file.rs)
-    // - 1 × markdown.write (existing.md modification)
-    // - 1 × core.delete (to_delete.md)
-    // - 1 × directory.write (update entries)
-    // - 1 × core.update_metadata (refresh timestamp)
-    assert!(
-        events.len() >= 4,
-        "Should generate multiple events for diff operations, got {}",
-        events.len()
-    );
-
-    // Verify core.create for new file
-    let create_events: Vec<_> = events
-        .iter()
-        .filter(|e| e.attribute.ends_with("/core.create"))
-        .collect();
-    assert_eq!(
-        create_events.len(),
-        1,
-        "Should have 1 core.create event for new_file.rs"
-    );
-
-    // Verify core.delete for deleted file
-    let delete_events: Vec<_> = events
-        .iter()
-        .filter(|e| e.attribute.ends_with("/core.delete"))
-        .collect();
-    assert_eq!(
-        delete_events.len(),
-        1,
-        "Should have 1 core.delete event for to_delete.md"
-    );
-    assert_eq!(delete_events[0].entity, "block-to-delete");
-
-    // Verify modification event
-    let write_events: Vec<_> = events
-        .iter()
-        .filter(|e| e.attribute.ends_with(".write") && e.entity != block.block_id)
-        .collect();
-    assert_eq!(
-        write_events.len(),
-        1,
-        "Should have 1 write event for existing.md modification"
-    );
-
-    // Verify directory.write event
-    let dir_write = events
-        .iter()
-        .find(|e| e.attribute.ends_with("/directory.write"));
-    assert!(dir_write.is_some(), "Should have directory.write event");
-
-    let new_entries = dir_write.unwrap().value["contents"]["entries"]
-        .as_object()
-        .unwrap();
-    assert!(
-        new_entries.contains_key("new_file.rs"),
-        "Should contain new_file.rs"
-    );
-    assert!(
-        new_entries.contains_key("existing.md"),
-        "Should still contain existing.md"
-    );
-    assert!(
-        !new_entries.contains_key("to_delete.md"),
-        "Should not contain to_delete.md"
-    );
-
-    // Verify metadata update
-    let metadata_event = events
-        .iter()
-        .find(|e| e.attribute.ends_with("/core.update_metadata"));
-    assert!(
-        metadata_event.is_some(),
-        "Should have metadata update event"
-    );
-    assert!(metadata_event.unwrap().value["metadata"]
-        .get("last_refresh")
-        .is_some());
-}
-
-// ============================================
-// DirectoryRefresh - Authorization Tests
-// ============================================
-
-#[test]
-fn test_refresh_authorization_owner() {
-    let grants_table = GrantsTable::new();
-
-    let block = Block::new(
-        "Test Block".to_string(),
-        "directory".to_string(),
-        "alice".to_string(),
-    );
-
-    // Owner should always be authorized
-    let is_authorized = block.owner == "alice"
-        || grants_table.has_grant("alice", "directory.refresh", &block.block_id);
-
-    assert!(is_authorized, "Block owner should be authorized");
-}
-
-#[test]
-fn test_refresh_authorization_non_owner_without_grant() {
-    let grants_table = GrantsTable::new();
-
-    let block = Block::new(
-        "Test Block".to_string(),
-        "directory".to_string(),
-        "alice".to_string(),
-    );
-
-    // Bob (non-owner) without grant should not be authorized
-    let is_authorized =
-        block.owner == "bob" || grants_table.has_grant("bob", "directory.refresh", &block.block_id);
-
-    assert!(
-        !is_authorized,
-        "Non-owner without grant should not be authorized"
-    );
-}
-
-#[test]
-fn test_refresh_authorization_non_owner_with_grant() {
-    let mut grants_table = GrantsTable::new();
-
-    let block = Block::new(
-        "Test Block".to_string(),
-        "directory".to_string(),
-        "alice".to_string(),
-    );
-
-    // Grant Bob permission
-    grants_table.add_grant(
-        "bob".to_string(),
-        "directory.refresh".to_string(),
-        block.block_id.clone(),
-    );
-
-    let is_authorized =
-        block.owner == "bob" || grants_table.has_grant("bob", "directory.refresh", &block.block_id);
-
-    assert!(is_authorized, "Non-owner with grant should be authorized");
-}
-
-// ============================================
 // DirectoryCreate - Payload Tests
 // ============================================
 
@@ -1168,4 +925,30 @@ fn test_full_workflow() {
     let export_events = export_cap.handler(&export_cmd, Some(&block)).unwrap();
     assert_eq!(export_events.len(), 1, "Export should generate audit event");
     assert_eq!(export_events[0].value["target_path"], "/tmp/export-test");
+}
+
+#[test]
+fn test_security_path_traversal_create() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("directory.create").unwrap();
+    let block = Block::new(
+        "test".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Malicious path attempting traversal
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.create".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "path": "../evil.txt",
+            "type": "file"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_err(), "Should reject path traversal attempts");
+    assert!(result.unwrap_err().contains("traversal forbidden"));
 }
