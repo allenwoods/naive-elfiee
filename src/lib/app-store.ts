@@ -80,7 +80,8 @@ interface AppStore {
     fileId: string,
     targetEditor: string,
     capability: string,
-    targetBlock?: string
+    targetBlock?: string,
+    granterEditorId?: string
   ) => Promise<void>
   revokeCapability: (
     fileId: string,
@@ -364,7 +365,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
   loadEditors: async (fileId: string) => {
     try {
       const editors = await TauriClient.editor.listEditors(fileId)
-      const activeEditorId = await TauriClient.editor.getActiveEditor(fileId)
+      let activeEditorId = await TauriClient.editor.getActiveEditor(fileId)
+
+      // Validate activeEditorId - if it doesn't exist in editors list, reset to first editor
+      if (
+        activeEditorId &&
+        !editors.some((e) => e.editor_id === activeEditorId)
+      ) {
+        console.warn(
+          `Active editor ${activeEditorId} not found in editors list. Resetting to first editor.`
+        )
+        if (editors.length > 0) {
+          // Prefer System editor, otherwise use first editor
+          const systemEditor = editors.find((e) => e.name === 'System')
+          activeEditorId = systemEditor
+            ? systemEditor.editor_id
+            : editors[0].editor_id
+          // Update backend active editor
+          await TauriClient.editor.setActiveEditor(fileId, activeEditorId)
+        } else {
+          activeEditorId = null
+        }
+      }
 
       const files = new Map(get().files)
       const fileState = files.get(fileId)
@@ -474,14 +496,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     fileId: string,
     targetEditor: string,
     capability: string,
-    targetBlock: string = '*'
+    targetBlock: string = '*',
+    granterEditorId?: string
   ) => {
     try {
       await TauriClient.editor.grantCapability(
         fileId,
         targetEditor,
         capability,
-        targetBlock
+        targetBlock,
+        granterEditorId
       )
       // Reload grants to update UI
       await get().loadGrants(fileId)

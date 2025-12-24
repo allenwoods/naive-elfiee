@@ -137,6 +137,25 @@ pub async fn delete_editor(
     // Process command
     handle.process_command(cmd).await?;
 
+    // If we just deleted the active editor, switch to another editor
+    if let Some(current_active) = state.get_active_editor(&file_id) {
+        if current_active == editor_id {
+            // Get all remaining editors
+            let editors = handle.get_all_editors().await;
+
+            // Find first available editor (prefer system editor)
+            let new_active = editors
+                .values()
+                .find(|e| e.editor_id != editor_id)
+                .map(|e| e.editor_id.clone())
+                .or_else(|| config::get_system_editor_id().ok());
+
+            if let Some(new_editor_id) = new_active {
+                state.set_active_editor(file_id.clone(), new_editor_id);
+            }
+        }
+    }
+
     Ok(())
 }
 

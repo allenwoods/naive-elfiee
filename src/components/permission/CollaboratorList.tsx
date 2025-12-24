@@ -99,13 +99,16 @@ export const CollaboratorList = ({
 
   const handleAddSuccess = async (newEditor: { editor_id: string }) => {
     // Grant default read permission to the new collaborator
+    // Use block owner as the granter since they have permission to grant capabilities
     try {
       await grantCapability(
         fileId,
         newEditor.editor_id,
         DEFAULT_CAPABILITY,
-        blockId
+        blockId,
+        block.owner // Explicitly use block owner to grant permissions
       )
+      toast.success('Default read permission granted')
     } catch (error) {
       console.error('Failed to grant default read permission:', error)
       toast.warning(
