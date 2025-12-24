@@ -41,6 +41,7 @@ export const CollaboratorList = ({
   })
   const grantCapability = useAppStore((state) => state.grantCapability)
   const revokeCapability = useAppStore((state) => state.revokeCapability)
+  const deleteEditor = useAppStore((state) => state.deleteEditor)
 
   // Filter grants relevant to this block (including wildcards)
   const relevantGrants = useMemo(() => {
@@ -86,19 +87,12 @@ export const CollaboratorList = ({
   }
 
   const handleRemoveAccess = async (editorId: string) => {
-    // Revoke all permissions for this editor on this block
-    const editorGrants = relevantGrants.filter((g) => g.editor_id === editorId)
-
+    // Delete the editor completely, which also removes all their grants
     try {
-      // Revoke all grants atomically using Promise.all
-      await Promise.all(
-        editorGrants.map((grant) =>
-          revokeCapability(fileId, editorId, grant.cap_id, grant.block_id)
-        )
-      )
+      await deleteEditor(fileId, editorId)
     } catch (error) {
-      console.error('Failed to remove access:', error)
-      toast.error('Failed to remove access. Please try again.')
+      console.error('Failed to remove collaborator:', error)
+      // deleteEditor already shows a toast, so we don't need to show another one
       throw error
     }
   }

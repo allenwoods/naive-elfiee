@@ -67,6 +67,7 @@ interface AppStore {
     name: string,
     editorType?: string
   ) => Promise<Editor>
+  deleteEditor: (fileId: string, editorId: string) => Promise<void>
   setActiveEditor: (fileId: string, editorId: string) => Promise<void>
   getActiveEditor: (fileId: string) => Editor | undefined
   getEditors: (fileId: string) => Editor[]
@@ -393,6 +394,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const errorMessage =
         error instanceof Error ? error.message : String(error)
       toast.error(`Failed to create user: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  deleteEditor: async (fileId: string, editorId: string) => {
+    try {
+      await TauriClient.editor.deleteEditor(fileId, editorId)
+      // Reload editors to get the updated list
+      await get().loadEditors(fileId)
+      // Also reload grants since deleting an editor removes all their grants
+      await get().loadGrants(fileId)
+      toast.success('Collaborator removed successfully')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to remove collaborator: ${errorMessage}`)
       throw error
     }
   },
