@@ -29,10 +29,13 @@ fn inject_block_dir(
 ) -> Result<PathBuf, String> {
     let block_dir = temp_dir.join(format!("{}{}", BLOCK_DIR_PREFIX, block_id));
 
-    // Create block directory if it doesn't exist
-    std::fs::create_dir_all(&block_dir)
-        .map_err(|e| format!("Failed to create block directory: {}", e))?;
-
+    // Create block directory if it doesn't exist.
+    // Handle the case where it might already exist gracefully.
+    if let Err(e) = std::fs::create_dir_all(&block_dir) {
+        if e.kind() != std::io::ErrorKind::AlreadyExists {
+            return Err(format!("Failed to create block directory: {}", e));
+        }
+    }
     // Inject _block_dir into contents (runtime only, will be stripped before persistence)
     if let Some(obj) = contents.as_object_mut() {
         obj.insert(
@@ -78,6 +81,13 @@ pub enum EngineMessage {
     GetBlockGrants {
         block_id: String,
         response: oneshot::Sender<Vec<(String, String, String)>>,
+    },
+    /// Check if an editor is authorized for a capability on a block
+    CheckGrant {
+        editor_id: String,
+        cap_id: String,
+        block_id: String,
+        response: oneshot::Sender<bool>,
     },
     /// Get all events
     GetAllEvents {
@@ -230,6 +240,15 @@ impl ElfileEngineActor {
                     }
                     let _ = response.send(block_grants);
                 }
+                EngineMessage::CheckGrant {
+                    editor_id,
+                    cap_id,
+                    block_id,
+                    response,
+                } => {
+                    let authorized = self.state.is_authorized(&editor_id, &cap_id, &block_id);
+                    let _ = response.send(authorized);
+                }
                 EngineMessage::Shutdown => {
                     break;
                 }
@@ -285,13 +304,10 @@ impl ElfileEngineActor {
         // 3. Check authorization (certificator)
         // Only check if block exists (non-create operations)
         if let Some(block) = block_opt.as_ref() {
-            let is_authorized = block.owner == cmd.editor_id
-                || self
-                    .state
-                    .grants
-                    .has_grant(&cmd.editor_id, &cmd.cap_id, &block.block_id);
-
-            if !is_authorized {
+            if !self
+                .state
+                .is_authorized(&cmd.editor_id, &cmd.cap_id, &block.block_id)
+            {
                 return Err(format!(
                     "Authorization failed: {} does not have permission for {} on block {}",
                     cmd.editor_id, cmd.cap_id, cmd.block_id
@@ -490,6 +506,25 @@ impl EngineHandle {
         }
 
         rx.await.unwrap_or_default()
+    }
+
+    /// Check if an editor is authorized for a capability on a block.
+    pub async fn check_grant(&self, editor_id: String, cap_id: String, block_id: String) -> bool {
+        let (tx, rx) = oneshot::channel();
+        if self
+            .sender
+            .send(EngineMessage::CheckGrant {
+                editor_id,
+                cap_id,
+                block_id,
+                response: tx,
+            })
+            .is_err()
+        {
+            return false;
+        }
+
+        rx.await.unwrap_or(false)
     }
 
     /// Get all events.
