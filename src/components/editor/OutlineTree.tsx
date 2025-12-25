@@ -358,15 +358,12 @@ export const OutlineTree = ({
   const prevInitialNodesRef = useRef<OutlineNode[]>(initialNodes || [])
 
   // Sync with initialNodes when they change, preserving expansion state
+
   useEffect(() => {
     // Only run sync logic if initialNodes has actually changed
+
     if (initialNodes && initialNodes !== prevInitialNodesRef.current) {
       prevInitialNodesRef.current = initialNodes
-      console.log(
-        '[OutlineTree] Syncing initialNodes:',
-        initialNodes.length,
-        'nodes'
-      )
 
       setNodes((currentNodes) => {
         // Create a set of currently expanded node IDs

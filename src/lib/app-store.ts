@@ -255,39 +255,47 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   createBlock: async (
     fileId: string,
+
     name: string,
+
     blockType: string,
+
     parentId?: string | null
   ) => {
     try {
-      console.log(
-        `[createBlock] Creating block "${name}" (parent: ${parentId})`
-      )
       // 1. Create the block
+
       const events = await TauriClient.block.createBlock(
         fileId,
+
         name,
+
         blockType
       )
-      console.log('[createBlock] Created events:', events)
 
       // 2. Link to parent if provided
+
       if (parentId) {
         // Extract new block ID from the create event
+
         // The first event should be core.create, and its entity is the new block ID
+
         const createEvent = events.find((e) =>
           e.attribute.endsWith('/core.create')
         )
+
         if (createEvent) {
           const newBlockId = createEvent.entity
-          console.log(`[createBlock] Linking ${parentId} -> ${newBlockId}`)
+
           await TauriClient.block.linkBlock(
             fileId,
+
             parentId,
+
             newBlockId,
+
             'children'
           )
-          console.log('[createBlock] Linked successfully')
         } else {
           console.warn(
             'Could not find core.create event to extract block ID',
@@ -297,14 +305,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
 
       // Reload blocks to get the new block
+
       await get().loadBlocks(fileId)
-      console.log('[createBlock] Blocks reloaded')
+
       toast.success('Block created successfully')
     } catch (error) {
-      console.error('[createBlock] Error:', error)
       const errorMessage =
         error instanceof Error ? error.message : String(error)
+
       toast.error(`Failed to create block: ${errorMessage}`)
+
       throw error
     }
   },

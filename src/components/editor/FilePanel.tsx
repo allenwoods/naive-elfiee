@@ -356,12 +356,6 @@ export const FilePanel = () => {
         const childrenIds =
           childrenMap?.children || childrenMap?.['children'] || []
 
-        if (childrenIds.length > 0) {
-          console.log(
-            `[FilePanel] Block ${block.name} (${block.block_id}) has children:`,
-            childrenIds
-          )
-        }
         childrenIds.forEach((childId: string) => {
           const childNode = nodeMap.get(childId)
           const parentNode = nodeMap.get(block.block_id)
