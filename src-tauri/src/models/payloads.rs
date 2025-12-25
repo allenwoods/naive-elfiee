@@ -13,12 +13,19 @@ pub struct CreateBlockPayload {
     pub name: String,
     /// The block type (e.g., "markdown", "code", "diagram")
     pub block_type: String,
+    /// The source category of the block ("outline" or "linked")
+    #[serde(default = "default_source")]
+    pub source: String,
     /// Optional metadata (description, custom fields, etc.)
     ///
     /// If provided, will be merged with auto-generated timestamps.
     /// Example: { "description": "项目需求文档" }
     #[serde(default)]
     pub metadata: Option<serde_json::Value>,
+}
+
+fn default_source() -> String {
+    "outline".to_string()
 }
 
 /// Payload for core.link capability
@@ -133,12 +140,24 @@ mod tests {
     fn test_create_block_payload() {
         let json = serde_json::json!({
             "name": "My Block",
-            "block_type": "markdown"
+            "block_type": "markdown",
+            "source": "linked"
         });
         let payload: CreateBlockPayload = serde_json::from_value(json).unwrap();
         assert_eq!(payload.name, "My Block");
         assert_eq!(payload.block_type, "markdown");
+        assert_eq!(payload.source, "linked");
         assert!(payload.metadata.is_none());
+    }
+
+    #[test]
+    fn test_create_block_payload_default_source() {
+        let json = serde_json::json!({
+            "name": "My Block",
+            "block_type": "markdown"
+        });
+        let payload: CreateBlockPayload = serde_json::from_value(json).unwrap();
+        assert_eq!(payload.source, "outline");
     }
 
     #[test]

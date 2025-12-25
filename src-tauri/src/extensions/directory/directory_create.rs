@@ -93,9 +93,15 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
 
         // Unified field logic
         let contents = if block_type == "markdown" {
-            json!({ "markdown": payload.content.unwrap_or_default() })
+            json!({
+                "markdown": payload.content.unwrap_or_default(),
+                "source": payload.source
+            })
         } else {
-            json!({ "text": payload.content.unwrap_or_default() })
+            json!({
+                "text": payload.content.unwrap_or_default(),
+                "source": payload.source
+            })
         };
 
         // Event 1: Create Content Block (core.create)
@@ -121,7 +127,7 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
             json!({
                 "id": file_block_id,
                 "type": "file",
-                "source": "outline",
+                "source": payload.source,
                 "updated_at": now_utc()
             }),
         );
@@ -134,7 +140,7 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
             json!({
                 "id": dir_id,
                 "type": "directory",
-                "source": "outline",
+                "source": payload.source,
                 "updated_at": now_utc()
             }),
         );

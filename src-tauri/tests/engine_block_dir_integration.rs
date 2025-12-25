@@ -253,7 +253,4 @@ async fn test_multiple_blocks_with_files() {
         let content = fs::read_to_string(&file_path).unwrap();
         assert_eq!(content, format!("Content from block {}", i + 1));
     }
-
-    println!("✅ 多 block 隔离测试通过！");
-    reopened_handle.shutdown().await;
 }

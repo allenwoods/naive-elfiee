@@ -76,17 +76,13 @@ pub async fn get_all_blocks(
     file_id: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<Block>, String> {
-    // Get engine handle for this file
     let handle = state
         .engine_manager
         .get_engine(&file_id)
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
-    // Get all blocks from engine
     let blocks_map = handle.get_all_blocks().await;
-
-    // Convert HashMap to Vec
-    let blocks: Vec<Block> = blocks_map.into_values().collect();
+    let blocks = blocks_map.into_values().collect();
 
     Ok(blocks)
 }
