@@ -26,6 +26,11 @@ impl CapabilityRegistry {
     }
 
     /// Backwards-compatible helper used by older tests.
+    ///
+    /// Some tests call `with_extensions()` explicitly to emphasize that
+    /// extension capabilities must be part of the registry. The current
+    /// implementation already registers them in `new()`, so we just
+    /// delegate to `new()` here.
     pub fn with_extensions() -> Self {
         Self::new()
     }
