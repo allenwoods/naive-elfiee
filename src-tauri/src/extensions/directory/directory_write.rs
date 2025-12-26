@@ -32,6 +32,13 @@ fn handle_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
         return Err("Entries must be a JSON object".to_string());
     }
 
+    // Validate all entry paths
+    if let Some(obj) = payload.entries.as_object() {
+        for path in obj.keys() {
+            crate::utils::validate_virtual_path(path)?;
+        }
+    }
+
     let mut contents = serde_json::json!({
         "entries": payload.entries
     });

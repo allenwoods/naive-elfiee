@@ -35,13 +35,16 @@ export function buildTreeFromEntries(
   const roots: VfsNode[] = []
 
   // 1. 获取所有路径并按深度排序（浅到深），确保处理子节点前父节点已处理
-  const paths = Object.keys(entries).sort((a, b) => {
-    const depthA = a.split('/').filter(Boolean).length
-    const depthB = b.split('/').filter(Boolean).length
-    return depthA - depthB
-  })
+  // 性能优化：缓存深度计算，避免在排序循环中重复 split
+  const pathWithDepths = Object.keys(entries).map((path) => ({
+    path,
+    depth: path.split('/').filter(Boolean).length,
+  }))
 
-  for (const path of paths) {
+  pathWithDepths.sort((a, b) => a.depth - b.depth)
+  const sortedPaths = pathWithDepths.map((pd) => pd.path)
+
+  for (const path of sortedPaths) {
     const entry = entries[path]
     const segments = path.split('/').filter(Boolean)
     const name = segments[segments.length - 1] || path

@@ -39,13 +39,7 @@ fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         .map_err(|e| format!("Invalid payload for directory.rename: {}", e))?;
 
     // Step 3: Validate path security
-    use std::path::Component;
-    if std::path::Path::new(&payload.new_path)
-        .components()
-        .any(|c| matches!(c, Component::ParentDir))
-    {
-        return Err("New path cannot contain '..' components (traversal forbidden)".to_string());
-    }
+    crate::utils::validate_virtual_path(&payload.new_path)?;
 
     // Step 4: Parse current Directory Block contents
     let contents = block

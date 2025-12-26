@@ -67,17 +67,9 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         .trim_end_matches('/')
         .to_string();
 
-    // Validate target_path traversal
+    // Validate target_path traversal (skip if root "/" or empty)
     if !target_prefix.is_empty() && target_prefix != "/" {
-        use std::path::Component;
-        for component in Path::new(&target_prefix).components() {
-            if matches!(component, Component::ParentDir) {
-                return Err(format!(
-                    "Invalid target_path (traversal forbidden): {}",
-                    target_prefix
-                ));
-            }
-        }
+        crate::utils::validate_virtual_path(&target_prefix.trim_start_matches('/'))?;
     }
 
     let mut events = Vec::new();

@@ -57,6 +57,8 @@ export const FilePanel = () => {
     loadBlocks,
     getBlocks,
     getActiveEditor,
+    getOutlineTree,
+    getLinkedRepos,
   } = useAppStore()
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [createDialog, setCreateDialog] = useState({
@@ -79,14 +81,16 @@ export const FilePanel = () => {
     }
   }, [currentFileId])
 
-  // Selectors for trees
-  const outlineTree = currentFileId
-    ? useAppStore.getState().getOutlineTree(currentFileId)
-    : []
+  // Selectors for trees - Memoized to prevent redundant sorting/building
+  const outlineTree = useMemo(
+    () => (currentFileId ? getOutlineTree(currentFileId) : []),
+    [currentFileId, getOutlineTree]
+  )
 
-  const linkedRepos = currentFileId
-    ? useAppStore.getState().getLinkedRepos(currentFileId)
-    : []
+  const linkedRepos = useMemo(
+    () => (currentFileId ? getLinkedRepos(currentFileId) : []),
+    [currentFileId, getLinkedRepos]
+  )
 
   // Find the block ID of the system outline (identified strictly by source="outline")
   const outlineBlockId = currentFileId
