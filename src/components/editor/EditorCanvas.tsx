@@ -16,6 +16,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { CodeBlockEditor } from './CodeBlockEditor'
+import { TauriClient } from '@/lib/tauri-client'
 import './myst-styles.css'
 
 // AST Node Types
@@ -522,6 +523,12 @@ export const EditorCanvas = () => {
   const [documentContent, setDocumentContent] = useState<string>('')
   const [selectedBlock, setSelectedBlock] = useState<Block | null>(null)
 
+  // Retrieve active editor ID to check permissions against
+  const activeEditorId = useAppStore((state) => {
+    if (!currentFileId) return undefined
+    return state.files.get(currentFileId)?.activeEditorId || undefined
+  })
+
   // Load block content when selectedBlockId changes
   useEffect(() => {
     if (currentFileId && selectedBlockId) {
@@ -583,6 +590,22 @@ export const EditorCanvas = () => {
 
     setIsSaving(true)
     try {
+      // Check permission first (UI layer pre-validation)
+      const capId =
+        selectedBlock.block_type === 'code' ? 'code.write' : 'markdown.write'
+      const hasPermission = await TauriClient.block.checkPermission(
+        currentFileId,
+        selectedBlockId,
+        capId,
+        activeEditorId
+      )
+
+      if (!hasPermission) {
+        toast.error('You do not have permission to edit this block.')
+        setIsSaving(false)
+        return
+      }
+
       // Step 1: Update block content in memory
       await updateBlock(
         currentFileId,
@@ -609,6 +632,7 @@ export const EditorCanvas = () => {
     selectedBlockId,
     selectedBlock,
     documentContent,
+    activeEditorId,
     updateBlock,
     saveFile,
     loadEvents,

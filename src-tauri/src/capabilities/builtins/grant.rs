@@ -12,9 +12,9 @@ fn handle_grant(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>> 
         .map_err(|e| format!("Invalid payload for core.grant: {}", e))?;
 
     // Create grant event
-    // Entity is the granter's editor_id per README.md Part 2
+    // Entity is the target block (or "*" for wildcard)
     let event = create_event(
-        cmd.editor_id.clone(),
+        payload.target_block.clone(),
         "core.grant", // cap_id
         serde_json::json!({
             "editor": payload.target_editor,

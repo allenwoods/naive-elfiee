@@ -448,7 +448,8 @@ export const commands = {
   async checkPermission(
     fileId: string,
     blockId: string,
-    capability: string
+    capability: string,
+    editorId: string | null
   ): Promise<Result<boolean, string>> {
     try {
       return {
@@ -457,6 +458,7 @@ export const commands = {
           fileId,
           blockId,
           capability,
+          editorId,
         }),
       }
     } catch (e) {
@@ -1027,6 +1029,7 @@ export type Event = {
   attribute: string
   value: JsonValue
   timestamp: Partial<{ [key in string]: number }>
+  created_at: string
 }
 /**
  * File metadata for frontend display.

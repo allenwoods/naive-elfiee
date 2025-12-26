@@ -57,7 +57,7 @@ export const AddCollaboratorDialog = ({
       onSuccess?.(newEditor)
     } catch (error) {
       console.error('Failed to create collaborator:', error)
-      // Backend validation errors (including duplicate names) will be shown via toast by app-store
+      // Error toast is already shown by app-store
     } finally {
       setIsCreating(false)
     }

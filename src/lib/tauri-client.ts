@@ -360,9 +360,15 @@ export class BlockOperations {
   static async checkPermission(
     fileId: string,
     blockId: string,
-    capability: string
+    capability: string,
+    editorId?: string
   ): Promise<boolean> {
-    const result = await commands.checkPermission(fileId, blockId, capability)
+    const result = await commands.checkPermission(
+      fileId,
+      blockId,
+      capability,
+      editorId || null
+    )
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -702,12 +708,50 @@ export class EventOperations {
   }
 
   /**
+   * 获取指定 Event 时刻的 Block 状态（回溯）
+   */
+  static async getBlockAtEvent(
+    fileId: string,
+    blockId: string,
+    eventId: string
+  ): Promise<Block> {
+    const result = await commands.getBlockAtEvent(fileId, blockId, eventId)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * 获取指定 Event 时刻的完整状态快照（包含权限）
+   */
+  static async getStateAtEvent(
+    fileId: string,
+    blockId: string,
+    eventId: string
+  ): Promise<{ block: Block; grants: Grant[] }> {
+    const result = await commands.getStateAtEvent(fileId, blockId, eventId)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
    * 按向量时钟对事件排序（降序：最新在前）
+   * 如果向量时钟无法区分先后（并发），则使用 created_at 作为备选排序依据
    */
   static sortEventsByVectorClock(events: Event[]): Event[] {
     return [...events].sort((a, b) => {
-      // 降序排列（最新事件在前）
-      return -compareVectorClocks(a.timestamp, b.timestamp)
+      const vcResult = compareVectorClocks(a.timestamp, b.timestamp)
+      if (vcResult !== 0) {
+        return -vcResult // 降序
+      }
+
+      // 如果向量时钟相等或并发，按创建时间倒序
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
   }
 
@@ -733,8 +777,8 @@ export class EventOperations {
  * 向量时钟比较函数
  */
 function compareVectorClocks(
-  vc1: Record<string, number>,
-  vc2: Record<string, number>
+  vc1: Partial<Record<string, number>>,
+  vc2: Partial<Record<string, number>>
 ): number {
   const allEditors = new Set([...Object.keys(vc1), ...Object.keys(vc2)])
 

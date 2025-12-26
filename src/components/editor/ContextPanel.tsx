@@ -7,6 +7,12 @@ import {
   Tag,
   Edit2,
   RotateCcw,
+  PlusCircle,
+  Trash2,
+  ShieldCheck,
+  ShieldAlert,
+  Activity,
+  History,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -15,23 +21,19 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useAppStore } from '@/lib/app-store'
+import { TauriClient } from '@/lib/tauri-client'
 import { CollaboratorList } from '@/components/permission/CollaboratorList'
+import { toast } from 'sonner'
 import type { Block, Event } from '@/bindings'
-
-const formatTime = (timestamp: Partial<{ [key: string]: number }>): string => {
-  const values = Object.values(timestamp).filter(
-    (v): v is number => v !== undefined
-  )
-  const max = values.length > 0 ? Math.max(...values, 0) : 0
-  return max ? new Date(max * 1000).toLocaleTimeString() : '--'
-}
 
 const InfoTab = ({
   block,
   fileId,
+  activeEditorId,
 }: {
   block: Block | null
   fileId: string | null
+  activeEditorId: string | null | undefined
 }) => {
   const [isEditingDescription, setIsEditingDescription] = useState(false)
   const [editedDescription, setEditedDescription] = useState('')
@@ -80,6 +82,19 @@ const InfoTab = ({
 
     setIsSaving(true)
     try {
+      // Permission check
+      const hasPermission = await TauriClient.block.checkPermission(
+        fileId,
+        block.block_id,
+        'core.update_metadata',
+        activeEditorId || undefined
+      )
+
+      if (!hasPermission) {
+        toast.error('You do not have permission to update metadata.')
+        return
+      }
+
       await updateBlockMetadata(fileId, block.block_id, {
         description: editedDescription,
       })
@@ -282,123 +297,241 @@ const TimelineTab = ({
   fileId: string | null
   blockId: string | null
 }) => {
-  const [sortedEvents, setSortedEvents] = useState<Event[]>([])
+  const { restoreToEvent } = useAppStore()
   const [isRestoring, setIsRestoring] = useState(false)
 
-  // 按时间排序（最新在上）
-  useEffect(() => {
-    // 暂时使用简单排序，后续可以使用 TauriClient.event.sortEventsByVectorClock
-    const sorted = [...events].sort((a, b) => {
-      const aMax = Math.max(...Object.values(a.timestamp), 0)
-      const bMax = Math.max(...Object.values(b.timestamp), 0)
-      return bMax - aMax // 降序
-    })
-    setSortedEvents(sorted)
+  // Retrieve editors to resolve names
+  const editors = useAppStore((state) => {
+    if (!fileId) return []
+    return state.files.get(fileId)?.editors || []
+  })
+
+  const sortedEvents = useMemo(() => {
+    // Use the project's standardized vector clock sorting for ordering (descending: newest first)
+    return TauriClient.event.sortEventsByVectorClock(events)
   }, [events])
 
-  // 处理 restore 操作（暂时禁用，等待后端实现）
   const handleRestore = async (eventId: string) => {
-    if (!fileId || !blockId) {
-      return
+    if (!fileId || !blockId) return
+    setIsRestoring(true)
+    try {
+      await restoreToEvent(fileId, blockId, eventId)
+    } catch (error) {
+      console.error('Failed to restore:', error)
+    } finally {
+      setIsRestoring(false)
     }
-    // TODO: 实现 restore 功能（依赖后端 get_block_content_at_event）
-    console.log('Restore to event:', eventId)
+  }
+
+  const getEventMeta = (capId: string, value?: any) => {
+    if (capId.includes('create')) {
+      return {
+        icon: PlusCircle,
+        color: 'text-emerald-500',
+        bg: 'bg-emerald-500/10',
+        label: 'Created',
+        desc: 'Created new block',
+      }
+    }
+    if (capId.includes('write') || capId.includes('update')) {
+      return {
+        icon: Edit2,
+        color: 'text-blue-500',
+        bg: 'bg-blue-500/10',
+        label: 'Edited',
+        desc: 'Modified content',
+      }
+    }
+    if (capId.includes('delete')) {
+      return {
+        icon: Trash2,
+        color: 'text-red-500',
+        bg: 'bg-red-500/10',
+        label: 'Deleted',
+        desc: 'Removed block',
+      }
+    }
+    if (capId.includes('grant')) {
+      let desc = 'Granted permission'
+      if (value && value.editor && value.capability) {
+        const targetEditor = editors.find((e) => e.editor_id === value.editor)
+        const targetName = targetEditor ? targetEditor.name : value.editor
+        desc = `Granted '${value.capability}' to ${targetName}`
+      }
+      return {
+        icon: ShieldCheck,
+        color: 'text-indigo-500',
+        bg: 'bg-indigo-500/10',
+        label: 'Access',
+        desc,
+      }
+    }
+    if (capId.includes('revoke')) {
+      let desc = 'Revoked permission'
+      if (value && value.editor && value.capability) {
+        const targetEditor = editors.find((e) => e.editor_id === value.editor)
+        const targetName = targetEditor ? targetEditor.name : value.editor
+        desc = `Revoked '${value.capability}' from ${targetName}`
+      }
+      return {
+        icon: ShieldAlert,
+        color: 'text-orange-500',
+        bg: 'bg-orange-500/10',
+        label: 'Access',
+        desc,
+      }
+    }
+    return {
+      icon: Activity,
+      color: 'text-foreground',
+      bg: 'bg-muted',
+      label: 'System',
+      desc: 'System activity',
+    }
   }
 
   if (sortedEvents.length === 0) {
     return (
-      <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border/50 text-center">
-        <div>
-          <p className="text-sm text-muted-foreground">暂无操作记录</p>
-          <p className="mt-1 text-xs text-muted-foreground/70">
-            编辑文档后将显示操作历史
-          </p>
+      <div className="flex h-40 flex-col items-center justify-center p-4 text-center">
+        <div className="mb-3 rounded-full bg-muted/50 p-3">
+          <History className="h-5 w-5 text-muted-foreground/50" />
         </div>
+        <p className="text-sm font-medium text-foreground">No History</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Changes will appear here
+        </p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
-      {sortedEvents.map((event) => {
-        // 解析事件
-        const [editorId, capId] = event.attribute.split('/')
-        const operatorName = editorId === 'system' ? 'System' : editorId
+    <div className="relative px-4 pb-4 pt-2">
+      <div className="ml-2.5 space-y-6 border-l border-border/50 pl-6 pt-1">
+        {sortedEvents.map((event) => {
+          const [editorId, capId] = event.attribute.split('/')
 
-        // 获取操作描述
-        const actionLabels: Record<string, string> = {
-          'core.create': '创建了文件',
-          'markdown.write': '修改了文件内容',
-          'core.delete': '删除了文件',
-          'core.grant': '授予了权限',
-          'core.revoke': '撤销了权限',
-        }
-        const action = actionLabels[capId] || capId
+          // Resolve editor name
+          let operatorName = editorId
+          if (editorId === 'system') {
+            operatorName = 'System'
+          } else {
+            const editor = editors.find((e) => e.editor_id === editorId)
+            if (editor) {
+              operatorName = editor.name
+            }
+          }
 
-        // 格式化时间
-        const timestamp = Math.max(...Object.values(event.timestamp), 0)
-        const timeStr = `操作 #${timestamp}`
+          const meta = getEventMeta(capId, event.value)
+          const Icon = meta.icon
+          const date = new Date(event.created_at)
 
-        return (
-          <div
-            key={event.event_id}
-            className="rounded-lg border border-border bg-background p-3 transition-colors hover:bg-muted/20"
-          >
-            {/* Event Header */}
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="font-medium text-foreground">
-                    {operatorName}
-                  </span>
-                  <span className="text-muted-foreground">{action}</span>
-                </div>
-                <div className="mt-1 flex items-center gap-2">
-                  <Clock className="h-3 w-3 text-muted-foreground/70" />
-                  <span className="text-xs text-muted-foreground">
-                    {timeStr}
-                  </span>
-                </div>
+          return (
+            <div key={event.event_id} className="group relative">
+              {/* Icon Marker */}
+              <div
+                className={`absolute -left-[31px] top-0.5 flex h-5 w-5 items-center justify-center rounded-full border bg-background ring-4 ring-background transition-colors ${meta.color} border-border/50`}
+              >
+                <Icon className="h-2.5 w-2.5" />
               </div>
 
-              {/* Restore Button (暂时禁用) */}
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs"
-                onClick={() => handleRestore(event.event_id)}
-                disabled={true} // 暂时禁用，等待后端实现
-                title="还原功能开发中"
-              >
-                <RotateCcw className="mr-1.5 h-3 w-3" />
-                还原
-              </Button>
+              {/* Content */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-semibold text-foreground/90">
+                      {operatorName}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {date.toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      · {date.toLocaleDateString()}
+                    </span>
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className={`h-5 px-1.5 text-[10px] font-normal tracking-wide ${meta.bg} ${meta.color} hover:${meta.bg} border-0`}
+                  >
+                    {meta.label}
+                  </Badge>
+                </div>
+
+                <div className="relative rounded-md border border-border/40 bg-muted/20 p-2.5 transition-all hover:bg-muted/40 group-hover:border-border/60">
+                  <p className="text-xs leading-relaxed text-foreground/80">
+                    {meta.desc}
+                  </p>
+
+                  <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={() => handleRestore(event.event_id)}
+                      disabled={isRestoring}
+                      title="Restore this version"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }
 
 const ContextPanel = () => {
+  // CRITICAL: Use selector properly - all dependencies from 'state' parameter
+  const block: Block | null = useAppStore((state) => {
+    const currentFileId = state.currentFileId
+    const selectedBlockId = state.selectedBlockId
+
+    if (!currentFileId || !selectedBlockId) return null
+    const fileState = state.files.get(currentFileId)
+    return fileState?.blocks.find((b) => b.block_id === selectedBlockId) || null
+  })
+
+  // Get values separately for use in other components and hooks
   const currentFileId = useAppStore((state) => state.currentFileId)
   const selectedBlockId = useAppStore((state) => state.selectedBlockId)
-  const getEvents = useAppStore((state) => state.getEvents)
+  // Retrieve active editor ID
+  const activeEditorId = useAppStore((state) => {
+    if (!currentFileId) return null
+    return state.files.get(currentFileId)?.activeEditorId
+  })
 
-  // Subscribe to block changes by accessing it through a selector
-  const block: Block | null = useAppStore((state) =>
-    currentFileId && selectedBlockId
-      ? state.getBlock(currentFileId, selectedBlockId) || null
-      : null
-  )
-
-  const events = useMemo(() => {
+  // 1. Select the raw events array (stable reference from store)
+  const allEvents = useAppStore((state) => {
     if (!currentFileId) return []
-    const all = getEvents(currentFileId)
-    return block ? all.filter((e) => e.entity === block.block_id) : all
-  }, [currentFileId, block, getEvents])
+    return state.files.get(currentFileId)?.events || []
+  })
+
+  // 2. Filter events locally to avoid new array references in the selector
+  const events = useMemo(() => {
+    if (!block) return allEvents
+    return allEvents.filter((e) => {
+      // Block events: entity matches block_id
+      if (e.entity === block.block_id) return true
+
+      // Grant/Revoke events: check if the event value contains this block_id
+      // Grant/revoke events have entity as editor_id, but value.block contains the target block
+      if (
+        e.attribute.includes('core.grant') ||
+        e.attribute.includes('core.revoke')
+      ) {
+        const value = e.value as { block?: string } | null
+        if (value?.block === block.block_id || value?.block === '*') {
+          return true
+        }
+      }
+
+      return false
+    })
+  }, [allEvents, block?.block_id])
 
   if (!currentFileId) {
     return (
@@ -451,7 +584,11 @@ const ContextPanel = () => {
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-6 p-4">
             <TabsContent value="info" className="mt-0">
-              <InfoTab block={block} fileId={currentFileId} />
+              <InfoTab
+                block={block}
+                fileId={currentFileId}
+                activeEditorId={activeEditorId}
+              />
             </TabsContent>
 
             <TabsContent value="collaborators" className="mt-0">

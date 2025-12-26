@@ -78,9 +78,14 @@ interface AppStore {
   createEditor: (
     fileId: string,
     name: string,
-    editorType?: string
+    editorType?: string,
+    blockId?: string
   ) => Promise<Editor>
-  deleteEditor: (fileId: string, editorId: string) => Promise<void>
+  deleteEditor: (
+    fileId: string,
+    editorId: string,
+    blockId?: string
+  ) => Promise<void>
   setActiveEditor: (fileId: string, editorId: string) => Promise<void>
   getActiveEditor: (fileId: string) => Editor | undefined
   getEditors: (fileId: string) => Editor[]
@@ -88,6 +93,11 @@ interface AppStore {
   // Event and Grant operations
   getEvents: (fileId: string) => Event[]
   loadEvents: (fileId: string) => Promise<void>
+  restoreToEvent: (
+    fileId: string,
+    blockId: string,
+    eventId: string
+  ) => Promise<void>
   getGrants: (fileId: string) => Grant[]
   getBlockGrants: (fileId: string, blockId: string) => Grant[]
   loadGrants: (fileId: string) => Promise<void>
@@ -205,7 +215,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   saveFile: async (fileId: string) => {
     try {
       await TauriClient.file.saveFile(fileId)
-      toast.success('File saved to disk')
+      // Note: Success toast is handled by the caller (EditorCanvas) to avoid duplicate messages
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
@@ -263,7 +273,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await TauriClient.block.writeBlock(fileId, blockId, content, blockType)
       // Reload blocks to get the updated content
       await get().loadBlocks(fileId)
-      toast.success('Block updated successfully')
+      // Note: Success toast is handled by the caller (EditorCanvas) to avoid duplicate messages
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
@@ -444,12 +454,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  createEditor: async (fileId: string, name: string, editorType?: string) => {
+  createEditor: async (
+    fileId: string,
+    name: string,
+    editorType?: string,
+    blockId?: string
+  ) => {
     try {
       const newEditor = await TauriClient.editor.createEditor(
         fileId,
         name,
-        editorType
+        editorType,
+        blockId
       )
       // Reload editors to get the updated list
       await get().loadEditors(fileId)
@@ -463,9 +479,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  deleteEditor: async (fileId: string, editorId: string) => {
+  deleteEditor: async (fileId: string, editorId: string, blockId?: string) => {
     try {
-      await TauriClient.editor.deleteEditor(fileId, editorId)
+      await TauriClient.editor.deleteEditor(fileId, editorId, blockId)
       // Reload editors to get the updated list
       await get().loadEditors(fileId)
       // Also reload grants since deleting an editor removes all their grants
@@ -530,6 +546,50 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  /**
+   * 回溯到指定事件时刻的内容
+   * 直接替换编辑器内容，用户可继续编辑和保存
+   */
+  restoreToEvent: async (fileId: string, blockId: string, eventId: string) => {
+    try {
+      // 1. 获取历史状态 (包含 name, content, metadata 以及权限 grants 等)
+      const { block: historicalBlock, grants: historicalGrants } =
+        await TauriClient.event.getStateAtEvent(fileId, blockId, eventId)
+
+      // 2. 更新当前 block 的状态和权限（仅在内存中，不保存到数据库）
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState) {
+        // 更新 blocks
+        const updatedBlocks = fileState.blocks.map((block) => {
+          if (block.block_id === blockId) {
+            // 完整替换 block 状态，恢复 name, content 和 metadata
+            return {
+              ...historicalBlock,
+            }
+          }
+          return block
+        })
+
+        // 更新 fileState，同时包含新的 grants
+        files.set(fileId, {
+          ...fileState,
+          blocks: updatedBlocks,
+          grants: historicalGrants,
+        })
+        set({ files })
+      }
+
+      // 3. 触发通知
+      toast.success('已恢复到历史快照，包含描述、标题和权限')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to restore: ${errorMessage}`)
+      throw error
+    }
+  },
+
   getGrants: (fileId: string) => {
     const fileState = get().files.get(fileId)
     return fileState?.grants || []
@@ -574,8 +634,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         targetBlock,
         granterEditorId
       )
-      // Reload grants to update UI
+      // Reload grants and events to update UI
       await get().loadGrants(fileId)
+      await get().loadEvents(fileId)
       toast.success('Permission granted')
     } catch (error) {
       const errorMessage =
@@ -598,8 +659,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         capability,
         targetBlock
       )
-      // Reload grants to update UI
+      // Reload grants and events to update UI
       await get().loadGrants(fileId)
+      await get().loadEvents(fileId)
       toast.success('Permission revoked')
     } catch (error) {
       const errorMessage =

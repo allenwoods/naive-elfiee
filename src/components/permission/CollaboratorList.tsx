@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { UserPlus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/lib/app-store'
@@ -6,6 +6,7 @@ import { CollaboratorItem } from './CollaboratorItem'
 import { AddCollaboratorDialog } from './AddCollaboratorDialog'
 import { toast } from 'sonner'
 import type { Block } from '@/bindings'
+import { TauriClient } from '@/lib/tauri-client'
 
 // Default capability granted to new collaborators
 const DEFAULT_CAPABILITY = 'markdown.read' as const
@@ -79,10 +80,31 @@ export const CollaboratorList = ({
     capability: string,
     granted: boolean
   ) => {
-    if (granted) {
-      await grantCapability(fileId, editorId, capability, blockId)
-    } else {
-      await revokeCapability(fileId, editorId, capability, blockId)
+    try {
+      // Check if current user has permission to grant/revoke
+      const requiredCap = granted ? 'core.grant' : 'core.revoke'
+      const hasPermission = await TauriClient.block.checkPermission(
+        fileId,
+        blockId,
+        requiredCap,
+        activeEditor?.editor_id
+      )
+
+      if (!hasPermission) {
+        toast.error(
+          `You do not have permission to ${granted ? 'grant' : 'revoke'} permissions.`
+        )
+        return
+      }
+
+      if (granted) {
+        await grantCapability(fileId, editorId, capability, blockId)
+      } else {
+        await revokeCapability(fileId, editorId, capability, blockId)
+      }
+    } catch (error) {
+      console.error('Failed to change permission:', error)
+      // Errors from grantCapability/revokeCapability are already toasted by the store
     }
   }
 
@@ -96,6 +118,33 @@ export const CollaboratorList = ({
       throw error
     }
   }
+
+  // Check permission state for creating editors (only block owner can create)
+  // This is for UI state only - actual permission check happens in backend
+  const [canCreateEditor, setCanCreateEditor] = useState(false)
+
+  // Check permission on mount and when dependencies change
+  useEffect(() => {
+    const checkPermission = async () => {
+      if (!activeEditor?.editor_id) {
+        setCanCreateEditor(false)
+        return
+      }
+      try {
+        const hasPermission = await TauriClient.block.checkPermission(
+          fileId,
+          blockId,
+          'editor.create',
+          activeEditor.editor_id
+        )
+        setCanCreateEditor(hasPermission)
+      } catch (error) {
+        console.error('Failed to check permission:', error)
+        setCanCreateEditor(false)
+      }
+    }
+    checkPermission()
+  }, [fileId, blockId, activeEditor?.editor_id])
 
   const handleAddSuccess = async (newEditor: { editor_id: string }) => {
     // Grant default read permission to the new collaborator
@@ -118,6 +167,12 @@ export const CollaboratorList = ({
     }
   }
 
+  const handleOpenAddDialog = () => {
+    // Permission check is done in backend when creating editor
+    // This is just for UI state - button is already disabled if no permission
+    setShowAddDialog(true)
+  }
+
   // Show empty state if no collaborators
   if (collaborators.length === 0) {
     return (
@@ -128,11 +183,16 @@ export const CollaboratorList = ({
             Collaborators (0)
           </h3>
           <Button
-            onClick={() => setShowAddDialog(true)}
+            onClick={handleOpenAddDialog}
             variant="ghost"
             size="icon"
             className="h-6 w-6 hover:bg-muted"
-            title="Add Collaborator"
+            title={
+              canCreateEditor
+                ? 'Add Collaborator'
+                : 'Only the block owner can add collaborators'
+            }
+            disabled={!canCreateEditor}
           >
             <UserPlus className="h-4 w-4" />
           </Button>
@@ -142,14 +202,20 @@ export const CollaboratorList = ({
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/50 bg-muted/10 py-8 text-center">
           <Users className="mb-2 h-8 w-8 text-muted-foreground/50" />
           <p className="text-xs text-muted-foreground">No collaborators yet</p>
-          <Button
-            variant="link"
-            size="sm"
-            onClick={() => setShowAddDialog(true)}
-            className="h-auto px-0 py-1 text-xs text-primary"
-          >
-            Add one now
-          </Button>
+          {canCreateEditor ? (
+            <Button
+              variant="link"
+              size="sm"
+              onClick={handleOpenAddDialog}
+              className="h-auto px-0 py-1 text-xs text-primary"
+            >
+              Add one now
+            </Button>
+          ) : (
+            <p className="text-xs text-muted-foreground/70">
+              Only the block owner can add collaborators
+            </p>
+          )}
         </div>
 
         <AddCollaboratorDialog
@@ -170,11 +236,16 @@ export const CollaboratorList = ({
           Collaborators ({collaborators.length})
         </h3>
         <Button
-          onClick={() => setShowAddDialog(true)}
+          onClick={handleOpenAddDialog}
           variant="ghost"
           size="icon"
           className="h-6 w-6 hover:bg-muted"
-          title="Add Collaborator"
+          title={
+            canCreateEditor
+              ? 'Add Collaborator'
+              : 'Only the block owner can add collaborators'
+          }
+          disabled={!canCreateEditor}
         >
           <UserPlus className="h-4 w-4" />
         </Button>

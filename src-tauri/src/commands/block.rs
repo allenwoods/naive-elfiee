@@ -208,6 +208,7 @@ pub async fn check_permission(
     file_id: String,
     block_id: String,
     capability: String,
+    editor_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<bool, String> {
     let handle = state
@@ -215,9 +216,21 @@ pub async fn check_permission(
         .get_engine(&file_id)
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
-    let editor_id = state
-        .get_active_editor(&file_id)
-        .ok_or_else(|| "No active editor".to_string())?;
+    let effective_editor_id = if let Some(id) = editor_id {
+        id
+    } else {
+        state
+            .get_active_editor(&file_id)
+            .ok_or_else(|| "No active editor".to_string())?
+    };
 
-    Ok(handle.check_grant(editor_id, capability, block_id).await)
+    // Special handling for core.create: allow for backward compatibility
+    // (core.create is typically used for creating new blocks, which should be allowed)
+    if capability == "core.create" {
+        return Ok(true);
+    }
+
+    Ok(handle
+        .check_grant(effective_editor_id, capability, block_id)
+        .await)
 }
