@@ -437,7 +437,7 @@ describe('AddCollaboratorDialog Component', () => {
         editor_type: 'Human',
       })
 
-      const { rerender } = render(
+      render(
         <AddCollaboratorDialog
           fileId="file-1"
           existingEditors={existingEditors}

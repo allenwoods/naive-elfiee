@@ -61,10 +61,11 @@ impl CapabilityRegistry {
         self.register(Arc::new(EditorCreateCapability));
         self.register(Arc::new(EditorDeleteCapability));
     }
+
     /// Register all extension capabilities.
     fn register_extensions(&mut self) {
+        use crate::extensions::code::*;
         use crate::extensions::directory::*;
-
         use crate::extensions::markdown::*;
         use crate::extensions::terminal::*;
 
@@ -74,12 +75,18 @@ impl CapabilityRegistry {
 
         // Terminal extension
         self.register(Arc::new(TerminalSaveCapability));
+
+        // Directory extension
         self.register(Arc::new(DirectoryImportCapability));
         self.register(Arc::new(DirectoryExportCapability));
         self.register(Arc::new(DirectoryWriteCapability));
         self.register(Arc::new(DirectoryCreateCapability));
         self.register(Arc::new(DirectoryDeleteCapability));
         self.register(Arc::new(DirectoryRenameCapability));
+
+        // Code extension
+        self.register(Arc::new(CodeReadCapability));
+        self.register(Arc::new(CodeWriteCapability));
     }
 }
 
@@ -97,7 +104,7 @@ mod tests {
     fn test_registry_initialization() {
         let registry = CapabilityRegistry::new();
 
-        // Verify 6 core capabilities are registered
+        // Verify core capabilities are registered
         assert!(
             registry.get("core.create").is_some(),
             "core.create should be registered"
@@ -317,7 +324,7 @@ mod tests {
     }
 
     #[test]
-    fn test_certificator_owner_always_authorized() {
+    fn test_authorization_owner_always_authorized() {
         use crate::capabilities::grants::GrantsTable;
         use crate::models::{Block, Command};
 
@@ -356,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn test_certificator_non_owner_without_grant_rejected() {
+    fn test_authorization_non_owner_without_grant_rejected() {
         use crate::capabilities::grants::GrantsTable;
         use crate::models::{Block, Command};
 
@@ -392,7 +399,7 @@ mod tests {
     }
 
     #[test]
-    fn test_certificator_non_owner_with_specific_grant_authorized() {
+    fn test_authorization_non_owner_with_specific_grant_authorized() {
         use crate::capabilities::grants::GrantsTable;
         use crate::models::{Block, Command};
 
@@ -443,7 +450,7 @@ mod tests {
     }
 
     #[test]
-    fn test_certificator_wildcard_grant_works_for_any_block() {
+    fn test_authorization_wildcard_grant_works_for_any_block() {
         use crate::capabilities::grants::GrantsTable;
         use crate::models::{Block, Command};
 
@@ -505,7 +512,7 @@ mod tests {
     }
 
     #[test]
-    fn test_certificator_different_capability_not_authorized() {
+    fn test_authorization_different_capability_not_authorized() {
         use crate::capabilities::grants::GrantsTable;
         use crate::models::{Block, Command};
 

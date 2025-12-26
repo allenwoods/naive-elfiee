@@ -4,6 +4,7 @@
 use super::DirectoryRenamePayload;
 use crate::capabilities::core::{create_event, CapResult};
 use crate::models::{Block, Command, Event};
+use crate::utils::infer_block_type;
 use capability_macros::capability;
 use serde_json::json;
 
@@ -38,13 +39,7 @@ fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         .map_err(|e| format!("Invalid payload for directory.rename: {}", e))?;
 
     // Step 3: Validate path security
-    use std::path::Component;
-    if std::path::Path::new(&payload.new_path)
-        .components()
-        .any(|c| matches!(c, Component::ParentDir))
-    {
-        return Err("New path cannot contain '..' components (traversal forbidden)".to_string());
-    }
+    crate::utils::validate_virtual_path(&payload.new_path)?;
 
     // Step 4: Parse current Directory Block contents
     let contents = block
@@ -88,6 +83,21 @@ fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
             &cmd.editor_id,
             1,
         ));
+
+        // Event 1.5: core.change_type if extension changes
+        let old_ext = payload.old_path.split('.').last().unwrap_or("");
+        let new_ext = payload.new_path.split('.').last().unwrap_or("");
+        if old_ext != new_ext {
+            if let Some(new_type) = infer_block_type(new_ext) {
+                events.push(create_event(
+                    file_id.to_string(),
+                    "core.change_type",
+                    json!({ "block_type": new_type }),
+                    &cmd.editor_id,
+                    1,
+                ));
+            }
+        }
     } else if entry["type"] == "directory" {
         // Rename directory: recursively update all children
         let children: Vec<_> = entries
@@ -114,6 +124,21 @@ fn handle_rename(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
                     &cmd.editor_id,
                     1,
                 ));
+
+                // Check for extension change in child
+                let old_ext = child_path.split('.').last().unwrap_or("");
+                let new_ext = new_child_path.split('.').last().unwrap_or("");
+                if old_ext != new_ext {
+                    if let Some(new_type) = infer_block_type(new_ext) {
+                        events.push(create_event(
+                            file_id.to_string(),
+                            "core.change_type",
+                            json!({ "block_type": new_type }),
+                            &cmd.editor_id,
+                            1,
+                        ));
+                    }
+                }
             }
             // NOTE: "directory" entries are virtual structural markers and don't
             // have corresponding Block entities to rename. Their paths are

@@ -71,6 +71,8 @@ pub fn run() {
             // NOTE: When adding a new extension with payload types, register them here.
             // TODO: Consider automating this with a macro if extensions grow beyond ~10
             // Core payload types (used by builtin capabilities)
+            .typ::<extensions::code::CodeWritePayload>()
+            .typ::<extensions::code::CodeReadPayload>()
             .typ::<extensions::directory::DirectoryRenamePayload>()
             .typ::<extensions::directory::DirectoryDeletePayload>()
             .typ::<extensions::directory::DirectoryCreatePayload>()

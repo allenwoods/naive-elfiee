@@ -40,26 +40,30 @@ async fn bootstrap_editors(file_id: &str, state: &AppState) -> Result<(), String
     let editors = handle.get_all_editors().await;
 
     if editors.is_empty() {
-        // Get persistent system editor ID from global config
-        let system_editor_id = config::get_system_editor_id()
-            .map_err(|e| format!("Failed to get system editor ID: {}", e))?;
+        // Retrieve persistent system editor ID from local config
+        let system_id =
+            crate::config::get_system_editor_id().unwrap_or_else(|_| "system".to_string());
 
-        // Create system editor with the persistent ID
+        // Create initial editor identity using the configured persistent ID
         let cmd = Command::new(
-            system_editor_id.clone(),
+            system_id.clone(),
             "editor.create".to_string(),
             "".to_string(),
             serde_json::json!({
-                "name": "System",
-                "editor_id": system_editor_id.clone()
+                "editor_id": system_id,
+                "name": "Owner", // Default name for the creator
+                "editor_type": "Human"
             }),
         );
 
         let events = handle.process_command(cmd).await?;
 
-        // Set as active editor if creation succeeded
-        if events.first().is_some() {
-            state.set_active_editor(file_id.to_string(), system_editor_id);
+        // Extract the actual ID from the creation event
+        if let Some(event) = events.first() {
+            let created_editor_id = event.entity.clone();
+
+            // Set as active editor in current session state
+            state.set_active_editor(file_id.to_string(), created_editor_id);
         }
     } else {
         // Editors exist - ensure one is set as active

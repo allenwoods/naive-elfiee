@@ -15,6 +15,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { CodeBlockEditor } from './CodeBlockEditor'
 import './myst-styles.css'
 
 // AST Node Types
@@ -105,6 +106,8 @@ Note: This is a mock execution. Real code execution will be implemented in Termi
               padding: '1rem',
               fontSize: '0.875rem',
               background: '#18181b',
+              fontFamily:
+                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei", "WenQuanYi Micro Hei", monospace',
             }}
             wrapLines={false}
             wrapLongLines={false}
@@ -519,9 +522,17 @@ export const EditorCanvas = () => {
       const block = getBlock(currentFileId, selectedBlockId)
       if (block) {
         setSelectedBlock(block)
-        // Extract markdown content from block.contents
-        const contents = block.contents as { markdown?: string }
-        setDocumentContent(contents?.markdown || '')
+        // Extract content based on type
+        // Strategy:
+        // 1. 'code' blocks strictly use the 'text' field.
+        // 2. 'markdown' blocks prefer 'markdown' field but fall back to 'text'
+        //    to maintain backward compatibility with older blocks or importers.
+        const contents = block.contents as { markdown?: string; text?: string }
+        if (block.block_type === 'code') {
+          setDocumentContent(contents?.text || '')
+        } else {
+          setDocumentContent(contents?.markdown || contents?.text || '')
+        }
       }
     } else {
       setSelectedBlock(null)
@@ -531,26 +542,35 @@ export const EditorCanvas = () => {
 
   // Handle save block only (called from editor)
   const handleBlockSave = useCallback(async () => {
-    if (!currentFileId || !selectedBlockId) {
+    if (!currentFileId || !selectedBlockId || !selectedBlock) {
       toast.error('No block selected')
       return
     }
 
     try {
       // Update block content in database
-      if (documentContent.trim()) {
-        await updateBlock(currentFileId, selectedBlockId, documentContent)
-        toast.success('Block saved successfully')
-      }
+      await updateBlock(
+        currentFileId,
+        selectedBlockId,
+        documentContent,
+        selectedBlock.block_type
+      )
+      toast.success('Block saved successfully')
     } catch (error) {
       console.error('Failed to save block:', error)
       throw error // Re-throw to let editor handle the error
     }
-  }, [currentFileId, selectedBlockId, documentContent, updateBlock])
+  }, [
+    currentFileId,
+    selectedBlockId,
+    selectedBlock,
+    documentContent,
+    updateBlock,
+  ])
 
   // Handle save file action (top-level save button)
   const handleSave = useCallback(async () => {
-    if (!currentFileId || !selectedBlockId) {
+    if (!currentFileId || !selectedBlockId || !selectedBlock) {
       toast.error('No block selected')
       return
     }
@@ -558,9 +578,12 @@ export const EditorCanvas = () => {
     setIsSaving(true)
     try {
       // Step 1: Update block content in memory
-      if (documentContent.trim()) {
-        await updateBlock(currentFileId, selectedBlockId, documentContent)
-      }
+      await updateBlock(
+        currentFileId,
+        selectedBlockId,
+        documentContent,
+        selectedBlock.block_type
+      )
 
       // Step 2: Save file to disk (.elf file)
       await saveFile(currentFileId)
@@ -572,9 +595,16 @@ export const EditorCanvas = () => {
     } finally {
       setIsSaving(false)
     }
-  }, [currentFileId, selectedBlockId, documentContent, updateBlock, saveFile])
+  }, [
+    currentFileId,
+    selectedBlockId,
+    selectedBlock,
+    documentContent,
+    updateBlock,
+    saveFile,
+  ])
 
-  // Handle content change from MySTDocument
+  // Handle content change from sub-editors
   const handleContentChange = useCallback((newContent: string) => {
     setDocumentContent(newContent)
   }, [])
@@ -592,10 +622,50 @@ export const EditorCanvas = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleSave])
 
+  const renderEditor = () => {
+    if (!selectedBlock)
+      return (
+        <div className="py-16 text-center text-muted-foreground">
+          <p>No block selected</p>
+          <p className="mt-2 text-sm">
+            Select a block from the file panel to start editing
+          </p>
+        </div>
+      )
+
+    if (selectedBlock.block_type === 'code') {
+      const language = selectedBlock.name.split('.').pop() || 'text'
+      return (
+        <CodeBlockEditor
+          content={documentContent}
+          language={language}
+          onContentChange={handleContentChange}
+          onSave={handleBlockSave}
+        />
+      )
+    }
+
+    if (selectedBlock.block_type === 'markdown') {
+      return (
+        <MySTDocument
+          content={documentContent}
+          onContentChange={handleContentChange}
+          onSave={handleBlockSave}
+        />
+      )
+    }
+
+    return (
+      <div className="py-16 text-center text-muted-foreground">
+        <p>Unsupported Block Type: {selectedBlock.block_type}</p>
+        <p className="mt-2 text-sm">This block cannot be rendered yet.</p>
+      </div>
+    )
+  }
+
   return (
     <ScrollArea className="h-full w-full">
       <main className="w-full min-w-0 bg-background p-4 md:p-6 lg:p-8">
-        {/* Editor Container */}
         <div className="mx-auto w-full min-w-0 max-w-4xl pb-32">
           {/* Save Button */}
           <div className="mb-6 flex items-center justify-end">
@@ -615,23 +685,7 @@ export const EditorCanvas = () => {
             </motion.div>
           </div>
 
-          {/* MyST Document Content */}
-          <div className="w-full min-w-0 space-y-6">
-            {selectedBlock ? (
-              <MySTDocument
-                content={documentContent}
-                onContentChange={handleContentChange}
-                onSave={handleBlockSave}
-              />
-            ) : (
-              <div className="py-16 text-center text-muted-foreground">
-                <p>No block selected</p>
-                <p className="mt-2 text-sm">
-                  Select a block from the file panel to start editing
-                </p>
-              </div>
-            )}
-          </div>
+          <div className="w-full min-w-0 space-y-6">{renderEditor()}</div>
         </div>
       </main>
     </ScrollArea>

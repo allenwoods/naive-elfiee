@@ -984,4 +984,50 @@ mod tests {
         // Should not have added grant with empty capability
         assert!(!state.grants.has_grant("bob", "", "block1"));
     }
+
+    #[test]
+    fn test_apply_change_type_event() {
+        let mut state = StateProjector::new();
+
+        // 1. Create a block (markdown)
+        let create_event = Event::new(
+            "block1".to_string(),
+            "alice/core.create".to_string(),
+            serde_json::json!({
+                "name": "Test",
+                "type": "markdown",
+                "owner": "alice",
+                "contents": {},
+                "children": {}
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 1);
+                ts
+            },
+        );
+        state.apply_event(&create_event);
+
+        let block = state.get_block("block1").unwrap();
+        assert_eq!(block.block_type, "markdown");
+
+        // 2. Apply change_type event
+        let change_event = Event::new(
+            "block1".to_string(),
+            "alice/core.change_type".to_string(),
+            serde_json::json!({
+                "block_type": "code"
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 2);
+                ts
+            },
+        );
+        state.apply_event(&change_event);
+
+        // 3. Verify block type updated
+        let block = state.get_block("block1").unwrap();
+        assert_eq!(block.block_type, "code");
+    }
 }

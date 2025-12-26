@@ -206,6 +206,7 @@ mod tests {
             json!({
                 "path": "hello.md",
                 "type": "file",
+                "source": "outline",
                 "content": "# Hello World",
                 "block_type": "markdown"
             }),

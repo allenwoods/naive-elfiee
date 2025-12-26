@@ -16,7 +16,6 @@ import {
   type CreateBlockPayload,
   type GrantPayload,
   type RevokePayload,
-  type MarkdownWritePayload,
   type FileMetadata,
 } from '@/bindings'
 
@@ -198,6 +197,15 @@ export class FileOperations {
       throw new Error(result.error)
     }
   }
+
+  static async getSystemEditorId(): Promise<string> {
+    const result = await commands.getSystemEditorIdFromConfig()
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
 }
 
 /**
@@ -226,7 +234,8 @@ export class BlockOperations {
     fileId: string,
     name: string,
     blockType: string,
-    editorId?: string
+    editorId?: string,
+    source?: string
   ): Promise<Event[]> {
     // Get active editor if not provided
     const activeEditorId =
@@ -237,6 +246,7 @@ export class BlockOperations {
     const payload: CreateBlockPayload = {
       name,
       block_type: blockType,
+      source: source || 'outline',
     }
     const cmd = createCommand(
       activeEditorId,
@@ -251,6 +261,7 @@ export class BlockOperations {
     fileId: string,
     blockId: string,
     content: string,
+    blockType: string = 'markdown',
     editorId?: string
   ): Promise<Event[]> {
     // Get active editor if not provided
@@ -259,12 +270,14 @@ export class BlockOperations {
       (await EditorOperations.getActiveEditor(fileId)) ||
       (await getSystemEditorId())
 
-    const payload: MarkdownWritePayload = {
-      content,
-    }
+    const capId = blockType === 'code' ? 'code.write' : 'markdown.write'
+
+    // Both payloads have a 'content' field
+    const payload = { content }
+
     const cmd = createCommand(
       activeEditorId,
-      'markdown.write',
+      capId,
       blockId,
       payload as unknown as JsonValue
     )
@@ -304,6 +317,215 @@ export class BlockOperations {
     if (result.status === 'ok') {
       return
     } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Rename a block.
+   */
+  static async renameBlock(
+    fileId: string,
+    blockId: string,
+    name: string
+  ): Promise<Event[]> {
+    const result = await commands.renameBlock(fileId, blockId, name)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Update block type.
+   */
+  static async updateBlockType(
+    fileId: string,
+    blockId: string,
+    blockType: string
+  ): Promise<Event[]> {
+    const result = await commands.updateBlockType(fileId, blockId, blockType)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Check if current editor has permission for a capability.
+   */
+  static async checkPermission(
+    fileId: string,
+    blockId: string,
+    capability: string
+  ): Promise<boolean> {
+    const result = await commands.checkPermission(fileId, blockId, capability)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+}
+
+/**
+ * Directory Extension Operations
+ */
+export class DirectoryOperations {
+  /**
+   * Import external directory into a directory block.
+   */
+  static async importDirectory(
+    fileId: string,
+    blockId: string,
+    sourcePath: string,
+    targetPath?: string,
+    editorId?: string
+  ): Promise<Event[]> {
+    const activeEditorId =
+      editorId ||
+      (await EditorOperations.getActiveEditor(fileId)) ||
+      (await getSystemEditorId())
+
+    const result = await commands.executeCommand(fileId, {
+      cmd_id: crypto.randomUUID(),
+      editor_id: activeEditorId,
+      cap_id: 'directory.import',
+      block_id: blockId,
+      payload: {
+        source_path: sourcePath,
+        target_path: targetPath || null,
+      } as unknown as JsonValue,
+      timestamp: new Date().toISOString(),
+    })
+
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Create a new entry (file/folder) in a directory block.
+   */
+  static async createEntry(
+    fileId: string,
+    blockId: string,
+    path: string,
+    type: 'file' | 'directory',
+    options?: { content?: string; block_type?: string; source?: string },
+    editorId?: string
+  ): Promise<Event[]> {
+    const activeEditorId =
+      editorId ||
+      (await EditorOperations.getActiveEditor(fileId)) ||
+      (await getSystemEditorId())
+
+    const result = await commands.executeCommand(fileId, {
+      cmd_id: crypto.randomUUID(),
+      editor_id: activeEditorId,
+      cap_id: 'directory.create',
+      block_id: blockId,
+      payload: {
+        path,
+        type,
+        source: options?.source || 'outline',
+        content: options?.content || null,
+        block_type: options?.block_type || null,
+      } as unknown as JsonValue,
+      timestamp: new Date().toISOString(),
+    })
+
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Rename an entry path.
+   */
+  static async renameEntry(
+    fileId: string,
+    blockId: string,
+    oldPath: string,
+    newPath: string,
+    editorId?: string
+  ): Promise<Event[]> {
+    const activeEditorId =
+      editorId ||
+      (await EditorOperations.getActiveEditor(fileId)) ||
+      (await getSystemEditorId())
+
+    const result = await commands.executeCommand(fileId, {
+      cmd_id: crypto.randomUUID(),
+      editor_id: activeEditorId,
+      cap_id: 'directory.rename',
+      block_id: blockId,
+      payload: {
+        old_path: oldPath,
+        new_path: newPath,
+      } as unknown as JsonValue,
+      timestamp: new Date().toISOString(),
+    })
+
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Delete an entry path.
+   */
+  static async deleteEntry(
+    fileId: string,
+    blockId: string,
+    path: string,
+    editorId?: string
+  ): Promise<Event[]> {
+    const activeEditorId =
+      editorId ||
+      (await EditorOperations.getActiveEditor(fileId)) ||
+      (await getSystemEditorId())
+
+    const result = await commands.executeCommand(fileId, {
+      cmd_id: crypto.randomUUID(),
+      editor_id: activeEditorId,
+      cap_id: 'directory.delete',
+      block_id: blockId,
+      payload: {
+        path,
+      } as unknown as JsonValue,
+      timestamp: new Date().toISOString(),
+    })
+
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Checkout (Export) workspace to disk.
+   */
+  static async checkoutWorkspace(
+    fileId: string,
+    blockId: string,
+    targetPath: string,
+    sourcePath?: string
+  ): Promise<void> {
+    const result = await commands.checkoutWorkspace(fileId, blockId, {
+      target_path: targetPath,
+      source_path: sourcePath || null,
+    })
+    if (result.status === 'error') {
       throw new Error(result.error)
     }
   }
@@ -469,4 +691,5 @@ export const TauriClient = {
   file: FileOperations,
   block: BlockOperations,
   editor: EditorOperations,
+  directory: DirectoryOperations,
 }

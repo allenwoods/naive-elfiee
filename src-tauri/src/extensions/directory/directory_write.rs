@@ -11,6 +11,10 @@ use specta::Type;
 pub struct DirectoryWritePayload {
     /// The full entries map to be saved
     pub entries: serde_json::Value,
+
+    /// The source category of this directory block ("outline" or "linked")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 /// Handler for directory.write capability.
@@ -28,13 +32,29 @@ fn handle_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
         return Err("Entries must be a JSON object".to_string());
     }
 
+    // Validate all entry paths
+    if let Some(obj) = payload.entries.as_object() {
+        for path in obj.keys() {
+            crate::utils::validate_virtual_path(path)?;
+        }
+    }
+
+    let mut contents = serde_json::json!({
+        "entries": payload.entries
+    });
+
+    if let Some(source) = payload.source {
+        contents
+            .as_object_mut()
+            .unwrap()
+            .insert("source".to_string(), serde_json::json!(source));
+    }
+
     let event = create_event(
         block.block_id.clone(),
         "directory.write",
         serde_json::json!({
-            "contents": {
-                "entries": payload.entries
-            }
+            "contents": contents
         }),
         &cmd.editor_id,
         1, // Placeholder, updated by actor

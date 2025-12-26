@@ -39,7 +39,9 @@ fn handle_create(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>>
             "name": payload.name,
             "type": payload.block_type,
             "owner": cmd.editor_id,
-            "contents": {},
+            "contents": {
+                "source": payload.source
+            },
             "children": {},
             "metadata": metadata.to_json()
         }),
@@ -85,6 +87,9 @@ mod tests {
         let updated = metadata["updated_at"].as_str().unwrap();
         assert!(created.ends_with('Z'));
         assert!(updated.ends_with('Z'));
+
+        // Verify source is injected into contents
+        assert_eq!(event.value["contents"]["source"], "outline");
     }
 
     #[test]

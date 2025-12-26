@@ -19,4 +19,4 @@ pub use block_type_inference::infer_block_type;
 pub use fs_scanner::{scan_directory, FileInfo, ScanOptions};
 
 /// Validates file paths to prevent traversal attacks and access to sensitive directories.
-pub use path_validator::is_safe_path;
+pub use path_validator::{is_safe_path, validate_virtual_path};
