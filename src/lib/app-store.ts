@@ -46,7 +46,8 @@ interface AppStore {
   updateBlock: (
     fileId: string,
     blockId: string,
-    content: string
+    content: string,
+    blockType?: string
   ) => Promise<void>
   createBlock: (
     fileId: string,
@@ -251,9 +252,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  updateBlock: async (fileId: string, blockId: string, content: string) => {
+  updateBlock: async (
+    fileId: string,
+    blockId: string,
+    content: string,
+    blockType: string = 'markdown'
+  ) => {
     try {
-      await TauriClient.block.writeBlock(fileId, blockId, content)
+      await TauriClient.block.writeBlock(fileId, blockId, content, blockType)
       // Reload blocks to get the updated content
       await get().loadBlocks(fileId)
       toast.success('Block updated successfully')
@@ -377,21 +383,29 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // Directory/VFS operations
   getOutlineTree: (fileId: string) => {
     const blocks = get().getBlocks(fileId)
-    const outlineBlock = blocks.find((b) => b.block_id === '__system_outline__')
-    if (!outlineBlock || outlineBlock.block_type !== 'directory') {
-      return []
-    }
+    // 1. Find the system outline by source='outline'
+    // We take the first directory block marked as outline source
+    const outlineBlock = blocks.find(
+      (b) =>
+        b.block_type === 'directory' &&
+        (b.contents as any)?.source === 'outline'
+    )
+
+    if (!outlineBlock) return []
 
     const contents = outlineBlock.contents as {
       entries?: Record<string, DirectoryEntry>
     }
+
     return buildTreeFromEntries(contents.entries || {}, blocks)
   },
 
   getLinkedRepos: (fileId: string) => {
     const blocks = get().getBlocks(fileId)
+    // Filter: directory blocks with source='linked'
     const directoryBlocks = blocks.filter(
-      (b) => b.block_type === 'directory' && b.block_id !== '__system_outline__'
+      (b) =>
+        b.block_type === 'directory' && (b.contents as any)?.source === 'linked'
     )
 
     return directoryBlocks.map((block) => {
@@ -408,27 +422,25 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   ensureSystemOutline: async (fileId: string) => {
     const blocks = get().getBlocks(fileId)
-    const hasOutline = blocks.some((b) => b.block_id === '__system_outline__')
+    const hasOutline = blocks.some(
+      (b) =>
+        b.block_type === 'directory' &&
+        (b.contents as any)?.source === 'outline'
+    )
 
     if (!hasOutline) {
       try {
         const systemEditorId = await TauriClient.file.getSystemEditorId()
-        await TauriClient.block.executeCommand(fileId, {
-          cmd_id: crypto.randomUUID(),
-          editor_id: systemEditorId,
-          cap_id: 'core.create',
-          block_id: '__system_outline__', // Explicitly specify block_id for system blocks
-          payload: {
-            name: 'Outline',
-            block_type: 'directory',
-            metadata: {
-              description: 'System-generated root for documents',
-            },
-          } as any,
-          timestamp: new Date().toISOString(),
-        })
+        // Create Outline directory block
+        // ID is auto-generated, Name is 'Outline' but only for display
+        await TauriClient.block.createBlock(
+          fileId,
+          'Outline',
+          'directory',
+          systemEditorId
+        )
+        // Note: backend createBlock defaults source to 'outline', so we are good.
 
-        // Reload blocks to reflect the new Outline block
         await get().loadBlocks(fileId)
       } catch (error) {
         console.error('Failed to initialize system outline:', error)

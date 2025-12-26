@@ -1,7 +1,7 @@
 # CHANGELOG - Directory Extension (VFS Architecture)
 
 ## 日期: 2025-12-24
-## 状态: 后端开发完成，进入前端对接阶段
+## 状态: 前后端开发基本完成，进入 UI 交互优化与数据迁移阶段
 
 ---
 
@@ -52,9 +52,24 @@
     - 专门的“路径隔离”测试（验证 `foo` 不会误伤 `foobar`）。
 - **字段标准化**: 统一了 `text` 与 `markdown` 字段的读取优先级，消除了导出文件为空的隐患。
 
+## 6. 前端架构落地 (Frontend VFS)
+
+- **核心算法**: 实现了 `buildTreeFromEntries` 算法，将后端扁平索引高效转换为嵌套树结构，支持路径深度排序。
+- **通用组件 (`VfsTree`)**: 
+    - 统一了 Outline 和 Linked Repos 的渲染逻辑。
+    - 实现了文件夹/文件的差异化交互（如 `+` 按钮显示规则）。
+    - 集成了重命名、删除、导出等上下文菜单。
+- **状态管理**: 扩展了 `app-store`，支持多工作区渲染 (`getOutlineTree`, `getLinkedRepos`)。
+- **自动补齐**: 实现了 `ensureSystemOutline`，在打开文件时自动初始化 `Outline` 根节点。
+
+## 7. 数据策略调整 (Data Migration Decision)
+
+- **放弃运行时兼容**: 前端不再包含复杂的“孤儿 Block”扫描逻辑。
+- **拥抱数据清洗**: 对于旧版本产生的无归属 Block，将通过后端一次性迁移脚本进行修复，保持前端逻辑的纯洁性和高性能。
+
 ---
 
 **后续计划**:
-1. 封装前端 `DirectoryOperations`。
-2. 重构 `FilePanel` 以支持 `__system_outline__` 自动补齐。
-3. 实现侧边栏的多项目（Multi-root）动态渲染。
+1. 完成 `CreateEntryDialog` 开发，替换原生 Prompt。
+2. 编写 `fix_legacy_blocks` 后端迁移命令，清洗旧数据。
+3. 对接 `code` 扩展的前端编辑器。

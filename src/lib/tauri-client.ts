@@ -16,7 +16,6 @@ import {
   type CreateBlockPayload,
   type GrantPayload,
   type RevokePayload,
-  type MarkdownWritePayload,
   type FileMetadata,
 } from '@/bindings'
 
@@ -235,7 +234,8 @@ export class BlockOperations {
     fileId: string,
     name: string,
     blockType: string,
-    editorId?: string
+    editorId?: string,
+    source?: string
   ): Promise<Event[]> {
     // Get active editor if not provided
     const activeEditorId =
@@ -246,6 +246,7 @@ export class BlockOperations {
     const payload: CreateBlockPayload = {
       name,
       block_type: blockType,
+      source: source || 'outline',
     }
     const cmd = createCommand(
       activeEditorId,
@@ -260,6 +261,7 @@ export class BlockOperations {
     fileId: string,
     blockId: string,
     content: string,
+    blockType: string = 'markdown',
     editorId?: string
   ): Promise<Event[]> {
     // Get active editor if not provided
@@ -268,12 +270,14 @@ export class BlockOperations {
       (await EditorOperations.getActiveEditor(fileId)) ||
       (await getSystemEditorId())
 
-    const payload: MarkdownWritePayload = {
-      content,
-    }
+    const capId = blockType === 'code' ? 'code.write' : 'markdown.write'
+
+    // Both payloads have a 'content' field
+    const payload = { content }
+
     const cmd = createCommand(
       activeEditorId,
-      'markdown.write',
+      capId,
       blockId,
       payload as unknown as JsonValue
     )
@@ -412,7 +416,7 @@ export class DirectoryOperations {
     blockId: string,
     path: string,
     type: 'file' | 'directory',
-    options?: { content?: string; block_type?: string },
+    options?: { content?: string; block_type?: string; source?: string },
     editorId?: string
   ): Promise<Event[]> {
     const activeEditorId =
@@ -428,6 +432,7 @@ export class DirectoryOperations {
       payload: {
         path,
         type,
+        source: options?.source || 'outline',
         content: options?.content || null,
         block_type: options?.block_type || null,
       } as unknown as JsonValue,

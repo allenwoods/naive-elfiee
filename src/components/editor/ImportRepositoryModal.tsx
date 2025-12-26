@@ -21,7 +21,12 @@ export const ImportRepositoryModal = ({
   if (!open) return null
 
   const handleLocalImport = () => {
-    onImport('', 'Local')
+    onImport('', 'Local Folder')
+    onOpenChange(false)
+  }
+
+  const handleLocalFileImport = () => {
+    onImport('', 'Local File')
     onOpenChange(false)
   }
 
@@ -87,12 +92,15 @@ export const ImportRepositoryModal = ({
                 Import from Local File System
               </h3>
               <p className="mb-6 text-sm text-muted-foreground">
-                Select a directory from your computer to import it as a
+                Select a file or directory from your computer to import it as a
                 workspace block.
               </p>
-              <Button onClick={handleLocalImport} className="w-full sm:w-auto">
-                Select Directory
-              </Button>
+              <div className="flex gap-3">
+                <Button onClick={handleLocalFileImport} variant="outline">
+                  Select File
+                </Button>
+                <Button onClick={handleLocalImport}>Select Directory</Button>
+              </div>
             </div>
           )}
         </div>

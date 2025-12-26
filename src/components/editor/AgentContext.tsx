@@ -51,7 +51,6 @@ const getBlockTypeConfig = (blockType: string | undefined) => {
 const formatTimestamp = (
   timestamp: Partial<Record<string, number>>
 ): string => {
-  // Simple timestamp formatting - can be improved
   const values = Object.values(timestamp).filter(
     (v): v is number => v !== undefined
   )
@@ -92,7 +91,7 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
       const blockEvents = selectedBlock
         ? fileEvents.filter((e) => e.entity === selectedBlock.block_id)
         : fileEvents
-      setEvents(blockEvents.slice(-10).reverse()) // Last 10 events, newest first
+      setEvents(blockEvents.slice(-10).reverse())
 
       const fileEditors = getEditors(fileId)
       setEditors(fileEditors)
@@ -136,7 +135,6 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
 
   return (
     <aside className="flex w-[320px] flex-col border-l border-border bg-card">
-      {/* Header */}
       <div className="border-b border-border p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">
@@ -155,7 +153,6 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
         </p>
       </div>
 
-      {/* Tabbed Interface */}
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
@@ -185,7 +182,6 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
           </TabsTrigger>
         </TabsList>
 
-        {/* History Tab */}
         <TabsContent value="history" className="mt-0 flex-1 overflow-auto p-4">
           <div className="space-y-1">
             {events.length === 0 ? (
@@ -205,19 +201,14 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
                     transition={{ delay: index * 0.05 }}
                     className="relative pb-4 pl-6 last:pb-0"
                   >
-                    {/* Timeline line */}
                     {index < events.length - 1 && (
                       <div className="absolute bottom-0 left-[11px] top-6 w-px bg-border" />
                     )}
-
-                    {/* Timeline dot */}
                     <div className="absolute left-0 top-1 flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-border bg-secondary">
                       <span className="text-[10px] font-bold text-muted-foreground">
                         {editor?.name.charAt(0).toUpperCase() || '?'}
                       </span>
                     </div>
-
-                    {/* Event content */}
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -244,7 +235,6 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
           </div>
         </TabsContent>
 
-        {/* Permissions Tab */}
         <TabsContent
           value="permissions"
           className="mt-0 flex-1 overflow-auto p-4"
@@ -253,7 +243,6 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Collaborator Permissions
             </h3>
-
             <div className="space-y-4">
               {editors.length === 0 ? (
                 <div className="py-8 text-center text-xs text-muted-foreground">
@@ -264,6 +253,7 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
                   const editorGrants = grants.filter(
                     (g) => g.editor_id === editor.editor_id
                   )
+                  // Standard permissions
                   const capabilities = [
                     'markdown.read',
                     'markdown.write',
@@ -275,7 +265,6 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
                       key={editor.editor_id}
                       className="space-y-3 rounded-xl bg-secondary/30 p-4"
                     >
-                      {/* User Info */}
                       <div className="flex items-center gap-3">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full border border-accent/30 bg-accent/20">
                           <span className="text-sm font-bold text-accent">
@@ -288,8 +277,6 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
                           </span>
                         </div>
                       </div>
-
-                      {/* Permission Pills */}
                       <div className="flex flex-wrap gap-2">
                         {capabilities.map((cap) => {
                           const hasPermission = editorGrants.some(
@@ -325,45 +312,36 @@ export const AgentContext = ({ selectedBlock, fileId }: AgentContextProps) => {
           </div>
         </TabsContent>
 
-        {/* Editors Tab */}
         <TabsContent value="agent" className="mt-0 flex-1 overflow-auto p-4">
           <div className="space-y-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Editors
             </h3>
-
             <div className="space-y-3">
-              {editors.length === 0 ? (
-                <div className="py-8 text-center text-xs text-muted-foreground">
-                  No editors available
-                </div>
-              ) : (
-                editors.map((editor) => (
-                  <motion.div
-                    key={editor.editor_id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="space-y-3 rounded-xl border border-transparent bg-secondary/30 p-4 transition-colors hover:border-accent/30"
-                  >
-                    {/* Editor Info */}
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-accent/30 bg-accent/20">
-                        <span className="text-sm font-bold text-accent">
-                          {editor.name.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-foreground">
-                          {editor.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Editor ID: {editor.editor_id}
-                        </p>
-                      </div>
+              {editors.map((editor) => (
+                <motion.div
+                  key={editor.editor_id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-3 rounded-xl border border-transparent bg-secondary/30 p-4 transition-colors hover:border-accent/30"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-accent/30 bg-accent/20">
+                      <span className="text-sm font-bold text-accent">
+                        {editor.name.charAt(0).toUpperCase()}
+                      </span>
                     </div>
-                  </motion.div>
-                ))
-              )}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-foreground">
+                        {editor.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        ID: {editor.editor_id}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
             </div>
           </div>
         </TabsContent>

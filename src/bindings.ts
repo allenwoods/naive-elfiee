@@ -843,6 +843,10 @@ export type CreateBlockPayload = {
    */
   block_type: string
   /**
+   * The source category of the block ("outline" or "linked")
+   */
+  source?: string
+  /**
    * Optional metadata (description, custom fields, etc.)
    *
    * If provided, will be merged with auto-generated timestamps.
@@ -852,90 +856,36 @@ export type CreateBlockPayload = {
 }
 /**
  * Payload for DirectoryCreate
- *
- * Creates a new file or directory inside the Directory Block.
  */
 export type DirectoryCreatePayload = {
-  /**
-   * Internal virtual path (e.g., "docs/README.md")
-   */
   path: string
-  /**
-   * Entry type: "file" or "directory"
-   */
   type: string
-  /**
-   * Initial content (for files only, optional)
-   */
+  source: string
   content?: string | null
-  /**
-   * Block type (for files only)
-   * Example: "markdown", "code"
-   */
   block_type?: string | null
 }
 /**
  * Payload for DirectoryDelete
- *
- * Deletes a file or directory from the Directory Block (cascade delete).
  */
-export type DirectoryDeletePayload = {
-  /**
-   * Virtual path to delete
-   */
-  path: string
-}
+export type DirectoryDeletePayload = { path: string }
 /**
  * Payload for DirectoryExport
- *
- * Exports files from Directory Block to external file system.
  */
 export type DirectoryExportPayload = {
-  /**
-   * Target external path (where to write)
-   * Example: "/Users/me/output/exported-project"
-   */
   target_path: string
-  /**
-   * Internal virtual path (optional, to export only a subdirectory)
-   * None means export entire project
-   * Example: "src"
-   */
   source_path?: string | null
 }
 /**
  * Payload for DirectoryImport
- *
- * Imports files from an external directory into the Directory Block.
  */
 export type DirectoryImportPayload = {
-  /**
-   * External file system path (source)
-   * Example: "/Users/me/projects/my-app"
-   */
   source_path: string
-  /**
-   * Internal virtual path prefix (target)
-   * None or "/" means import to root directory
-   * Example: "libs/external"
-   */
   target_path?: string | null
 }
 /**
  * Payload for DirectoryRename
- *
- * Renames or moves a file/directory, syncs Block.name for files.
  */
-export type DirectoryRenamePayload = {
-  /**
-   * Old path
-   */
-  old_path: string
-  /**
-   * New path
-   */
-  new_path: string
-}
+export type DirectoryRenamePayload = { old_path: string; new_path: string }
 /**
  * Payload for directory.write capability.
  *
@@ -946,6 +896,10 @@ export type DirectoryWritePayload = {
    * The full entries map to be saved
    */
   entries: JsonValue
+  /**
+   * The source category of this directory block ("outline" or "linked")
+   */
+  source?: string | null
 }
 export type Editor = {
   editor_id: string

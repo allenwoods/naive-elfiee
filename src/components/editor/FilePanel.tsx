@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, MoreHorizontal, Download } from 'lucide-react'
+import {
+  Plus,
+  MoreHorizontal,
+  Download,
+  FileUp,
+  FolderUp,
+  Trash2,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { useAppStore } from '@/lib/app-store'
 import { TauriClient } from '@/lib/tauri-client'
 import { Button } from '@/components/ui/button'
@@ -8,6 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { ImportRepositoryModal } from './ImportRepositoryModal'
 import { VfsTree } from './VfsTree'
+import { CreateEntryDialog } from './CreateEntryDialog'
 import type { VfsNode } from '@/utils/vfs-tree'
 import { toast } from 'sonner'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -18,10 +27,35 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+// Helper to infer block type from filename
+const inferBlockType = (filename: string): string => {
+  const ext = filename.split('.').pop()?.toLowerCase()
+  if (ext === 'md' || ext === 'markdown') return 'markdown'
+  return 'code'
+}
+
 export const FilePanel = () => {
-  const { currentFileId, selectedBlockId, selectBlock, loadBlocks } =
-    useAppStore()
+  const {
+    currentFileId,
+    selectedBlockId,
+    selectBlock,
+    loadBlocks,
+    getBlocks,
+    getActiveEditor,
+  } = useAppStore()
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [createDialog, setCreateDialog] = useState({
+    open: false,
+    directoryBlockId: '',
+    parentPath: '',
+    type: 'file' as 'file' | 'directory',
+    source: 'outline' as 'outline' | 'linked',
+  })
+
+  // Get active editor ID for operations
+  const activeEditorId = currentFileId
+    ? getActiveEditor(currentFileId)?.editor_id
+    : undefined
 
   // Initialize Outline and load data
   useEffect(() => {
@@ -39,6 +73,15 @@ export const FilePanel = () => {
     ? useAppStore.getState().getLinkedRepos(currentFileId)
     : []
 
+  // Find the block ID of the system outline (identified strictly by source="outline")
+  const outlineBlockId = currentFileId
+    ? getBlocks(currentFileId).find(
+        (b) =>
+          b.block_type === 'directory' &&
+          (b.contents as any)?.source === 'outline'
+      )?.block_id
+    : null
+
   // --- Handlers ---
 
   const handleSelect = (node: VfsNode) => {
@@ -47,17 +90,29 @@ export const FilePanel = () => {
     }
   }
 
-  const handleAddEntry = async (
+  const openCreateDialog = (
     directoryBlockId: string,
     parentPath: string,
-    type: 'file' | 'directory'
+    type: 'file' | 'directory',
+    source: 'outline' | 'linked'
   ) => {
+    setCreateDialog({
+      open: true,
+      directoryBlockId,
+      parentPath,
+      type,
+      source,
+    })
+  }
+
+  const handleCreateConfirm = async (name: string) => {
     if (!currentFileId) return
 
-    const name = prompt(`Enter ${type} name:`)
-    if (!name || !name.trim()) return
-
+    const { directoryBlockId, parentPath, type, source } = createDialog
     const path = parentPath ? `${parentPath}/${name}` : name
+
+    // Dynamic block type inference
+    const blockType = type === 'file' ? inferBlockType(name) : undefined
 
     try {
       await TauriClient.directory.createEntry(
@@ -65,10 +120,16 @@ export const FilePanel = () => {
         directoryBlockId,
         path,
         type,
-        { block_type: type === 'file' ? 'markdown' : undefined }
+        {
+          block_type: blockType,
+          source,
+        },
+        activeEditorId
       )
       await loadBlocks(currentFileId)
-      toast.success(`${type === 'file' ? 'Document' : 'Folder'} created`)
+      toast.success(
+        `${type === 'file' ? (source === 'outline' ? 'Document' : 'File') : 'Folder'} created`
+      )
     } catch (error) {
       toast.error(`Failed to create ${type}: ${error}`)
     }
@@ -88,7 +149,8 @@ export const FilePanel = () => {
         node.path,
         node.path.includes('/')
           ? `${node.path.substring(0, node.path.lastIndexOf('/'))}/${newName}`
-          : newName
+          : newName,
+        activeEditorId
       )
       await loadBlocks(currentFileId)
       toast.success('Renamed successfully')
@@ -109,12 +171,35 @@ export const FilePanel = () => {
       await TauriClient.directory.deleteEntry(
         currentFileId,
         directoryBlockId,
-        node.path
+        node.path,
+        activeEditorId
       )
       await loadBlocks(currentFileId)
       toast.success('Deleted successfully')
     } catch (error) {
       toast.error(`Failed to delete: ${error}`)
+    }
+  }
+
+  // Handle deleting an entire directory block (e.g., whole repo)
+  const handleDeleteRepo = async (blockId: string, name: string) => {
+    if (!currentFileId) return
+
+    const confirmed = confirm(
+      `Are you sure you want to delete "${name}"? This will remove the entire repository and all its contents.`
+    )
+    if (!confirmed) return
+
+    try {
+      await TauriClient.block.deleteBlock(
+        currentFileId,
+        blockId,
+        activeEditorId
+      )
+      await loadBlocks(currentFileId)
+      toast.success('Repository deleted successfully')
+    } catch (error) {
+      toast.error(`Failed to delete repository: ${error}`)
     }
   }
 
@@ -142,36 +227,35 @@ export const FilePanel = () => {
     }
   }
 
-  const handleImportRepo = async (name: string) => {
+  const handleImport = async (isFolder: boolean) => {
     if (!currentFileId) return
 
-    // Note: 'source' from modal is currently 'Local', 'Agentour', etc.
-    // We need the actual absolute path. For now, we'll trigger a Tauri dialog
-    // until the modal is fully updated to handle Tauri-native paths.
     try {
       const sourcePath = await open({
-        directory: true,
+        directory: isFolder,
         multiple: false,
-        title: 'Select Folder to Import',
+        title: isFolder ? 'Select Folder to Import' : 'Select File to Import',
       })
 
       if (!sourcePath || typeof sourcePath !== 'string') return
 
-      const folderName = name || sourcePath.split(/[\\\/]/).pop() || 'Imported'
+      const itemName = sourcePath.split(/[\\/]/).pop() || 'Imported'
 
       // Check for name collision in top-level directory blocks
       const existingNames = linkedRepos.map((r) => r.name)
-      let uniqueName = folderName
+      let uniqueName = itemName
       let counter = 1
       while (existingNames.includes(uniqueName)) {
-        uniqueName = `${folderName} (${counter++})`
+        uniqueName = `${itemName} (${counter++})`
       }
 
       // 1. Create the Directory Block
       const events = await TauriClient.block.createBlock(
         currentFileId,
         uniqueName,
-        'directory'
+        'directory',
+        activeEditorId,
+        'linked'
       )
       const createEvent = events.find((e) =>
         e.attribute.endsWith('/core.create')
@@ -184,7 +268,9 @@ export const FilePanel = () => {
       await TauriClient.directory.importDirectory(
         currentFileId,
         newBlockId,
-        sourcePath
+        sourcePath,
+        undefined,
+        activeEditorId
       )
 
       await loadBlocks(currentFileId)
@@ -217,7 +303,15 @@ export const FilePanel = () => {
           {/* OUTLINE Section */}
           <div className="mb-3 px-2">
             <div className="mb-2 flex items-center justify-between px-1">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <span
+                className={cn(
+                  'cursor-pointer rounded-sm px-1 text-xs font-semibold uppercase tracking-wide transition-colors',
+                  outlineBlockId && selectedBlockId === outlineBlockId
+                    ? 'bg-accent/10 text-accent'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+                onClick={() => outlineBlockId && selectBlock(outlineBlockId)}
+              >
                 Outline
               </span>
               <div className="flex items-center gap-1">
@@ -234,16 +328,25 @@ export const FilePanel = () => {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
                       onClick={() =>
-                        handleAddEntry('__system_outline__', '', 'file')
+                        outlineBlockId &&
+                        openCreateDialog(outlineBlockId, '', 'file', 'outline')
                       }
                     >
+                      <FileUp className="mr-2 h-3.5 w-3.5" />
                       Add Document
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() =>
-                        handleAddEntry('__system_outline__', '', 'directory')
+                        outlineBlockId &&
+                        openCreateDialog(
+                          outlineBlockId,
+                          '',
+                          'directory',
+                          'outline'
+                        )
                       }
                     >
+                      <FolderUp className="mr-2 h-3.5 w-3.5" />
                       Add Folder
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -262,7 +365,8 @@ export const FilePanel = () => {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
                       onClick={() =>
-                        handleExport('__system_outline__', {
+                        outlineBlockId &&
+                        handleExport(outlineBlockId, {
                           path: '',
                           name: 'Outline',
                           type: 'directory',
@@ -285,13 +389,18 @@ export const FilePanel = () => {
               activeBlockId={selectedBlockId}
               onSelect={handleSelect}
               onAddChild={(node, type) =>
-                handleAddEntry('__system_outline__', node.path, type)
+                outlineBlockId &&
+                openCreateDialog(outlineBlockId, node.path, type, 'outline')
               }
               onRename={(node, newName) =>
-                handleRename('__system_outline__', node, newName)
+                outlineBlockId && handleRename(outlineBlockId, node, newName)
               }
-              onDelete={(node) => handleDelete('__system_outline__', node)}
-              onExport={(node) => handleExport('__system_outline__', node)}
+              onDelete={(node) =>
+                outlineBlockId && handleDelete(outlineBlockId, node)
+              }
+              onExport={(node) =>
+                outlineBlockId && handleExport(outlineBlockId, node)
+              }
             />
           </div>
 
@@ -303,21 +412,41 @@ export const FilePanel = () => {
               <span className="whitespace-nowrap text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Linked Repos
               </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 w-6 flex-shrink-0 p-0 text-muted-foreground hover:text-foreground"
-                onClick={() => setIsImportModalOpen(true)}
-                title="Import repository"
-              >
-                <Plus className="h-3.5 w-3.5" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 flex-shrink-0 p-0 text-muted-foreground hover:text-foreground"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleImport(false)}>
+                    <FileUp className="mr-2 h-3.5 w-3.5" />
+                    Import File
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleImport(true)}>
+                    <FolderUp className="mr-2 h-3.5 w-3.5" />
+                    Import Folder
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <div className="space-y-4">
               {linkedRepos.map((repo) => (
                 <div key={repo.blockId} className="space-y-1">
                   <div className="group flex items-center justify-between px-1">
-                    <span className="truncate text-xs font-medium text-muted-foreground/80">
+                    <span
+                      className={cn(
+                        'cursor-pointer truncate rounded-sm px-1 text-xs font-medium transition-colors',
+                        selectedBlockId === repo.blockId
+                          ? 'bg-accent/10 text-accent'
+                          : 'text-muted-foreground/80 hover:bg-muted hover:text-foreground'
+                      )}
+                      onClick={() => selectBlock(repo.blockId)}
+                    >
                       {repo.name}
                     </span>
                     <DropdownMenu>
@@ -327,6 +456,27 @@ export const FilePanel = () => {
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() =>
+                            openCreateDialog(repo.blockId, '', 'file', 'linked')
+                          }
+                        >
+                          <FileUp className="mr-2 h-3.5 w-3.5" />
+                          Add File
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            openCreateDialog(
+                              repo.blockId,
+                              '',
+                              'directory',
+                              'linked'
+                            )
+                          }
+                        >
+                          <FolderUp className="mr-2 h-3.5 w-3.5" />
+                          Add Folder
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() =>
                             handleExport(repo.blockId, {
@@ -342,6 +492,15 @@ export const FilePanel = () => {
                           <Download className="mr-2 h-3.5 w-3.5" />
                           Export Project
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            handleDeleteRepo(repo.blockId, repo.name)
+                          }
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-3.5 w-3.5" />
+                          Delete Project
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -350,7 +509,7 @@ export const FilePanel = () => {
                     activeBlockId={selectedBlockId}
                     onSelect={handleSelect}
                     onAddChild={(node, type) =>
-                      handleAddEntry(repo.blockId, node.path, type)
+                      openCreateDialog(repo.blockId, node.path, type, 'linked')
                     }
                     onRename={(node, newName) =>
                       handleRename(repo.blockId, node, newName)
@@ -365,10 +524,22 @@ export const FilePanel = () => {
         </div>
       </ScrollArea>
 
+      <CreateEntryDialog
+        open={createDialog.open}
+        onOpenChange={(open) => setCreateDialog((prev) => ({ ...prev, open }))}
+        onConfirm={handleCreateConfirm}
+        type={createDialog.type}
+        parentPath={createDialog.parentPath}
+        source={createDialog.source}
+      />
+
       <ImportRepositoryModal
         open={isImportModalOpen}
         onOpenChange={setIsImportModalOpen}
-        onImport={handleImportRepo}
+        onImport={(_name, source) => {
+          if (source === 'Local File') handleImport(false)
+          else handleImport(true)
+        }}
       />
     </aside>
   )

@@ -47,6 +47,7 @@ const mockStore = {
   getOutlineTree: vi.fn(() => []),
   getLinkedRepos: vi.fn(() => []),
   ensureSystemOutline: vi.fn(),
+  getActiveEditor: vi.fn(),
 }
 
 vi.mock('@/lib/app-store', () => ({
