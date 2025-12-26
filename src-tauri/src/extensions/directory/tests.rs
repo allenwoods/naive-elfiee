@@ -711,6 +711,9 @@ fn test_rename_basic() {
 
 #[test]
 fn test_rename_extension_change() {
+    // This test verifies that renaming a file with a different extension
+    // correctly triggers a 'core.change_type' event to update the block type.
+    // Example: main.rs (code) -> main.md (markdown)
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("directory.rename")

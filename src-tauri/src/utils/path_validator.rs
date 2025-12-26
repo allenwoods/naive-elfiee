@@ -55,13 +55,16 @@ pub fn validate_filename(name: &str) -> Result<(), String> {
     }
 
     // Windows reserved names
-    let reserved = [
-        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
-        "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-    ];
-    let upper_name = name.to_uppercase();
-    if reserved.contains(&upper_name.as_str()) {
-        return Err(format!("'{}' is a reserved filename", name));
+    #[cfg(windows)]
+    {
+        let reserved = [
+            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+            "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        ];
+        let upper_name = name.to_uppercase();
+        if reserved.contains(&upper_name.as_str()) {
+            return Err(format!("'{}' is a reserved filename", name));
+        }
     }
 
     // Illegal characters
