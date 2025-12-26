@@ -17,6 +17,7 @@ import type { Editor, EditorType } from '@/bindings'
 
 interface AddCollaboratorDialogProps {
   fileId: string
+  blockId: string
   existingEditors: Editor[]
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -25,6 +26,7 @@ interface AddCollaboratorDialogProps {
 
 export const AddCollaboratorDialog = ({
   fileId,
+  blockId,
   existingEditors,
   open,
   onOpenChange,
@@ -57,7 +59,14 @@ export const AddCollaboratorDialog = ({
     setIsCreating(true)
 
     try {
-      const newEditor = await createEditor(fileId, trimmedName, editorType)
+      // Backend will check permission: only block owner can create editors
+      // Pass blockId to backend for permission validation
+      const newEditor = await createEditor(
+        fileId,
+        trimmedName,
+        editorType,
+        blockId
+      )
       // Reset form
       setName('')
       setEditorType('Human')
@@ -69,6 +78,7 @@ export const AddCollaboratorDialog = ({
     } catch (error) {
       console.error('Failed to create collaborator:', error)
       // Error toast is already shown by app-store
+      // Backend will return appropriate error message if permission is denied
     } finally {
       setIsCreating(false)
     }

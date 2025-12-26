@@ -27,6 +27,7 @@ vi.mock('@/lib/tauri-client', () => ({
   TauriClient: {
     file: {
       getFileInfo: vi.fn(),
+      saveFile: vi.fn().mockResolvedValue(undefined),
     },
     block: {
       getAllBlocks: vi.fn(),
@@ -48,23 +49,23 @@ vi.mock('@/lib/app-store', () => {
     loadBlocks: vi.fn().mockResolvedValue(undefined),
     loadEditors: vi.fn().mockResolvedValue(undefined),
     loadGrants: vi.fn().mockResolvedValue(undefined),
+    loadEvents: vi.fn().mockResolvedValue(undefined),
   }
 
+  const useAppStoreFn = vi.fn((selector) => {
+    if (typeof selector === 'function') {
+      return selector(actualStore)
+    }
+    return actualStore
+  })
+
   return {
-    useAppStore: Object.assign(
-      vi.fn((selector) => {
-        if (typeof selector === 'function') {
-          return selector(actualStore)
-        }
-        return actualStore
-      }),
-      {
-        getState: () => actualStore,
-        setState: (partial: any) => {
-          Object.assign(actualStore, partial)
-        },
-      }
-    ),
+    useAppStore: Object.assign(useAppStoreFn, {
+      getState: () => actualStore,
+      setState: (partial: any) => {
+        Object.assign(actualStore, partial)
+      },
+    }),
   }
 })
 
@@ -147,6 +148,7 @@ describe('DocumentEditor', () => {
     store.loadBlocks.mockResolvedValue(undefined)
     store.loadEditors.mockResolvedValue(undefined)
     store.loadGrants.mockResolvedValue(undefined)
+    store.loadEvents.mockResolvedValue(undefined)
   })
 
   describe('Loading State', () => {

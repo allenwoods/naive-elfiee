@@ -11,6 +11,14 @@ vi.mock('@/lib/app-store', () => ({
 }))
 
 // Mock child components
+vi.mock('@/lib/tauri-client', () => ({
+  TauriClient: {
+    block: {
+      checkPermission: vi.fn().mockResolvedValue(true),
+    },
+  },
+}))
+
 vi.mock('./CollaboratorItem', () => ({
   CollaboratorItem: ({ editor, onGrantChange, onRemoveAccess }: any) => (
     <div data-testid={`collaborator-${editor.editor_id}`}>
@@ -255,7 +263,11 @@ describe('CollaboratorList Component', () => {
       // Should delete the editor (which also removes all grants)
       await waitFor(() => {
         expect(mockDeleteEditor).toHaveBeenCalledTimes(1)
-        expect(mockDeleteEditor).toHaveBeenCalledWith('file-1', 'collab-456')
+        expect(mockDeleteEditor).toHaveBeenCalledWith(
+          'file-1',
+          'collab-456',
+          'block-1'
+        )
       })
     })
 
@@ -278,7 +290,11 @@ describe('CollaboratorList Component', () => {
       // Should delete the editor
       await waitFor(
         () => {
-          expect(mockDeleteEditor).toHaveBeenCalledWith('file-1', 'collab-456')
+          expect(mockDeleteEditor).toHaveBeenCalledWith(
+            'file-1',
+            'collab-456',
+            'block-1'
+          )
         },
         { timeout: 3000 }
       )

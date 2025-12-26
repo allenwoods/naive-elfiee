@@ -71,7 +71,8 @@ impl EventStore {
                 entity TEXT NOT NULL,
                 attribute TEXT NOT NULL,
                 value TEXT NOT NULL,
-                timestamp TEXT NOT NULL
+                timestamp TEXT NOT NULL,
+                created_at TEXT NOT NULL
             )",
         )
         .execute(pool)
@@ -99,14 +100,15 @@ impl EventStore {
                 .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
 
             sqlx::query(
-                "INSERT INTO events (event_id, entity, attribute, value, timestamp)
-                 VALUES ($1, $2, $3, $4, $5)",
+                "INSERT INTO events (event_id, entity, attribute, value, timestamp, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6)",
             )
             .bind(&event.event_id)
             .bind(&event.entity)
             .bind(&event.attribute)
             .bind(&value_json)
             .bind(&timestamp_json)
+            .bind(&event.created_at)
             .execute(pool)
             .await?;
         }
@@ -116,7 +118,7 @@ impl EventStore {
     /// Get all events from the database, ordered by insertion order (rowid).
     pub async fn get_all_events(pool: &SqlitePool) -> Result<Vec<Event>, sqlx::Error> {
         let rows = sqlx::query(
-            "SELECT event_id, entity, attribute, value, timestamp
+            "SELECT event_id, entity, attribute, value, timestamp, created_at
              FROM events
              ORDER BY rowid",
         )
@@ -138,7 +140,7 @@ impl EventStore {
         entity: &str,
     ) -> Result<Vec<Event>, sqlx::Error> {
         let rows = sqlx::query(
-            "SELECT event_id, entity, attribute, value, timestamp
+            "SELECT event_id, entity, attribute, value, timestamp, created_at
              FROM events
              WHERE entity = $1
              ORDER BY rowid",
@@ -163,6 +165,7 @@ impl EventStore {
         let attribute: String = row.try_get(2)?;
         let value_json: String = row.try_get(3)?;
         let timestamp_json: String = row.try_get(4)?;
+        let created_at: String = row.try_get(5)?;
 
         let value: serde_json::Value =
             serde_json::from_str(&value_json).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
@@ -175,6 +178,7 @@ impl EventStore {
             attribute,
             value,
             timestamp,
+            created_at,
         })
     }
 }

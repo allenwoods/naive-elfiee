@@ -241,6 +241,70 @@ export const commands = {
     }
   },
   /**
+   * Get block content at a specific event (time-travel to historical state).
+   *
+   * This command enables the "restore" functionality in the Timeline feature.
+   * It reconstructs the block's content at the moment of a specific event by
+   * replaying all events up to and including that event.
+   *
+   * # Arguments
+   * * `file_id` - Unique identifier of the file
+   * * `block_id` - Unique identifier of the block
+   * * `event_id` - Unique identifier of the target event
+   *
+   * # Returns
+   * * `Ok(String)` - The markdown content of the block at that event
+   * * `Err(message)` - Error description if retrieval fails
+   *
+   * # Implementation Details
+   * 1. Fetches all events from the event store
+   * 2. Finds the index of the target event
+   * 3. Creates a temporary StateProjector
+   * 4. Replays events up to the target event
+   * 5. Extracts the block's markdown content from the projected state
+   */
+  async getBlockAtEvent(
+    fileId: string,
+    blockId: string,
+    eventId: string
+  ): Promise<Result<Block, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('get_block_at_event', {
+          fileId,
+          blockId,
+          eventId,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Get the full state snapshot (block + grants) at a specific event.
+   */
+  async getStateAtEvent(
+    fileId: string,
+    blockId: string,
+    eventId: string
+  ): Promise<Result<StateSnapshot, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('get_state_at_event', {
+          fileId,
+          blockId,
+          eventId,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * Execute a command on a block in the specified file.
    *
    * This is the primary way to modify blocks. Commands are processed by the engine actor,
@@ -404,7 +468,8 @@ export const commands = {
   async checkPermission(
     fileId: string,
     blockId: string,
-    capability: string
+    capability: string,
+    editorId: string | null
   ): Promise<Result<boolean, string>> {
     try {
       return {
@@ -413,6 +478,7 @@ export const commands = {
           fileId,
           blockId,
           capability,
+          editorId,
         }),
       }
     } catch (e) {
@@ -429,6 +495,8 @@ export const commands = {
    * # Arguments
    * * `file_id` - Unique identifier of the file
    * * `name` - Display name for the new editor
+   * * `editor_type` - Optional editor type (Human or Bot)
+   * * `block_id` - Optional block ID. If provided, only the block owner can create editors.
    *
    * # Returns
    * * `Ok(Editor)` - The newly created editor
@@ -437,12 +505,18 @@ export const commands = {
   async createEditor(
     fileId: string,
     name: string,
-    editorType: string | null
+    editorType: string | null,
+    blockId: string | null
   ): Promise<Result<Editor, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('create_editor', { fileId, name, editorType }),
+        data: await TAURI_INVOKE('create_editor', {
+          fileId,
+          name,
+          editorType,
+          blockId,
+        }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -458,6 +532,7 @@ export const commands = {
    * # Arguments
    * * `file_id` - Unique identifier of the file
    * * `editor_id` - Unique identifier of the editor to delete
+   * * `block_id` - Optional block ID. If provided, only the block owner can delete editors.
    *
    * # Returns
    * * `Ok(())` - Success
@@ -465,12 +540,17 @@ export const commands = {
    */
   async deleteEditor(
     fileId: string,
-    editorId: string
+    editorId: string,
+    blockId: string | null
   ): Promise<Result<null, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('delete_editor', { fileId, editorId }),
+        data: await TAURI_INVOKE('delete_editor', {
+          fileId,
+          editorId,
+          blockId,
+        }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -976,6 +1056,7 @@ export type Event = {
   attribute: string
   value: JsonValue
   timestamp: Partial<{ [key in string]: number }>
+  created_at: string
 }
 /**
  * File metadata for frontend display.
@@ -1082,6 +1163,19 @@ export type RevokePayload = {
    * The block ID to revoke access from, or "*" for all blocks (wildcard)
    */
   target_block?: string
+}
+/**
+ * Full state snapshot at a specific point in time.
+ */
+export type StateSnapshot = {
+  /**
+   * Block state at that event
+   */
+  block: Block
+  /**
+   * All grants in the system at that event
+   */
+  grants: Grant[]
 }
 export type TerminalInitPayload = {
   cols: number
