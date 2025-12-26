@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
-import { Save, Play, Loader2, Terminal, Edit2, Check, X } from 'lucide-react'
+import { Play, Loader2, Terminal, Edit2, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -10,11 +10,11 @@ import { mystParse } from 'myst-parser'
 import { MyST } from 'myst-to-react'
 import { Theme, ThemeProvider } from '@myst-theme/providers'
 import type { NodeRenderers } from '@myst-theme/providers'
-import type { Block } from '@/bindings'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { TauriClient } from '@/lib/tauri-client'
 import './myst-styles.css'
 
 // AST Node Types
@@ -326,14 +326,18 @@ const MySTDocument = ({
   )
 
   const handleSave = useCallback(async () => {
-    // Update content
-    if (editContent.trim() !== content.trim()) {
+    // Update parent component's state with latest content
+    // Parent uses ref to capture this immediately, so no async issues
+    const contentToSave = editContent.trim()
+
+    if (contentToSave !== content.trim()) {
       if (onContentChange) {
-        onContentChange(editContent)
+        onContentChange(contentToSave)
       }
     }
 
     // Save block to database
+    // Parent's handleBlockSave uses ref, so it will get the latest content
     if (onSave) {
       setIsSaving(true)
       try {
@@ -507,46 +511,53 @@ print('Hello, World!')
 
 // Main EditorCanvas Component
 export const EditorCanvas = () => {
-  const { currentFileId, selectedBlockId, getBlock, updateBlock, saveFile } =
-    useAppStore()
-  const [isSaving, setIsSaving] = useState(false)
+  const updateBlock = useAppStore((state) => state.updateBlock)
+  const saveFile = useAppStore((state) => state.saveFile)
+  const loadEvents = useAppStore((state) => state.loadEvents)
+
+  // Use selector to subscribe to the specific block - this ensures reactivity
+  // CRITICAL: All dependencies must be from 'state' parameter, not external variables
+  const selectedBlock = useAppStore((state) => {
+    const currentFileId = state.currentFileId
+    const selectedBlockId = state.selectedBlockId
+
+    if (!currentFileId || !selectedBlockId) return null
+    const fileState = state.files.get(currentFileId)
+    return fileState?.blocks.find((b) => b.block_id === selectedBlockId) || null
+  })
+
+  // Get these values separately for use in callbacks
+  const currentFileId = useAppStore((state) => state.currentFileId)
+  const selectedBlockId = useAppStore((state) => state.selectedBlockId)
+  // Retrieve active editor ID to check permissions against
+  const activeEditorId = useAppStore((state) => {
+    if (!currentFileId) return null
+    return state.files.get(currentFileId)?.activeEditorId
+  })
+
   const [documentContent, setDocumentContent] = useState<string>('')
-  const [selectedBlock, setSelectedBlock] = useState<Block | null>(null)
 
-  // Load block content when selectedBlockId changes
+  // Use ref to always have access to latest content (for save operations)
+  const documentContentRef = useRef<string>('')
+
+  // Update ref whenever documentContent changes
   useEffect(() => {
-    if (currentFileId && selectedBlockId) {
-      const block = getBlock(currentFileId, selectedBlockId)
-      if (block) {
-        setSelectedBlock(block)
-        // Extract markdown content from block.contents
-        const contents = block.contents as { markdown?: string }
-        setDocumentContent(contents?.markdown || '')
-      }
+    documentContentRef.current = documentContent
+  }, [documentContent])
+
+  // Load block content when selectedBlock changes
+  useEffect(() => {
+    if (selectedBlock) {
+      // Extract markdown content from block.contents
+      const contents = selectedBlock.contents as { markdown?: string }
+      const content = contents?.markdown || ''
+      setDocumentContent(content)
+      documentContentRef.current = content
     } else {
-      setSelectedBlock(null)
       setDocumentContent('')
+      documentContentRef.current = ''
     }
-  }, [currentFileId, selectedBlockId, getBlock])
-
-  // Handle save block only (called from editor)
-  const handleBlockSave = useCallback(async () => {
-    if (!currentFileId || !selectedBlockId) {
-      toast.error('No block selected')
-      return
-    }
-
-    try {
-      // Update block content in database
-      if (documentContent.trim()) {
-        await updateBlock(currentFileId, selectedBlockId, documentContent)
-        toast.success('Block saved successfully')
-      }
-    } catch (error) {
-      console.error('Failed to save block:', error)
-      throw error // Re-throw to let editor handle the error
-    }
-  }, [currentFileId, selectedBlockId, documentContent, updateBlock])
+  }, [selectedBlock])
 
   // Handle save file action (top-level save button)
   const handleSave = useCallback(async () => {
@@ -555,28 +566,60 @@ export const EditorCanvas = () => {
       return
     }
 
-    setIsSaving(true)
     try {
-      // Step 1: Update block content in memory
-      if (documentContent.trim()) {
-        await updateBlock(currentFileId, selectedBlockId, documentContent)
+      // Check permission first
+      const hasPermission = await TauriClient.block.checkPermission(
+        currentFileId,
+        selectedBlockId,
+        'markdown.write',
+        activeEditorId || undefined
+      )
+
+      if (!hasPermission) {
+        toast.error('You do not have permission to edit this block.')
+        return
       }
 
-      // Step 2: Save file to disk (.elf file)
+      // Step 1: Update block content in memory (this creates a markdown.write event)
+      // Use ref to get the latest content (handles async state updates)
+      const latestContent = documentContentRef.current
+      if (latestContent.trim()) {
+        await updateBlock(currentFileId, selectedBlockId, latestContent)
+      }
+
+      // Step 2: Save file to disk (.elf file) - no new event, just persists to .elf
       await saveFile(currentFileId)
 
-      toast.success('Document and file saved successfully')
+      // Step 3: Reload events to show the new event in Timeline
+      await loadEvents(currentFileId)
+
+      // Show success toast only after all operations complete successfully
+      toast.success('Block saved successfully')
     } catch (error) {
       console.error('Failed to save:', error)
-      // Error toast is already shown by app-store methods
-    } finally {
-      setIsSaving(false)
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      // Only show error if it's not a permission error (permission error already shown above)
+      if (
+        !errorMessage.includes('permission') &&
+        !errorMessage.includes('Permission')
+      ) {
+        toast.error(`Failed to save: ${errorMessage}`)
+      }
     }
-  }, [currentFileId, selectedBlockId, documentContent, updateBlock, saveFile])
+  }, [
+    currentFileId,
+    selectedBlockId,
+    activeEditorId,
+    updateBlock,
+    saveFile,
+    loadEvents,
+  ])
 
   // Handle content change from MySTDocument
   const handleContentChange = useCallback((newContent: string) => {
     setDocumentContent(newContent)
+    documentContentRef.current = newContent // Update ref immediately
   }, [])
 
   // Keyboard shortcut for save (Ctrl+S / Cmd+S)
@@ -597,31 +640,13 @@ export const EditorCanvas = () => {
       <main className="w-full min-w-0 bg-background p-4 md:p-6 lg:p-8">
         {/* Editor Container */}
         <div className="mx-auto w-full min-w-0 max-w-4xl pb-32">
-          {/* Save Button */}
-          <div className="mb-6 flex items-center justify-end">
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button
-                size="sm"
-                className="bg-foreground px-4 text-sm font-medium text-background shadow-sm hover:bg-foreground/90"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleSave()
-                }}
-                disabled={isSaving}
-              >
-                <Save className="mr-2 h-3.5 w-3.5" />
-                {isSaving ? 'Saving...' : 'Save (Ctrl+S)'}
-              </Button>
-            </motion.div>
-          </div>
-
           {/* MyST Document Content */}
           <div className="w-full min-w-0 space-y-6">
             {selectedBlock ? (
               <MySTDocument
                 content={documentContent}
                 onContentChange={handleContentChange}
-                onSave={handleBlockSave}
+                onSave={handleSave}
               />
             ) : (
               <div className="py-16 text-center text-muted-foreground">

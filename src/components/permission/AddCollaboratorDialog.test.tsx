@@ -40,6 +40,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={false}
           onOpenChange={mockOnOpenChange}
@@ -53,6 +54,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -66,6 +68,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -80,6 +83,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -95,6 +99,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -115,6 +120,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -135,6 +141,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -173,6 +180,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -187,7 +195,12 @@ describe('AddCollaboratorDialog Component', () => {
       await user.click(createButton)
 
       await waitFor(() => {
-        expect(mockCreateEditor).toHaveBeenCalledWith('file-1', 'Bob', 'Human')
+        expect(mockCreateEditor).toHaveBeenCalledWith(
+          'file-1',
+          'Bob',
+          'Human',
+          'block-1'
+        )
       })
 
       await waitFor(() => {
@@ -211,6 +224,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -232,7 +246,8 @@ describe('AddCollaboratorDialog Component', () => {
         expect(mockCreateEditor).toHaveBeenCalledWith(
           'file-1',
           'CodeHelper',
-          'Bot'
+          'Bot',
+          'block-1'
         )
       })
     })
@@ -248,6 +263,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -261,7 +277,12 @@ describe('AddCollaboratorDialog Component', () => {
       await user.click(createButton)
 
       await waitFor(() => {
-        expect(mockCreateEditor).toHaveBeenCalledWith('file-1', 'Bob', 'Human')
+        expect(mockCreateEditor).toHaveBeenCalledWith(
+          'file-1',
+          'Bob',
+          'Human',
+          'block-1'
+        )
       })
     })
 
@@ -276,6 +297,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -287,7 +309,12 @@ describe('AddCollaboratorDialog Component', () => {
       await user.keyboard('{Enter}')
 
       await waitFor(() => {
-        expect(mockCreateEditor).toHaveBeenCalledWith('file-1', 'Bob', 'Human')
+        expect(mockCreateEditor).toHaveBeenCalledWith(
+          'file-1',
+          'Bob',
+          'Human',
+          'block-1'
+        )
       })
     })
   })
@@ -297,6 +324,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -315,6 +343,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -334,6 +363,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -361,6 +391,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -402,6 +433,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -481,6 +513,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}
@@ -511,6 +544,7 @@ describe('AddCollaboratorDialog Component', () => {
       render(
         <AddCollaboratorDialog
           fileId="file-1"
+          blockId="block-1"
           existingEditors={existingEditors}
           open={true}
           onOpenChange={mockOnOpenChange}

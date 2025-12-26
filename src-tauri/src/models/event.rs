@@ -9,6 +9,7 @@ pub struct Event {
     pub attribute: String,
     pub value: serde_json::Value,
     pub timestamp: HashMap<String, i64>, // Vector clock
+    pub created_at: String,              // Wall clock time (ISO 8601)
 }
 
 impl Event {
@@ -24,6 +25,7 @@ impl Event {
             attribute,
             value,
             timestamp,
+            created_at: crate::utils::time::now_utc(),
         }
     }
 }

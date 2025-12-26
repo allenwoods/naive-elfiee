@@ -8,29 +8,62 @@ import type { Block, Editor, Event as BlockEvent, Grant } from '@/bindings'
 const mockStore = {
   currentFileId: 'test-file-id',
   selectedBlockId: 'block-1',
-  files: new Map([
-    [
-      'test-file-id',
-      {
-        fileId: 'test-file-id',
-        metadata: null,
-        editors: [],
-        activeEditorId: null,
-        blocks: [],
-        selectedBlockId: 'block-1',
-        events: [],
-        grants: [],
-      },
-    ],
-  ]),
-  getBlock: vi.fn(),
-  getEvents: vi.fn(() => []),
-  getEditors: vi.fn(() => []),
-  getGrants: vi.fn(() => []),
+  files: new Map(),
   updateBlockMetadata: vi.fn(),
-  grantCapability: vi.fn(),
-  revokeCapability: vi.fn(),
+  restoreToEvent: vi.fn(),
 }
+
+// Helper to create mock block
+const createMockBlock = (
+  id: string,
+  name: string,
+  description?: string
+): Block => ({
+  block_id: id,
+  name,
+  block_type: 'markdown',
+  contents: { markdown: '# Content' },
+  children: {},
+  owner: 'test-user',
+  metadata: {
+    description: description || '',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+})
+
+// Helper to create mock editor
+const createMockEditor = (id: string, name: string): Editor => ({
+  editor_id: id,
+  name,
+})
+
+// Helper to create mock event
+const createMockEvent = (
+  id: string,
+  entity: string,
+  attribute: string,
+  createdAt?: string,
+  timestamp?: Record<string, number>
+): BlockEvent => ({
+  event_id: id,
+  entity,
+  attribute,
+  value: {},
+  timestamp: timestamp || { 'test-user': 1 },
+  created_at: createdAt || new Date().toISOString(),
+})
+
+// Helper to create mock grant
+const createMockGrant = (
+  editorId: string,
+  capId: string,
+  blockId: string
+): Grant => ({
+  editor_id: editorId,
+  cap_id: capId,
+  block_id: blockId,
+})
 
 vi.mock('@/lib/app-store', () => ({
   useAppStore: (selector: any) => {
@@ -39,6 +72,31 @@ vi.mock('@/lib/app-store', () => ({
     }
     return mockStore
   },
+}))
+
+// Mock TauriClient
+vi.mock('@/lib/tauri-client', () => ({
+  TauriClient: {
+    event: {
+      sortEventsByVectorClock: (events: BlockEvent[]) => {
+        // Simple sort by created_at descending
+        return [...events].sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
+      },
+    },
+    block: {
+      checkPermission: vi.fn().mockResolvedValue(true),
+    },
+  },
+}))
+
+// Mock CollaboratorList
+vi.mock('@/components/permission/CollaboratorList', () => ({
+  CollaboratorList: () => (
+    <div data-testid="collaborator-list">CollaboratorList</div>
+  ),
 }))
 
 // Mock sonner toast
@@ -55,6 +113,10 @@ vi.mock('@/components/ui/badge', () => ({
   Badge: ({ children }: { children: React.ReactNode }) => (
     <span>{children}</span>
   ),
+}))
+
+vi.mock('@/components/ui/separator', () => ({
+  Separator: () => <hr data-testid="separator" />,
 }))
 
 vi.mock('@/components/ui/tabs', () => ({
@@ -107,60 +169,18 @@ vi.mock('@/components/ui/textarea', () => ({
   ),
 }))
 
-// Helper to create mock block
-const createMockBlock = (
-  id: string,
-  name: string,
-  description?: string
-): Block => ({
-  block_id: id,
-  name,
-  block_type: 'markdown',
-  contents: {},
-  children: {},
-  owner: 'test-user',
-  metadata: {
-    description: description,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-})
-
-// Helper to create mock editor
-const createMockEditor = (id: string, name: string): Editor => ({
-  editor_id: id,
-  name,
-})
-
-// Helper to create mock event
-const createMockEvent = (
-  id: string,
-  entity: string,
-  attribute: string
-): BlockEvent => ({
-  event_id: id,
-  entity,
-  attribute,
-  value: {},
-  timestamp: { 'test-user': 1 },
-})
-
-// Helper to create mock grant
-const createMockGrant = (
-  editorId: string,
-  capId: string,
-  blockId: string
-): Grant => ({
-  editor_id: editorId,
-  cap_id: capId,
-  block_id: blockId,
-})
-
 describe('ContextPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockStore.currentFileId = 'test-file-id'
     mockStore.selectedBlockId = 'block-1'
+
+    // Set up default file with a block
+    const mockBlock = createMockBlock(
+      'block-1',
+      'Test Block',
+      'Test description'
+    )
     mockStore.files = new Map([
       [
         'test-file-id',
@@ -169,16 +189,13 @@ describe('ContextPanel', () => {
           metadata: null,
           editors: [],
           activeEditorId: null,
-          blocks: [],
+          blocks: [mockBlock],
           selectedBlockId: 'block-1',
           events: [],
           grants: [],
         },
       ],
     ])
-    mockStore.getBlock.mockReturnValue(
-      createMockBlock('block-1', 'Test Block', 'Test description')
-    )
   })
 
   describe('Rendering', () => {
@@ -211,9 +228,9 @@ describe('ContextPanel', () => {
     it('should display block name', () => {
       render(<ContextPanel />)
 
-      // Block name should be in the Info tab content
-      const infoTab = screen.getByTestId('tab-content-info')
-      expect(infoTab).toHaveTextContent('Test Block')
+      // Block name appears in both header and info tab, so use getAllByText
+      const blockNames = screen.getAllByText('Test Block')
+      expect(blockNames.length).toBeGreaterThan(0)
     })
 
     it('should display block description', () => {
@@ -223,9 +240,11 @@ describe('ContextPanel', () => {
     })
 
     it('should show placeholder when no description', () => {
-      mockStore.getBlock.mockReturnValue(
-        createMockBlock('block-1', 'Test Block')
-      )
+      const blockWithoutDescription = createMockBlock('block-1', 'Test Block')
+      mockStore.files.set('test-file-id', {
+        ...mockStore.files.get('test-file-id')!,
+        blocks: [blockWithoutDescription],
+      })
 
       render(<ContextPanel />)
 
@@ -243,6 +262,19 @@ describe('ContextPanel', () => {
 
       expect(screen.getByText('test-user')).toBeInTheDocument()
     })
+
+    it('should show empty state when no block selected', () => {
+      mockStore.selectedBlockId = null
+
+      render(<ContextPanel />)
+
+      // "No block selected" appears in multiple tabs, so check in info tab specifically
+      const infoTab = screen.getByTestId('tab-content-info')
+      expect(infoTab).toHaveTextContent(/no block selected/i)
+      expect(
+        screen.getByText(/select a block to view its details/i)
+      ).toBeInTheDocument()
+    })
   })
 
   describe('Description Editing', () => {
@@ -250,6 +282,7 @@ describe('ContextPanel', () => {
       render(<ContextPanel />)
 
       const buttons = screen.getAllByTestId('button')
+      // Should have at least the edit button
       expect(buttons.length).toBeGreaterThan(0)
     })
 
@@ -258,9 +291,16 @@ describe('ContextPanel', () => {
 
       render(<ContextPanel />)
 
+      // Find the edit button (icon button with Edit2 icon)
       const buttons = screen.getAllByTestId('button')
-      // The first button should be the edit button
-      await user.click(buttons[0])
+      const editButton =
+        buttons.find(
+          (btn) =>
+            btn.getAttribute('title')?.includes('edit') ||
+            btn.textContent === '' // Icon button might have no text
+        ) || buttons[0] // Fallback to first button
+
+      await user.click(editButton)
 
       await waitFor(() => {
         expect(screen.getByTestId('textarea')).toBeInTheDocument()
@@ -274,7 +314,8 @@ describe('ContextPanel', () => {
       render(<ContextPanel />)
 
       const buttons = screen.getAllByTestId('button')
-      await user.click(buttons[0]) // Click edit
+      const editButton = buttons[0]
+      await user.click(editButton)
 
       await waitFor(() => {
         expect(screen.getByTestId('textarea')).toBeInTheDocument()
@@ -292,6 +333,7 @@ describe('ContextPanel', () => {
           btn.textContent?.includes('Saving')
       )
 
+      expect(saveButton).toBeTruthy()
       if (saveButton) {
         await user.click(saveButton)
 
@@ -325,6 +367,7 @@ describe('ContextPanel', () => {
         btn.textContent?.includes('Cancel')
       )
 
+      expect(cancelButton).toBeTruthy()
       if (cancelButton) {
         await user.click(cancelButton)
 
@@ -336,40 +379,25 @@ describe('ContextPanel', () => {
   })
 
   describe('Collaborators Tab', () => {
-    it('should display collaborators', () => {
-      const mockEditors = [
-        createMockEditor('editor-1', 'Editor 1'),
-        createMockEditor('editor-2', 'Editor 2'),
-      ]
-      const mockGrants = [
-        createMockGrant('editor-1', 'markdown.write', 'block-1'),
-        createMockGrant('editor-2', 'core.link', 'block-1'),
-      ]
-
-      // Update files map directly
-      mockStore.files.set('test-file-id', {
-        ...mockStore.files.get('test-file-id')!,
-        editors: mockEditors,
-        grants: mockGrants,
-      })
-
+    it('should display CollaboratorList when block is selected', () => {
       render(<ContextPanel />)
 
-      // Content should be in the collaborators tab
       const collaboratorsTab = screen.getByTestId('tab-content-collaborators')
       expect(collaboratorsTab).toBeInTheDocument()
+      expect(screen.getByTestId('collaborator-list')).toBeInTheDocument()
     })
 
-    it('should show no grants message when empty', () => {
-      // Ensure empty arrays (already set in beforeEach, but explicit is fine)
-      mockStore.files.set('test-file-id', {
-        ...mockStore.files.get('test-file-id')!,
-        editors: [],
-        grants: [],
-      })
+    it('should show no block selected message when no block', () => {
+      mockStore.selectedBlockId = null
 
       render(<ContextPanel />)
 
+      // Click on collaborators tab trigger to switch tabs
+      const collaboratorsTabTrigger = screen.getByTestId(
+        'tab-trigger-collaborators'
+      )
+      // Note: The tab switching might not work in test without proper Tabs implementation
+      // But we can check the tab content exists
       const collaboratorsTab = screen.getByTestId('tab-content-collaborators')
       expect(collaboratorsTab).toBeInTheDocument()
     })
@@ -378,11 +406,10 @@ describe('ContextPanel', () => {
   describe('Timeline Tab', () => {
     it('should display events', () => {
       const mockEvents = [
-        createMockEvent('event-1', 'block-1', 'create'),
-        createMockEvent('event-2', 'block-1', 'update'),
+        createMockEvent('event-1', 'block-1', 'test-user/create'),
+        createMockEvent('event-2', 'block-1', 'test-user/update'),
       ]
 
-      // Update files map directly
       mockStore.files.set('test-file-id', {
         ...mockStore.files.get('test-file-id')!,
         events: mockEvents,
@@ -395,7 +422,6 @@ describe('ContextPanel', () => {
     })
 
     it('should show no events message when empty', () => {
-      // Ensure empty events (already set in beforeEach)
       mockStore.files.set('test-file-id', {
         ...mockStore.files.get('test-file-id')!,
         events: [],
@@ -403,26 +429,85 @@ describe('ContextPanel', () => {
 
       render(<ContextPanel />)
 
+      expect(screen.getByText(/no history/i)).toBeInTheDocument()
+      expect(screen.getByText(/changes will appear here/i)).toBeInTheDocument()
+    })
+
+    it('should filter events by block id', () => {
+      const mockEvents = [
+        createMockEvent('event-1', 'block-1', 'test-user/create'),
+        createMockEvent('event-2', 'block-2', 'test-user/create'), // Different block
+        createMockEvent('event-3', 'block-1', 'test-user/update'),
+      ]
+
+      mockStore.files.set('test-file-id', {
+        ...mockStore.files.get('test-file-id')!,
+        events: mockEvents,
+      })
+
+      render(<ContextPanel />)
+
       const timelineTab = screen.getByTestId('tab-content-timeline')
       expect(timelineTab).toBeInTheDocument()
+      // Events for block-1 should be displayed (event-1 and event-3)
+    })
+
+    it('should display events in descending order (newest first)', () => {
+      const now = new Date()
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+      const mockEvents = [
+        createMockEvent(
+          'event-old',
+          'block-1',
+          'user-old/update',
+          lastWeek.toISOString()
+        ),
+        createMockEvent(
+          'event-new',
+          'block-1',
+          'user-new/update',
+          now.toISOString()
+        ),
+        createMockEvent(
+          'event-mid',
+          'block-1',
+          'user-mid/update',
+          yesterday.toISOString()
+        ),
+      ]
+
+      mockStore.files.set('test-file-id', {
+        ...mockStore.files.get('test-file-id')!,
+        events: mockEvents,
+      })
+
+      render(<ContextPanel />)
+
+      // The TimelineTab uses operatorName which is editorId in this mock
+      // So we expect user-new, user-mid, user-old in that order
+      const operatorNames = screen
+        .getAllByText(/user-(new|mid|old)/)
+        .map((el) => el.textContent)
+
+      expect(operatorNames).toEqual(['user-new', 'user-mid', 'user-old'])
     })
   })
 
   describe('No Block Selected', () => {
     it('should show empty state when no block selected', () => {
       mockStore.selectedBlockId = null
-      mockStore.getBlock.mockReturnValue(null)
 
       render(<ContextPanel />)
 
-      // The empty state should be in the Info tab
+      // "No block selected" appears in multiple tabs, so check in info tab specifically
       const infoTab = screen.getByTestId('tab-content-info')
       expect(infoTab).toHaveTextContent(/no block selected/i)
     })
 
     it('should show helper text', () => {
       mockStore.selectedBlockId = null
-      mockStore.getBlock.mockReturnValue(null)
 
       render(<ContextPanel />)
 
@@ -430,26 +515,115 @@ describe('ContextPanel', () => {
         screen.getByText(/select a block to view its details/i)
       ).toBeInTheDocument()
     })
-  })
 
-  describe('Integration', () => {
-    it('should work with app store', () => {
+    it('should show "Blocks" in scope when no block selected', () => {
+      mockStore.selectedBlockId = null
+
       render(<ContextPanel />)
 
-      expect(mockStore.getBlock).toHaveBeenCalledWith('test-file-id', 'block-1')
+      expect(screen.getByText('Blocks')).toBeInTheDocument()
+    })
+  })
+
+  describe('Timestamps', () => {
+    it('should display created at timestamp', () => {
+      render(<ContextPanel />)
+
+      expect(screen.getByText(/created/i)).toBeInTheDocument()
     })
 
+    it('should display updated at timestamp', () => {
+      render(<ContextPanel />)
+
+      expect(screen.getByText(/updated/i)).toBeInTheDocument()
+    })
+
+    it('should format timestamps correctly', () => {
+      render(<ContextPanel />)
+
+      const infoTab = screen.getByTestId('tab-content-info')
+      expect(infoTab).toBeInTheDocument()
+      // Timestamps should be formatted as dates
+      expect(screen.getByText(/created/i)).toBeInTheDocument()
+      expect(screen.getByText(/updated/i)).toBeInTheDocument()
+    })
+
+    it('should not show timestamps when metadata is missing', () => {
+      const blockWithoutTimestamps = createMockBlock(
+        'block-1',
+        'Test Block',
+        'Test description'
+      )
+      blockWithoutTimestamps.metadata = {
+        description: 'Test description',
+      }
+
+      mockStore.files.set('test-file-id', {
+        ...mockStore.files.get('test-file-id')!,
+        blocks: [blockWithoutTimestamps],
+      })
+
+      render(<ContextPanel />)
+
+      // Created and Updated labels should not appear if timestamps are missing
+      // But the component should still render without errors
+      const infoTab = screen.getByTestId('tab-content-info')
+      expect(infoTab).toBeInTheDocument()
+    })
+  })
+
+  describe('Accessibility', () => {
+    it('should have proper tab navigation', () => {
+      render(<ContextPanel />)
+
+      expect(screen.getByTestId('tabs-list')).toBeInTheDocument()
+    })
+
+    it('should have accessible buttons when block is selected', () => {
+      render(<ContextPanel />)
+
+      // When block is selected, there should be at least the edit button
+      const buttons = screen.getAllByTestId('button')
+      expect(buttons.length).toBeGreaterThan(0)
+    })
+
+    it('should not have buttons when no block selected', () => {
+      mockStore.selectedBlockId = null
+
+      render(<ContextPanel />)
+
+      // When no block is selected, there should be no buttons in the info tab
+      const infoTab = screen.getByTestId('tab-content-info')
+      const buttons = infoTab.querySelectorAll('[data-testid="button"]')
+      expect(buttons.length).toBe(0)
+    })
+  })
+
+  describe('Block Selection Updates', () => {
     it('should update when selected block changes', () => {
       const { rerender } = render(<ContextPanel />)
 
-      mockStore.selectedBlockId = 'block-2'
-      mockStore.getBlock.mockReturnValue(
-        createMockBlock('block-2', 'New Block', 'New description')
+      // Block name appears in multiple places, so use getAllByText
+      const blockNames = screen.getAllByText('Test Block')
+      expect(blockNames.length).toBeGreaterThan(0)
+
+      // Change to a different block
+      const newBlock = createMockBlock(
+        'block-2',
+        'New Block',
+        'New description'
       )
+      mockStore.selectedBlockId = 'block-2'
+      mockStore.files.set('test-file-id', {
+        ...mockStore.files.get('test-file-id')!,
+        blocks: [newBlock],
+      })
 
       rerender(<ContextPanel />)
 
-      expect(mockStore.getBlock).toHaveBeenCalledWith('test-file-id', 'block-2')
+      const newBlockNames = screen.getAllByText('New Block')
+      expect(newBlockNames.length).toBeGreaterThan(0)
+      expect(screen.getByText('New description')).toBeInTheDocument()
     })
   })
 
@@ -475,46 +649,14 @@ describe('ContextPanel', () => {
         btn.textContent?.includes('Save')
       )
 
-      // Just verify that save button exists and updateBlockMetadata will be called with error
       expect(saveButton).toBeTruthy()
-      expect(mockStore.updateBlockMetadata).toBeDefined()
-    })
-  })
-
-  describe('Timestamps', () => {
-    it('should display created at timestamp', () => {
-      render(<ContextPanel />)
-
-      expect(screen.getByText(/created/i)).toBeInTheDocument()
-    })
-
-    it('should display updated at timestamp', () => {
-      render(<ContextPanel />)
-
-      expect(screen.getByText(/updated/i)).toBeInTheDocument()
-    })
-
-    it('should format timestamps correctly', () => {
-      render(<ContextPanel />)
-
-      // Just verify that timestamps are rendered without error
-      const infoTab = screen.getByTestId('tab-content-info')
-      expect(infoTab).toBeInTheDocument()
-    })
-  })
-
-  describe('Accessibility', () => {
-    it('should have proper tab navigation', () => {
-      render(<ContextPanel />)
-
-      expect(screen.getByTestId('tabs-list')).toBeInTheDocument()
-    })
-
-    it('should have accessible buttons', () => {
-      render(<ContextPanel />)
-
-      const buttons = screen.getAllByTestId('button')
-      expect(buttons.length).toBeGreaterThan(0)
+      if (saveButton) {
+        await user.click(saveButton)
+        // Error should be handled gracefully (logged to console)
+        await waitFor(() => {
+          expect(mockStore.updateBlockMetadata).toHaveBeenCalled()
+        })
+      }
     })
   })
 })

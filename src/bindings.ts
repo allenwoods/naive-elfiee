@@ -241,6 +241,70 @@ export const commands = {
     }
   },
   /**
+   * Get block content at a specific event (time-travel to historical state).
+   *
+   * This command enables the "restore" functionality in the Timeline feature.
+   * It reconstructs the block's content at the moment of a specific event by
+   * replaying all events up to and including that event.
+   *
+   * # Arguments
+   * * `file_id` - Unique identifier of the file
+   * * `block_id` - Unique identifier of the block
+   * * `event_id` - Unique identifier of the target event
+   *
+   * # Returns
+   * * `Ok(String)` - The markdown content of the block at that event
+   * * `Err(message)` - Error description if retrieval fails
+   *
+   * # Implementation Details
+   * 1. Fetches all events from the event store
+   * 2. Finds the index of the target event
+   * 3. Creates a temporary StateProjector
+   * 4. Replays events up to the target event
+   * 5. Extracts the block's markdown content from the projected state
+   */
+  async getBlockAtEvent(
+    fileId: string,
+    blockId: string,
+    eventId: string
+  ): Promise<Result<Block, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('get_block_at_event', {
+          fileId,
+          blockId,
+          eventId,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Get the full state snapshot (block + grants) at a specific event.
+   */
+  async getStateAtEvent(
+    fileId: string,
+    blockId: string,
+    eventId: string
+  ): Promise<Result<StateSnapshot, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('get_state_at_event', {
+          fileId,
+          blockId,
+          eventId,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * Execute a command on a block in the specified file.
    *
    * This is the primary way to modify blocks. Commands are processed by the engine actor,
@@ -349,6 +413,80 @@ export const commands = {
     }
   },
   /**
+   * Rename a block.
+   *
+   * # Arguments
+   * * `file_id` - Unique identifier of the file
+   * * `block_id` - Unique identifier of the block
+   * * `name` - New name for the block
+   */
+  async renameBlock(
+    fileId: string,
+    blockId: string,
+    name: string
+  ): Promise<Result<Event[], string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('rename_block', { fileId, blockId, name }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Update block type.
+   *
+   * # Arguments
+   * * `file_id` - Unique identifier of the file
+   * * `block_id` - Unique identifier of the block
+   * * `block_type` - New type for the block
+   */
+  async updateBlockType(
+    fileId: string,
+    blockId: string,
+    blockType: string
+  ): Promise<Result<Event[], string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('update_block_type', {
+          fileId,
+          blockId,
+          blockType,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Check if current editor has permission for a capability on a block.
+   */
+  async checkPermission(
+    fileId: string,
+    blockId: string,
+    capability: string,
+    editorId: string | null
+  ): Promise<Result<boolean, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('check_permission', {
+          fileId,
+          blockId,
+          capability,
+          editorId,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * Create a new editor for the specified file.
    *
    * This generates a Command with editor.create capability and processes it through
@@ -357,6 +495,8 @@ export const commands = {
    * # Arguments
    * * `file_id` - Unique identifier of the file
    * * `name` - Display name for the new editor
+   * * `editor_type` - Optional editor type (Human or Bot)
+   * * `block_id` - Optional block ID. If provided, only the block owner can create editors.
    *
    * # Returns
    * * `Ok(Editor)` - The newly created editor
@@ -365,12 +505,18 @@ export const commands = {
   async createEditor(
     fileId: string,
     name: string,
-    editorType: string | null
+    editorType: string | null,
+    blockId: string | null
   ): Promise<Result<Editor, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('create_editor', { fileId, name, editorType }),
+        data: await TAURI_INVOKE('create_editor', {
+          fileId,
+          name,
+          editorType,
+          blockId,
+        }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -386,6 +532,7 @@ export const commands = {
    * # Arguments
    * * `file_id` - Unique identifier of the file
    * * `editor_id` - Unique identifier of the editor to delete
+   * * `block_id` - Optional block ID. If provided, only the block owner can delete editors.
    *
    * # Returns
    * * `Ok(())` - Success
@@ -393,12 +540,17 @@ export const commands = {
    */
   async deleteEditor(
     fileId: string,
-    editorId: string
+    editorId: string,
+    blockId: string | null
   ): Promise<Result<null, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('delete_editor', { fileId, editorId }),
+        data: await TAURI_INVOKE('delete_editor', {
+          fileId,
+          editorId,
+          blockId,
+        }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -579,6 +731,32 @@ export const commands = {
     }
   },
   /**
+   * Materialize blocks to the external file system (Checkout).
+   *
+   * This command implements the bottom-layer I/O ability:
+   * 1. Calls the `directory.export` capability for authorization and auditing.
+   * 2. If authorized, performs the 'checkout' by writing block contents to the target path.
+   */
+  async checkoutWorkspace(
+    fileId: string,
+    blockId: string,
+    payload: DirectoryExportPayload
+  ): Promise<Result<null, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('checkout_workspace', {
+          fileId,
+          blockId,
+          payload,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * Initialize a new PTY session for a block.
    */
   async asyncInitTerminal(
@@ -739,6 +917,103 @@ export type CreateBlockPayload = {
    */
   metadata?: JsonValue | null
 }
+/**
+ * Payload for DirectoryCreate
+ *
+ * Creates a new file or directory inside the Directory Block.
+ */
+export type DirectoryCreatePayload = {
+  /**
+   * Internal virtual path (e.g., "docs/README.md")
+   */
+  path: string
+  /**
+   * Entry type: "file" or "directory"
+   */
+  type: string
+  /**
+   * Initial content (for files only, optional)
+   */
+  content?: string | null
+  /**
+   * Block type (for files only)
+   * Example: "markdown", "code"
+   */
+  block_type?: string | null
+}
+/**
+ * Payload for DirectoryDelete
+ *
+ * Deletes a file or directory from the Directory Block (cascade delete).
+ */
+export type DirectoryDeletePayload = {
+  /**
+   * Virtual path to delete
+   */
+  path: string
+}
+/**
+ * Payload for DirectoryExport
+ *
+ * Exports files from Directory Block to external file system.
+ */
+export type DirectoryExportPayload = {
+  /**
+   * Target external path (where to write)
+   * Example: "/Users/me/output/exported-project"
+   */
+  target_path: string
+  /**
+   * Internal virtual path (optional, to export only a subdirectory)
+   * None means export entire project
+   * Example: "src"
+   */
+  source_path?: string | null
+}
+/**
+ * Payload for DirectoryImport
+ *
+ * Imports files from an external directory into the Directory Block.
+ */
+export type DirectoryImportPayload = {
+  /**
+   * External file system path (source)
+   * Example: "/Users/me/projects/my-app"
+   */
+  source_path: string
+  /**
+   * Internal virtual path prefix (target)
+   * None or "/" means import to root directory
+   * Example: "libs/external"
+   */
+  target_path?: string | null
+}
+/**
+ * Payload for DirectoryRename
+ *
+ * Renames or moves a file/directory, syncs Block.name for files.
+ */
+export type DirectoryRenamePayload = {
+  /**
+   * Old path
+   */
+  old_path: string
+  /**
+   * New path
+   */
+  new_path: string
+}
+/**
+ * Payload for directory.write capability.
+ *
+ * Used to directly update the entries map of a directory block.
+ */
+export type DirectoryWritePayload = {
+  /**
+   * The full entries map to be saved
+   */
+  entries: JsonValue
+}
 export type Editor = {
   editor_id: string
   name: string
@@ -781,6 +1056,7 @@ export type Event = {
   attribute: string
   value: JsonValue
   timestamp: Partial<{ [key in string]: number }>
+  created_at: string
 }
 /**
  * File metadata for frontend display.
@@ -887,6 +1163,19 @@ export type RevokePayload = {
    * The block ID to revoke access from, or "*" for all blocks (wildcard)
    */
   target_block?: string
+}
+/**
+ * Full state snapshot at a specific point in time.
+ */
+export type StateSnapshot = {
+  /**
+   * Block state at that event
+   */
+  block: Block
+  /**
+   * All grants in the system at that event
+   */
+  grants: Grant[]
 }
 export type TerminalInitPayload = {
   cols: number
