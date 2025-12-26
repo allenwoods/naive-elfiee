@@ -110,7 +110,7 @@ describe('CollaboratorItem Component', () => {
 
   describe('Permission Display', () => {
     it('should show checked permissions that editor has', () => {
-      const { container } = render(
+      render(
         <CollaboratorItem
           blockId="block-1"
           editor={mockHumanEditor}
