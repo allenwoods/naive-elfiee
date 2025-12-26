@@ -27,6 +27,21 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+interface DirectoryContents {
+  source: 'outline' | 'linked'
+  entries?: Record<string, import('@/utils/vfs-tree').DirectoryEntry>
+  [key: string]: unknown
+}
+
+const validateFilename = (name: string): string | null => {
+  if (!name || name.trim().length === 0) return 'Filename cannot be empty'
+  if (name.includes('/') || name.includes('\\'))
+    return 'Filename cannot contain slashes'
+  // Basic reserved characters check (Windows/Unix safe subset)
+  if (/[<>:"|?*]/.test(name)) return 'Filename contains invalid characters'
+  return null
+}
+
 // Helper to infer block type from filename
 const inferBlockType = (filename: string): string => {
   const ext = filename.split('.').pop()?.toLowerCase()
@@ -78,7 +93,7 @@ export const FilePanel = () => {
     ? getBlocks(currentFileId).find(
         (b) =>
           b.block_type === 'directory' &&
-          (b.contents as any)?.source === 'outline'
+          (b.contents as unknown as DirectoryContents)?.source === 'outline'
       )?.block_id
     : null
 
@@ -107,6 +122,12 @@ export const FilePanel = () => {
 
   const handleCreateConfirm = async (name: string) => {
     if (!currentFileId) return
+
+    const error = validateFilename(name)
+    if (error) {
+      toast.error(error)
+      return
+    }
 
     const { directoryBlockId, parentPath, type, source } = createDialog
     const path = parentPath ? `${parentPath}/${name}` : name
@@ -141,6 +162,12 @@ export const FilePanel = () => {
     newName: string
   ) => {
     if (!currentFileId) return
+
+    const error = validateFilename(newName)
+    if (error) {
+      toast.error(error)
+      return
+    }
 
     try {
       await TauriClient.directory.renameEntry(
@@ -260,9 +287,12 @@ export const FilePanel = () => {
       const createEvent = events.find((e) =>
         e.attribute.endsWith('/core.create')
       )
-      const newBlockId = createEvent?.entity
-
-      if (!newBlockId) throw new Error('Failed to create directory block')
+      if (!createEvent) {
+        throw new Error(
+          'Failed to create directory block: no create event returned'
+        )
+      }
+      const newBlockId = createEvent.entity
 
       // 2. Import the directory contents
       await TauriClient.directory.importDirectory(

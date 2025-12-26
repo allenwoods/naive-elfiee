@@ -106,6 +106,8 @@ Note: This is a mock execution. Real code execution will be implemented in Termi
               padding: '1rem',
               fontSize: '0.875rem',
               background: '#18181b',
+              fontFamily:
+                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei", "WenQuanYi Micro Hei", monospace',
             }}
             wrapLines={false}
             wrapLongLines={false}
@@ -521,7 +523,10 @@ export const EditorCanvas = () => {
       if (block) {
         setSelectedBlock(block)
         // Extract content based on type
-        // Use 'text' field for code blocks, 'markdown' for others (legacy support)
+        // Strategy:
+        // 1. 'code' blocks strictly use the 'text' field.
+        // 2. 'markdown' blocks prefer 'markdown' field but fall back to 'text'
+        //    to maintain backward compatibility with older blocks or importers.
         const contents = block.contents as { markdown?: string; text?: string }
         if (block.block_type === 'code') {
           setDocumentContent(contents?.text || '')

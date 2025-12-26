@@ -133,6 +133,10 @@ export const CodeBlockEditor = ({
             !isEditing && 'cursor-text'
           )}
           placeholder="Enter source code..."
+          style={{
+            fontFamily:
+              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Microsoft YaHei", "WenQuanYi Micro Hei", monospace',
+          }}
           spellCheck={false}
         />
       </div>

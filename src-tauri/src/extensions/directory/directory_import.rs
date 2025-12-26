@@ -67,6 +67,19 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         .trim_end_matches('/')
         .to_string();
 
+    // Validate target_path traversal
+    if !target_prefix.is_empty() && target_prefix != "/" {
+        use std::path::Component;
+        for component in Path::new(&target_prefix).components() {
+            if matches!(component, Component::ParentDir) {
+                return Err(format!(
+                    "Invalid target_path (traversal forbidden): {}",
+                    target_prefix
+                ));
+            }
+        }
+    }
+
     let mut events = Vec::new();
     let mut warnings = Vec::new();
 
