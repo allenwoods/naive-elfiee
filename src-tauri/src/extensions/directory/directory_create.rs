@@ -5,6 +5,7 @@ use super::DirectoryCreatePayload;
 use crate::capabilities::core::{create_event, CapResult};
 use crate::models::{Block, Command, Event};
 use crate::utils::time::now_utc;
+use crate::utils::validate_virtual_path;
 use capability_macros::capability;
 use serde_json::json;
 
@@ -39,24 +40,7 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         .map_err(|e| format!("Invalid payload for directory.create: {}", e))?;
 
     // Step 3: Validate path format and security
-    if payload.path.is_empty() {
-        return Err("Path cannot be empty".to_string());
-    }
-
-    if payload.path.starts_with('/') {
-        return Err("Path cannot start with '/'".to_string());
-    }
-
-    // Path traversal check
-    use std::path::Component;
-    for component in std::path::Path::new(&payload.path).components() {
-        if matches!(component, Component::ParentDir) {
-            return Err(format!(
-                "Invalid path (traversal forbidden): {}",
-                payload.path
-            ));
-        }
-    }
+    validate_virtual_path(&payload.path)?;
 
     // Step 4: Parse current Directory Block contents
     let mut contents: serde_json::Map<String, serde_json::Value> =
@@ -93,9 +77,15 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
 
         // Unified field logic
         let contents = if block_type == "markdown" {
-            json!({ "markdown": payload.content.unwrap_or_default() })
+            json!({
+                "markdown": payload.content.unwrap_or_default(),
+                "source": payload.source
+            })
         } else {
-            json!({ "text": payload.content.unwrap_or_default() })
+            json!({
+                "text": payload.content.unwrap_or_default(),
+                "source": payload.source
+            })
         };
 
         // Event 1: Create Content Block (core.create)
@@ -121,7 +111,7 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
             json!({
                 "id": file_block_id,
                 "type": "file",
-                "source": "outline",
+                "source": payload.source,
                 "updated_at": now_utc()
             }),
         );
@@ -134,7 +124,7 @@ fn handle_create(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
             json!({
                 "id": dir_id,
                 "type": "directory",
-                "source": "outline",
+                "source": payload.source,
                 "updated_at": now_utc()
             }),
         );

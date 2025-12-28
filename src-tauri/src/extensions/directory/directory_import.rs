@@ -67,6 +67,11 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         .trim_end_matches('/')
         .to_string();
 
+    // Validate target_path traversal (skip if root "/" or empty)
+    if !target_prefix.is_empty() && target_prefix != "/" {
+        crate::utils::validate_virtual_path(&target_prefix.trim_start_matches('/'))?;
+    }
+
     let mut events = Vec::new();
     let mut warnings = Vec::new();
 
@@ -111,9 +116,15 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
 
             // Unified field logic: markdown for markdown, text for others
             let contents = if block_type == "markdown" {
-                json!({ "markdown": content })
+                json!({
+                    "markdown": content,
+                    "source": "linked"
+                })
             } else {
-                json!({ "text": content })
+                json!({
+                    "text": content,
+                    "source": "linked"
+                })
             };
 
             // NOTE: count=1 is a placeholder. Engine actor will update it with correct vector clock.
@@ -154,7 +165,10 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         block.block_id.clone(),
         "directory.write",
         json!({
-            "contents": { "entries": entries },
+            "contents": {
+                "entries": entries,
+                "source": "linked"
+            },
             "warnings": warnings
         }),
         &cmd.editor_id,
@@ -167,7 +181,6 @@ fn handle_import(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> 
         "core.update_metadata",
         json!({
             "metadata": {
-                "is_repo": true,
                 "external_root_path": payload.source_path,
                 "last_import": now_utc()
             }

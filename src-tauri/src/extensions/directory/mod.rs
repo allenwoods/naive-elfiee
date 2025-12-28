@@ -9,126 +9,68 @@ use specta::Type;
 // ============================================================================
 
 pub mod directory_import;
-
 pub use directory_import::*;
 
 pub mod directory_export;
-
 pub use directory_export::*;
 
 pub mod directory_write;
-
 pub use directory_write::*;
 
 pub mod directory_create;
-
 pub use directory_create::*;
 
 pub mod directory_delete;
-
 pub use directory_delete::*;
 
 pub mod directory_rename;
-
 pub use directory_rename::*;
 
 // ============================================================================
-
 // Payload Definitions
-
 // ============================================================================
 
 /// Payload for DirectoryImport
-
-///
-
-/// Imports files from an external directory into the Directory Block.
-
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-
 pub struct DirectoryImportPayload {
-    /// External file system path (source)
-
-    /// Example: "/Users/me/projects/my-app"
     pub source_path: String,
-
-    /// Internal virtual path prefix (target)
-
-    /// None or "/" means import to root directory
-
-    /// Example: "libs/external"
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_path: Option<String>,
 }
 
 /// Payload for DirectoryExport
-
-///
-
-/// Exports files from Directory Block to external file system.
-
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-
 pub struct DirectoryExportPayload {
-    /// Target external path (where to write)
-
-    /// Example: "/Users/me/output/exported-project"
     pub target_path: String,
-
-    /// Internal virtual path (optional, to export only a subdirectory)
-
-    /// None means export entire project
-
-    /// Example: "src"
-
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_path: Option<String>,
 }
 
-/// Payload for DirectoryWrite
 pub use directory_write::DirectoryWritePayload;
 
 /// Payload for DirectoryCreate
-///
-/// Creates a new file or directory inside the Directory Block.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct DirectoryCreatePayload {
-    /// Internal virtual path (e.g., "docs/README.md")
     pub path: String,
-
-    /// Entry type: "file" or "directory"
     #[serde(rename = "type")]
     pub entry_type: String,
-
-    /// Initial content (for files only, optional)
+    pub source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
-
-    /// Block type (for files only)
-    /// Example: "markdown", "code"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub block_type: Option<String>,
 }
 
 /// Payload for DirectoryDelete
-///
-/// Deletes a file or directory from the Directory Block (cascade delete).
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct DirectoryDeletePayload {
-    /// Virtual path to delete
     pub path: String,
 }
 
 /// Payload for DirectoryRename
-///
-/// Renames or moves a file/directory, syncs Block.name for files.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct DirectoryRenamePayload {
-    /// Old path
     pub old_path: String,
-
-    /// New path
     pub new_path: String,
 }
 

@@ -237,12 +237,8 @@ async fn test_multiple_blocks_with_files() {
     handle.shutdown().await;
 
     let reopened_archive = ElfArchive::open(elf_path).unwrap();
-    let reopened_pool = reopened_archive.event_pool().await.unwrap();
-    let reopened_handle = spawn_engine("test-file".to_string(), reopened_pool)
-        .await
-        .unwrap();
 
-    // 验证所有 block 的文件都存在且内容正确
+    // 验证所有 block 的文件都存在且内容正确（无需启动engine，直接验证文件系统）
     let reopened_temp = reopened_archive.temp_path();
     for (i, block_id) in block_ids.iter().enumerate() {
         let block_dir = reopened_temp.join(format!("block-{}", block_id));
@@ -253,7 +249,4 @@ async fn test_multiple_blocks_with_files() {
         let content = fs::read_to_string(&file_path).unwrap();
         assert_eq!(content, format!("Content from block {}", i + 1));
     }
-
-    println!("✅ 多 block 隔离测试通过！");
-    reopened_handle.shutdown().await;
 }

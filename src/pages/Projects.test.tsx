@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import Projects from './Projects'
@@ -51,7 +51,7 @@ const createMockFileMetadata = (
   path: `/test/path/${name}.elf`,
   collaborators: ['user1', 'user2'],
   created_at: new Date().toISOString(),
-  last_modified: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
   ...overrides,
 })
 
@@ -271,7 +271,6 @@ describe('Projects Component', () => {
       vi.mocked(TauriClient.file.duplicateFile).mockResolvedValue('file-2')
 
       renderWithRouter(<Projects />)
-      const user = userEvent.setup()
 
       await waitFor(() => {
         expect(screen.getByText('Original Project')).toBeInTheDocument()

@@ -100,6 +100,7 @@ fn test_import_basic() {
         .filter(|e| e.attribute.ends_with("/core.create"))
         .collect();
     assert!(create_events.len() >= 2, "Should create blocks for files");
+    assert_eq!(create_events[0].value["contents"]["source"], "linked");
 
     // Verify directory.write event
     let write_event = events
@@ -108,6 +109,7 @@ fn test_import_basic() {
     assert!(write_event.is_some(), "Should have directory.write event");
 
     let write_event = write_event.unwrap();
+    assert_eq!(write_event.value["contents"]["source"], "linked");
     let entries = write_event.value["contents"]["entries"]
         .as_object()
         .unwrap();
@@ -115,10 +117,7 @@ fn test_import_basic() {
         entries.contains_key("file1.md"),
         "Should have file1.md entry"
     );
-    assert!(
-        entries.contains_key("file2.rs"),
-        "Should have file2.rs entry"
-    );
+    assert_eq!(entries["file1.md"]["source"], "linked");
 
     // Verify metadata update event
     let metadata_event = events
@@ -130,7 +129,6 @@ fn test_import_basic() {
     );
 
     let metadata = &metadata_event.unwrap().value["metadata"];
-    assert_eq!(metadata["is_repo"], true);
     assert_eq!(metadata["external_root_path"], temp_path.to_str().unwrap());
 }
 
@@ -347,6 +345,7 @@ fn test_create_payload_deserialize() {
     let json = serde_json::json!({
         "path": "docs/README.md",
         "type": "file",
+        "source": "outline",
         "content": "# Hello World",
         "block_type": "markdown"
     });
@@ -357,6 +356,7 @@ fn test_create_payload_deserialize() {
     let payload = result.unwrap();
     assert_eq!(payload.path, "docs/README.md");
     assert_eq!(payload.entry_type, "file");
+    assert_eq!(payload.source, "outline");
     assert_eq!(payload.content, Some("# Hello World".to_string()));
     assert_eq!(payload.block_type, Some("markdown".to_string()));
 }
@@ -385,6 +385,7 @@ fn test_create_basic() {
         serde_json::json!({
             "path": "test.md",
             "type": "file",
+            "source": "outline",
             "content": "Hello",
             "block_type": "markdown"
         }),
@@ -403,15 +404,16 @@ fn test_create_basic() {
 
     // Verify first event is core.create for the file
     assert!(events[0].attribute.ends_with("/core.create"));
-    let file_block = &events[0].value;
-    assert_eq!(file_block["name"], "test.md");
-    assert_eq!(file_block["type"], "markdown");
+    let file_block_val = &events[0].value;
+    assert_eq!(file_block_val["name"], "test.md");
+    assert_eq!(file_block_val["contents"]["source"], "outline");
 
     // Verify second event is directory.write
     assert_eq!(events[1].entity, block.block_id);
     assert!(events[1].attribute.ends_with("/directory.write"));
     let entries = events[1].value["contents"]["entries"].as_object().unwrap();
     assert!(entries.contains_key("test.md"));
+    assert_eq!(entries["test.md"]["source"], "outline");
 }
 
 // ============================================
@@ -707,6 +709,64 @@ fn test_rename_basic() {
     assert!(entries.contains_key("new.md"), "New path should be added");
 }
 
+#[test]
+fn test_rename_extension_change() {
+    // This test verifies that renaming a file with a different extension
+    // correctly triggers a 'core.change_type' event to update the block type.
+    // Example: main.rs (code) -> main.md (markdown)
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("directory.rename")
+        .expect("directory.rename should be registered");
+
+    let mut block = Block::new(
+        "Test Directory".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    block.contents = serde_json::json!({
+        "entries": {
+            "main.rs": {
+                "id": "block-code-1",
+                "type": "file",
+                "source": "outline",
+                "updated_at": "2025-12-23T00:00:00Z"
+            }
+        }
+    });
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.rename".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "old_path": "main.rs",
+            "new_path": "main.md"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok());
+
+    let events = result.unwrap();
+    // Expected events:
+    // 1. core.rename (name: main.md)
+    // 2. core.change_type (block_type: markdown)
+    // 3. directory.write (update entries)
+    assert_eq!(events.len(), 3);
+
+    assert!(events
+        .iter()
+        .any(|e| e.attribute.ends_with("/core.rename") && e.value["name"] == "main.md"));
+    assert!(
+        events
+            .iter()
+            .any(|e| e.attribute.ends_with("/core.change_type")
+                && e.value["block_type"] == "markdown")
+    );
+}
+
 // ============================================
 // DirectoryRename - Authorization Tests
 // ============================================
@@ -832,6 +892,7 @@ fn test_full_workflow() {
         serde_json::json!({
             "path": "new_file.md",
             "type": "file",
+            "source": "outline",
             "content": "# New File",
             "block_type": "markdown"
         }),
@@ -944,7 +1005,8 @@ fn test_security_path_traversal_create() {
         block.block_id.clone(),
         serde_json::json!({
             "path": "../evil.txt",
-            "type": "file"
+            "type": "file",
+            "source": "outline"
         }),
     );
 

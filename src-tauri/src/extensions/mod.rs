@@ -1,3 +1,4 @@
+pub mod code;
 pub mod directory;
 /// Extensions for Elfiee capability system.
 ///

@@ -8,6 +8,11 @@ import { create } from 'zustand'
 import { TauriClient } from './tauri-client'
 import type { Editor, Block, FileMetadata, Event, Grant } from '@/bindings'
 import { toast } from 'sonner'
+import {
+  buildTreeFromEntries,
+  type VfsNode,
+  type DirectoryEntry,
+} from '@/utils/vfs-tree'
 
 interface FileState {
   fileId: string
@@ -41,7 +46,8 @@ interface AppStore {
   updateBlock: (
     fileId: string,
     blockId: string,
-    content: string
+    content: string,
+    blockType?: string
   ) => Promise<void>
   createBlock: (
     fileId: string,
@@ -60,6 +66,13 @@ interface AppStore {
     metadata: Record<string, unknown>
   ) => Promise<void>
 
+  // Directory/VFS operations
+  getOutlineTree: (fileId: string) => VfsNode[]
+  getLinkedRepos: (
+    fileId: string
+  ) => { blockId: string; name: string; tree: VfsNode[] }[]
+  ensureSystemOutline: (fileId: string) => Promise<void>
+
   // Editor operations
   loadEditors: (fileId: string) => Promise<void>
   createEditor: (
@@ -75,6 +88,7 @@ interface AppStore {
   // Event and Grant operations
   getEvents: (fileId: string) => Event[]
   getGrants: (fileId: string) => Grant[]
+  getBlockGrants: (fileId: string, blockId: string) => Grant[]
   loadGrants: (fileId: string) => Promise<void>
   grantCapability: (
     fileId: string,
@@ -238,9 +252,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  updateBlock: async (fileId: string, blockId: string, content: string) => {
+  updateBlock: async (
+    fileId: string,
+    blockId: string,
+    content: string,
+    blockType: string = 'markdown'
+  ) => {
     try {
-      await TauriClient.block.writeBlock(fileId, blockId, content)
+      await TauriClient.block.writeBlock(fileId, blockId, content, blockType)
       // Reload blocks to get the updated content
       await get().loadBlocks(fileId)
       toast.success('Block updated successfully')
@@ -282,53 +301,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   renameBlock: async (fileId: string, blockId: string, newName: string) => {
     try {
-      // Get the original block
-      const originalBlock = get().getBlock(fileId, blockId)
-      if (!originalBlock) {
-        throw new Error('Block not found')
-      }
-
-      // Create a new block with the new name but same type and metadata
-      await TauriClient.block.createBlock(
-        fileId,
-        newName,
-        originalBlock.block_type
-      )
-
-      // Reload blocks to get the newly created block
+      await TauriClient.block.renameBlock(fileId, blockId, newName)
       await get().loadBlocks(fileId)
-
-      // Find the newly created block (it should be the last one with the new name)
-      const blocks = get().getBlocks(fileId)
-      const newBlock = blocks.find(
-        (b) => b.name === newName && b.block_id !== blockId
-      )
-
-      if (!newBlock) {
-        throw new Error('Failed to find newly created block')
-      }
-
-      // Copy content from old block to new block if it's a markdown block
-      if (originalBlock.block_type === 'markdown' && originalBlock.contents) {
-        const content = originalBlock.contents as { markdown?: string }
-        if (content.markdown) {
-          await TauriClient.block.writeBlock(
-            fileId,
-            newBlock.block_id,
-            content.markdown
-          )
-        }
-      }
-
-      // Delete the old block
-      await TauriClient.block.deleteBlock(fileId, blockId)
-
-      // Reload blocks to reflect all changes
-      await get().loadBlocks(fileId)
-
-      // Select the new block
-      get().selectBlock(newBlock.block_id)
-
       toast.success('Block renamed successfully')
     } catch (error) {
       const errorMessage =
@@ -358,6 +332,74 @@ export const useAppStore = create<AppStore>((set, get) => ({
         error instanceof Error ? error.message : String(error)
       toast.error(`Failed to update metadata: ${errorMessage}`)
       throw error
+    }
+  },
+
+  // Directory/VFS operations
+  getOutlineTree: (fileId: string) => {
+    const blocks = get().getBlocks(fileId)
+    // 1. Find the system outline by source='outline'
+    // We take the first directory block marked as outline source
+    const outlineBlock = blocks.find(
+      (b) =>
+        b.block_type === 'directory' &&
+        (b.contents as any)?.source === 'outline'
+    )
+
+    if (!outlineBlock) return []
+
+    const contents = outlineBlock.contents as {
+      entries?: Record<string, DirectoryEntry>
+    }
+
+    return buildTreeFromEntries(contents.entries || {}, blocks)
+  },
+
+  getLinkedRepos: (fileId: string) => {
+    const blocks = get().getBlocks(fileId)
+    // Filter: directory blocks with source='linked'
+    const directoryBlocks = blocks.filter(
+      (b) =>
+        b.block_type === 'directory' && (b.contents as any)?.source === 'linked'
+    )
+
+    return directoryBlocks.map((block) => {
+      const contents = block.contents as {
+        entries?: Record<string, DirectoryEntry>
+      }
+      return {
+        blockId: block.block_id,
+        name: block.name,
+        tree: buildTreeFromEntries(contents.entries || {}, blocks),
+      }
+    })
+  },
+
+  ensureSystemOutline: async (fileId: string) => {
+    const blocks = get().getBlocks(fileId)
+    const hasOutline = blocks.some(
+      (b) =>
+        b.block_type === 'directory' &&
+        (b.contents as any)?.source === 'outline'
+    )
+
+    if (!hasOutline) {
+      try {
+        const systemEditorId = await TauriClient.file.getSystemEditorId()
+        // Create Outline directory block
+        // ID is auto-generated, Name is 'Outline' but only for display
+        await TauriClient.block.createBlock(
+          fileId,
+          'Outline',
+          'directory',
+          systemEditorId
+        )
+        // Note: backend createBlock defaults source to 'outline', so we are good.
+
+        await get().loadBlocks(fileId)
+      } catch (error) {
+        console.error('Failed to initialize system outline:', error)
+      }
     }
   },
 
@@ -474,6 +516,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   getGrants: (fileId: string) => {
     const fileState = get().files.get(fileId)
     return fileState?.grants || []
+  },
+
+  getBlockGrants: (fileId: string, blockId: string) => {
+    const fileState = get().files.get(fileId)
+    if (!fileState) return []
+    return fileState.grants.filter(
+      (g) => g.block_id === blockId || g.block_id === '*'
+    )
   },
 
   loadGrants: async (fileId: string) => {

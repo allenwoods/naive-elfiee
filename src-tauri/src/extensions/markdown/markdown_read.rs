@@ -5,8 +5,15 @@ use capability_macros::capability;
 /// Handler for markdown.read capability.
 ///
 /// Reads markdown content from a markdown block's contents field.
-/// Returns the current markdown content as an event for the reader to observe.
-/// This is a read operation that creates an event recording the read action.
+///
+/// # READ FLOW CLARIFICATION
+/// In Elfiee's command-event architecture:
+/// 1. Data Retrieval: The frontend uses the `get_block` or `get_all_blocks` query commands
+///    to fetch block contents. These queries bypass the Capability Handler layer.
+/// 2. Permission Gate: The `markdown.read` capability exists primarily as a permission marker
+///    for future row-level authorization logic in the query layer (CBAC).
+/// 3. Audit Trail: Unlike `code.read`, this handler generates an event to audit/record that
+///    a specific user accessed specific content, though the data is usually fetched via query.
 #[capability(id = "markdown.read", target = "markdown")]
 fn handle_markdown_read(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for markdown.read")?;

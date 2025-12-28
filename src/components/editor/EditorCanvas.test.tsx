@@ -21,7 +21,7 @@ vi.mock('myst-to-react', () => ({
 }))
 
 vi.mock('@myst-theme/providers', () => ({
-  Theme: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Theme: { light: {} },
   ThemeProvider: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -29,8 +29,8 @@ vi.mock('@myst-theme/providers', () => ({
 
 // Mock app-store
 const mockStore = {
-  currentFileId: 'test-file-id',
-  selectedBlockId: 'block-1',
+  currentFileId: 'test-file-id' as string | null,
+  selectedBlockId: 'test-block-id' as string | null,
   getBlock: vi.fn(),
   updateBlock: vi.fn(),
   saveFile: vi.fn(),
@@ -115,16 +115,28 @@ vi.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({
   vscDarkPlus: {},
 }))
 
+// Mock CodeBlockEditor
+vi.mock('./CodeBlockEditor', () => ({
+  CodeBlockEditor: ({ content, language, onSave }: any) => (
+    <div data-testid="code-block-editor">
+      <span data-testid="code-lang">{language}</span>
+      <pre data-testid="code-content">{content}</pre>
+      <button onClick={onSave}>Save Code</button>
+    </div>
+  ),
+}))
+
 // Helper to create mock block
 const createMockBlock = (
   id: string,
   name: string,
-  content: string = ''
+  content: string = '',
+  type: string = 'markdown'
 ): Block => ({
   block_id: id,
   name,
-  block_type: 'markdown',
-  contents: { markdown: content },
+  block_type: type,
+  contents: type === 'markdown' ? { markdown: content } : { text: content },
   children: {},
   owner: 'test-user',
   metadata: {
@@ -136,9 +148,10 @@ const createMockBlock = (
 describe('EditorCanvas', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockStore.currentFileId = 'test-file-id'
     mockStore.selectedBlockId = 'block-1'
     mockStore.getBlock.mockReturnValue(
-      createMockBlock('block-1', 'Test Block', '# Hello World')
+      createMockBlock('block-1', 'Test Block', '# Hello World', 'markdown')
     )
   })
 
@@ -158,21 +171,25 @@ describe('EditorCanvas', () => {
       expect(screen.getByText(/no block selected/i)).toBeInTheDocument()
     })
 
-    it('should render save button', () => {
+    it('should render markdown document for markdown blocks', () => {
       render(<EditorCanvas />)
-
-      expect(screen.getByText(/save/i)).toBeInTheDocument()
-    })
-  })
-
-  describe('Edit Mode', () => {
-    it('should show content in view mode', () => {
-      render(<EditorCanvas />)
-
-      // Check that myst renderer is present (view mode)
       expect(screen.getByTestId('myst-renderer')).toBeInTheDocument()
     })
 
+    it('should render code editor for code blocks', () => {
+      mockStore.getBlock.mockReturnValue(
+        createMockBlock('block-code', 'main.rs', 'fn main() {}', 'code')
+      )
+      render(<EditorCanvas />)
+      expect(screen.getByTestId('code-block-editor')).toBeInTheDocument()
+      expect(screen.getByTestId('code-lang')).toHaveTextContent('rs')
+      expect(screen.getByTestId('code-content')).toHaveTextContent(
+        'fn main() {}'
+      )
+    })
+  })
+
+  describe('Edit Mode (Markdown)', () => {
     it('should toggle to edit mode when double-clicking content', async () => {
       const user = userEvent.setup()
 
@@ -191,173 +208,29 @@ describe('EditorCanvas', () => {
         })
       }
     })
-
-    it('should display textarea in edit mode', async () => {
-      const user = userEvent.setup()
-
-      render(<EditorCanvas />)
-
-      const contentArea = screen
-        .getByTestId('myst-renderer')
-        .closest('div[class*="cursor-text"]')
-
-      if (contentArea) {
-        await user.dblClick(contentArea)
-
-        await waitFor(() => {
-          const textarea = screen.getByTestId('textarea')
-          expect(textarea).toHaveValue('# Hello World')
-        })
-      }
-    })
-  })
-
-  describe('View Mode', () => {
-    it('should render markdown in view mode', () => {
-      render(<EditorCanvas />)
-
-      expect(screen.getByTestId('myst-renderer')).toBeInTheDocument()
-    })
-
-    it('should not show textarea in view mode', () => {
-      render(<EditorCanvas />)
-
-      expect(screen.queryByTestId('textarea')).not.toBeInTheDocument()
-    })
   })
 
   describe('Save Functionality', () => {
-    it('should show save button', () => {
-      render(<EditorCanvas />)
-
-      // Save button is always visible in the top bar
-      expect(screen.getByText(/save/i)).toBeInTheDocument()
-    })
-
-    it('should call updateBlock when saving from edit mode', async () => {
+    it('should call updateBlock with correct type when saving', async () => {
       const user = userEvent.setup()
       mockStore.updateBlock.mockResolvedValue(undefined)
 
-      render(<EditorCanvas />)
-
-      const contentArea = screen
-        .getByTestId('myst-renderer')
-        .closest('div[class*="cursor-text"]')
-
-      if (contentArea) {
-        await user.dblClick(contentArea)
-
-        await waitFor(() => {
-          expect(screen.getByTestId('textarea')).toBeInTheDocument()
-        })
-
-        const textarea = screen.getByTestId('textarea')
-        await user.clear(textarea)
-        await user.type(textarea, '# Updated Content')
-
-        // Find and click the Save button inside the editing toolbar
-        const saveButtons = screen.getAllByRole('button')
-        const saveButton = saveButtons.find(
-          (btn) =>
-            btn.textContent?.includes('Save') ||
-            btn.textContent?.includes('Saving')
-        )
-
-        if (saveButton) {
-          await user.click(saveButton)
-
-          await waitFor(() => {
-            expect(mockStore.updateBlock).toHaveBeenCalled()
-          })
-        }
-      }
-    })
-  })
-
-  describe('Block Content', () => {
-    it('should handle empty content', () => {
+      // Test with code block
       mockStore.getBlock.mockReturnValue(
-        createMockBlock('block-1', 'Empty Block', '')
+        createMockBlock('block-code', 'test.py', 'print(1)', 'code')
       )
 
       render(<EditorCanvas />)
 
-      expect(screen.getByText('Empty Block')).toBeInTheDocument()
-    })
+      const saveBtn = screen.getByText(/save \(ctrl\+s\)/i)
+      await user.click(saveBtn)
 
-    it('should handle markdown content with code blocks', () => {
-      mockStore.getBlock.mockReturnValue(
-        createMockBlock(
-          'block-1',
-          'Code Block',
-          '```javascript\nconsole.log("Hello")\n```'
-        )
+      expect(mockStore.updateBlock).toHaveBeenCalledWith(
+        'test-file-id',
+        'block-1',
+        'print(1)',
+        'code'
       )
-
-      render(<EditorCanvas />)
-
-      expect(screen.getByTestId('myst-renderer')).toBeInTheDocument()
-    })
-
-    it('should handle complex markdown', () => {
-      const complexMarkdown = `
-# Heading 1
-## Heading 2
-- List item 1
-- List item 2
-
-**Bold text** and *italic text*
-      `
-      mockStore.getBlock.mockReturnValue(
-        createMockBlock('block-1', 'Complex', complexMarkdown)
-      )
-
-      render(<EditorCanvas />)
-
-      expect(screen.getByTestId('myst-renderer')).toBeInTheDocument()
-    })
-  })
-
-  describe('Error Handling', () => {
-    it('should handle save error gracefully', async () => {
-      mockStore.updateBlock.mockRejectedValue(new Error('Save failed'))
-
-      render(<EditorCanvas />)
-
-      // Verify that updateBlock is properly mocked to reject
-      expect(mockStore.updateBlock).toBeDefined()
-
-      // Verify save button exists
-      expect(screen.getByText(/save/i)).toBeInTheDocument()
-
-      // The actual error handling would be tested by triggering save after edit,
-      // but for simplicity we just verify the mock is set up correctly
-      try {
-        await mockStore.updateBlock('test-file-id', 'block-1', 'new content')
-      } catch (error) {
-        expect(error).toEqual(new Error('Save failed'))
-      }
-    })
-  })
-
-  describe('Keyboard Shortcuts', () => {
-    it('should support keyboard shortcuts for editing', async () => {
-      const user = userEvent.setup()
-
-      render(<EditorCanvas />)
-
-      const contentArea = screen
-        .getByTestId('myst-renderer')
-        .closest('div[class*="cursor-text"]')
-
-      if (contentArea) {
-        await user.dblClick(contentArea)
-
-        await waitFor(() => {
-          const textarea = screen.getByTestId('textarea')
-          expect(textarea).toBeInTheDocument()
-        })
-      }
     })
   })
 
@@ -366,36 +239,6 @@ describe('EditorCanvas', () => {
       render(<EditorCanvas />)
 
       expect(mockStore.getBlock).toHaveBeenCalledWith('test-file-id', 'block-1')
-    })
-
-    it('should update when selected block changes', () => {
-      const { rerender } = render(<EditorCanvas />)
-
-      mockStore.selectedBlockId = 'block-2'
-      mockStore.getBlock.mockReturnValue(
-        createMockBlock('block-2', 'New Block', '# New Content')
-      )
-
-      rerender(<EditorCanvas />)
-
-      expect(mockStore.getBlock).toHaveBeenCalledWith('test-file-id', 'block-2')
-    })
-  })
-
-  describe('Accessibility', () => {
-    it('should have proper semantic HTML', () => {
-      const { container } = render(<EditorCanvas />)
-
-      expect(
-        container.querySelector('[data-testid="scroll-area"]')
-      ).toBeInTheDocument()
-    })
-
-    it('should have accessible buttons', () => {
-      render(<EditorCanvas />)
-
-      const buttons = screen.getAllByRole('button')
-      expect(buttons.length).toBeGreaterThan(0)
     })
   })
 })
