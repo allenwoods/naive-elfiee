@@ -15,10 +15,11 @@ fn handle_editor_delete(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<
         .map_err(|e| format!("Invalid payload for editor.delete: {}", e))?;
 
     // Create event marking editor as deleted
+    // Empty payload - deletion is signaled by the event type itself (Event Sourcing semantics)
     let event = create_event(
         payload.editor_id.clone(),
         "editor.delete",
-        serde_json::json!({ "deleted": true }),
+        serde_json::json!({}),
         &cmd.editor_id,
         1,
     );

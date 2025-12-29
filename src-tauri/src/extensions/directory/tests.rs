@@ -543,20 +543,21 @@ fn test_delete_basic() {
     );
 
     let events = result.unwrap();
-    // Should generate 2 events: core.delete (for file block) + directory.write (update entries)
-    assert_eq!(events.len(), 2, "Should generate two events");
+    // Reference semantics: only generates directory.write event (removes entry reference)
+    // The underlying Block (file-block-123) is NOT deleted - it continues to exist
+    assert_eq!(
+        events.len(),
+        1,
+        "Should generate one event (directory.write)"
+    );
 
-    // Verify first event is core.delete for the file
-    assert!(events[0].attribute.ends_with("/core.delete"));
-    assert_eq!(events[0].entity, "file-block-123");
-
-    // Verify second event is directory.write
-    assert_eq!(events[1].entity, block.block_id);
-    assert!(events[1].attribute.ends_with("/directory.write"));
-    let entries = events[1].value["contents"]["entries"].as_object().unwrap();
+    // Verify event is directory.write
+    assert_eq!(events[0].entity, block.block_id);
+    assert!(events[0].attribute.ends_with("/directory.write"));
+    let entries = events[0].value["contents"]["entries"].as_object().unwrap();
     assert!(
         !entries.contains_key("test.md"),
-        "File should be removed from entries"
+        "Entry reference should be removed from directory"
     );
 }
 
