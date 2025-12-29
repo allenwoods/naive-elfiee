@@ -9,7 +9,7 @@ Directory 扩展旨在提供一个虚拟文件系统 (VFS)，使用户能够在�
 
 ### 后端能力 (Capabilities)
 - **`directory.create`**: 支持创建虚拟目录和文件（Markdown/Code）。实现了 Block 的自动关联与初始化。
-- **`directory.delete`**: 实现了级联删除逻辑，确保删除目录时，其下的所有子项（Block）也被清理。
+- **`directory.delete`**: 采用**纯引用语义**（Unix inode-like）。删除操作仅从 `Directory.entries` 中移除引用，不删除关联的 Block。Block 的生命周期独立于目录结构，由所有权和未来的 GC 机制管理。
 - **`directory.rename`**: 支持移动和重命名。对于文件类型，会自动同步关联 Block 的 `name` 属性，保持 UI 一致性。
 - **`directory.import`**: 核心同步功能。支持扫描外部磁盘路径，根据文件后缀推断 Block 类型，并批量导入到 VFS 中。
 - **`directory.export`**: 实现了从 VFS 到物理磁盘的反向导出，支持整个项目或特定子目录的持久化。
@@ -32,7 +32,41 @@ Directory 扩展旨在提供一个虚拟文件系统 (VFS)，使用户能够在�
 - 宏会自动生成对应的 Unit Struct（如 `DirectoryCreateCapability`），并实现 `CapabilityHandler` trait。
 - **决策**: 拒绝手动导出 Handler 函数或手动实现 Registry 注册逻辑，保持与 `core` 能力的架构对齐。
 
-### 3.3 权限模型的权衡
+### 3.3 引用语义 vs 所有权语义（关键架构决策）
+在 `directory.delete` 的实现过程中，我们经历了从"级联删除"（所有权语义）到"纯引用语义"（Unix inode-like）的重大重构：
+
+**原有设计问题**：
+- `directory.delete` 会为关联的 Block 生成 `core.delete` 事件（级联删除）
+- 违反了扁平存储设计哲学：Directory.entries 应该是引用索引，而非容器
+- 导致多路径引用冲突：同一 Block 被多个 Directory 引用时，删除一个 Directory 会破坏其他引用
+- 权限模型漏洞：删除 Directory 时未检查对关联 Block 的权限
+
+**重构后的设计**（2025-12-29）：
+- **纯引用语义**: `directory.delete` **只删除** `Directory.entries` 中的索引条目
+- **Block 独立性**: 关联的 Block 不受影响，继续存在于 `StateProjector.blocks` 中
+- **生命周期分离**: Block 的生命周期由所有权（`Block.owner`）和未来的 GC 机制管理
+- **类比系统**: Unix `rm` 命令（减少 inode 引用计数，而非直接删除文件）
+
+**实现要点**：
+```rust
+// directory_delete.rs 只生成 directory.write 事件
+let event = create_event(
+    block.block_id.clone(),
+    "directory.write",
+    json!({ "contents": { "entries": new_entries } }),
+    &cmd.editor_id,
+    1,
+);
+// 不生成 core.delete 事件
+Ok(vec![event])
+```
+
+**设计验证**：
+- ✅ 支持多路径引用：同一 Block 可以被多个 Directory 引用
+- ✅ 权限隔离：删除 Directory 不需要对 Block 的删除权限
+- ✅ 测试覆盖：`test_security_path_matching_isolation` 验证引用独立性
+
+### 3.4 权限模型的权衡
 在实施 `directory.read` 权限时，我们进行了深度讨论：
 - **方案 A**: 在 Tauri Command 层进行过滤。
 - **方案 B**: 在 Engine Actor/State Projector 层进行过滤。

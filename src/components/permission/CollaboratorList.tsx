@@ -154,7 +154,6 @@ export const CollaboratorList = ({
 
         <AddCollaboratorDialog
           fileId={fileId}
-          existingEditors={editors}
           open={showAddDialog}
           onOpenChange={setShowAddDialog}
           onSuccess={handleAddSuccess}
@@ -202,7 +201,6 @@ export const CollaboratorList = ({
       {/* Add Collaborator Dialog */}
       <AddCollaboratorDialog
         fileId={fileId}
-        existingEditors={editors}
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         onSuccess={handleAddSuccess}

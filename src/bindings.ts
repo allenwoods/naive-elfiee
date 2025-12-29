@@ -1119,6 +1119,7 @@ export type UpdateMetadataPayload = {
 
 import {
   invoke as TAURI_INVOKE,
+  // @ts-ignore
   Channel as TAURI_CHANNEL,
 } from '@tauri-apps/api/core'
 import * as TAURI_API_EVENT from '@tauri-apps/api/event'
@@ -1140,6 +1141,7 @@ export type Result<T, E> =
   | { status: 'ok'; data: T }
   | { status: 'error'; error: E }
 
+// @ts-ignore
 function __makeEvents__<T extends Record<string, any>>(
   mappings: Record<keyof T, string>
 ) {
