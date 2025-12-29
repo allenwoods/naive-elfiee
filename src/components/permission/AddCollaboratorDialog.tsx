@@ -17,7 +17,6 @@ import type { Editor, EditorType } from '@/bindings'
 
 interface AddCollaboratorDialogProps {
   fileId: string
-  existingEditors: Editor[]
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess?: (newEditor: Editor) => void
@@ -25,7 +24,6 @@ interface AddCollaboratorDialogProps {
 
 export const AddCollaboratorDialog = ({
   fileId,
-  existingEditors,
   open,
   onOpenChange,
   onSuccess,
