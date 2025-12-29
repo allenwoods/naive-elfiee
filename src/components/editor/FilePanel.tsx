@@ -33,22 +33,6 @@ interface DirectoryContents {
   [key: string]: unknown
 }
 
-const validateFilename = (name: string): string | null => {
-  if (!name || name.trim().length === 0) return 'Filename cannot be empty'
-  if (name.includes('/') || name.includes('\\'))
-    return 'Filename cannot contain slashes'
-  // Basic reserved characters check (Windows/Unix safe subset)
-  if (/[<>:"|?*]/.test(name)) return 'Filename contains invalid characters'
-  return null
-}
-
-// Helper to infer block type from filename
-const inferBlockType = (filename: string): string => {
-  const ext = filename.split('.').pop()?.toLowerCase()
-  if (ext === 'md' || ext === 'markdown') return 'markdown'
-  return 'code'
-}
-
 export const FilePanel = () => {
   const {
     currentFileId,
@@ -59,6 +43,7 @@ export const FilePanel = () => {
     getActiveEditor,
     getOutlineTree,
     getLinkedRepos,
+    files,
   } = useAppStore()
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [createDialog, setCreateDialog] = useState({
@@ -84,12 +69,12 @@ export const FilePanel = () => {
   // Selectors for trees - Memoized to prevent redundant sorting/building
   const outlineTree = useMemo(
     () => (currentFileId ? getOutlineTree(currentFileId) : []),
-    [currentFileId, getOutlineTree]
+    [currentFileId, getOutlineTree, files]
   )
 
   const linkedRepos = useMemo(
     () => (currentFileId ? getLinkedRepos(currentFileId) : []),
-    [currentFileId, getLinkedRepos]
+    [currentFileId, getLinkedRepos, files]
   )
 
   // Find the block ID of the system outline (identified strictly by source="outline")
@@ -127,17 +112,8 @@ export const FilePanel = () => {
   const handleCreateConfirm = async (name: string) => {
     if (!currentFileId) return
 
-    const error = validateFilename(name)
-    if (error) {
-      toast.error(error)
-      return
-    }
-
     const { directoryBlockId, parentPath, type, source } = createDialog
     const path = parentPath ? `${parentPath}/${name}` : name
-
-    // Dynamic block type inference
-    const blockType = type === 'file' ? inferBlockType(name) : undefined
 
     try {
       await TauriClient.directory.createEntry(
@@ -146,8 +122,8 @@ export const FilePanel = () => {
         path,
         type,
         {
-          block_type: blockType,
           source,
+          // Note: block_type will be inferred by backend based on file extension
         },
         activeEditorId
       )
@@ -156,6 +132,7 @@ export const FilePanel = () => {
         `${type === 'file' ? (source === 'outline' ? 'Document' : 'File') : 'Folder'} created`
       )
     } catch (error) {
+      // Backend validation errors will be displayed here
       toast.error(`Failed to create ${type}: ${error}`)
     }
   }
@@ -166,12 +143,6 @@ export const FilePanel = () => {
     newName: string
   ) => {
     if (!currentFileId) return
-
-    const error = validateFilename(newName)
-    if (error) {
-      toast.error(error)
-      return
-    }
 
     try {
       await TauriClient.directory.renameEntry(
@@ -186,6 +157,7 @@ export const FilePanel = () => {
       await loadBlocks(currentFileId)
       toast.success('Renamed successfully')
     } catch (error) {
+      // Backend validation errors will be displayed here
       toast.error(`Failed to rename: ${error}`)
     }
   }

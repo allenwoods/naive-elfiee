@@ -37,7 +37,7 @@ export const ImportProjectModal = ({
     }
   }, [open])
 
-  // Validate name on change
+  // Validate project name (frontend concept - stored in localStorage)
   useEffect(() => {
     if (projectName.trim()) {
       const normalizedInput = projectName.trim().toLowerCase()

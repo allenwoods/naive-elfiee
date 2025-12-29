@@ -37,19 +37,10 @@ export const AddCollaboratorDialog = ({
   const { createEditor } = useAppStore()
 
   const handleCreate = async () => {
-    // Validate name
+    // Basic UI validation - empty name check only
     const trimmedName = name.trim()
     if (!trimmedName) {
       setError('Name cannot be empty')
-      return
-    }
-
-    // Check for duplicate names
-    const isDuplicate = existingEditors.some(
-      (editor) => editor.name.toLowerCase() === trimmedName.toLowerCase()
-    )
-    if (isDuplicate) {
-      setError('A collaborator with this name already exists')
       return
     }
 
@@ -68,7 +59,7 @@ export const AddCollaboratorDialog = ({
       onSuccess?.(newEditor)
     } catch (error) {
       console.error('Failed to create collaborator:', error)
-      // Error toast is already shown by app-store
+      // Backend validation errors (including duplicate names) will be shown via toast by app-store
     } finally {
       setIsCreating(false)
     }
