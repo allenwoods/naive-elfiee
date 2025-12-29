@@ -26,8 +26,8 @@ use capability_macros::capability;
 /// 3. Reconstruct the block's last state before deletion
 ///
 /// This design separates concerns:
-/// - Event = single source of truth (永久保存)
-/// - StateProjector = current active state only (可重建投影)
+/// - Event = single source of truth (permanently preserved)
+/// - StateProjector = current active state only (rebuildable projection)
 #[capability(id = "core.delete", target = "core/*")]
 fn handle_delete(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for core.delete")?;

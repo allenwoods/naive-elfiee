@@ -30,7 +30,6 @@ import {
 interface DirectoryContents {
   source: 'outline' | 'linked'
   entries?: Record<string, import('@/utils/vfs-tree').DirectoryEntry>
-  [key: string]: unknown
 }
 
 export const FilePanel = () => {
@@ -166,7 +165,7 @@ export const FilePanel = () => {
     if (!currentFileId) return
 
     const confirmed = confirm(
-      `Are you sure you want to delete "${node.name}"? This will also delete associated blocks.`
+      `Are you sure you want to delete "${node.name}"? This will remove the reference from this directory.`
     )
     if (!confirmed) return
 

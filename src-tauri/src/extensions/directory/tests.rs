@@ -1073,3 +1073,68 @@ fn test_security_path_matching_isolation() {
         "Deleting 'foo' should NOT delete 'foobar'"
     );
 }
+
+#[test]
+fn test_directory_delete_reference_semantics() {
+    // This test explicitly verifies that directory.delete implements reference semantics:
+    // 1. Removing an entry from a directory ONLY updates the directory's entry map
+    // 2. It does NOT generate core.delete events for the referenced block
+    // 3. The referenced block remains in existence (orphaned until GC)
+
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("directory.delete")
+        .expect("directory.delete should be registered");
+
+    let mut block = Block::new(
+        "Ref Test Block".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+
+    // Setup: Directory references a block "block-shared-123"
+    block.contents = serde_json::json!({
+        "entries": {
+            "shared.md": {
+                "id": "block-shared-123",
+                "type": "file",
+                "source": "outline"
+            }
+        }
+    });
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.delete".to_string(),
+        block.block_id.clone(),
+        serde_json::json!({
+            "path": "shared.md"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok());
+
+    let events = result.unwrap();
+
+    // Assert 1: Should only generate directory.write
+    assert_eq!(events.len(), 1, "Should generate exactly one event");
+    assert!(
+        events[0].attribute.ends_with("/directory.write"),
+        "Event should be directory.write"
+    );
+
+    // Assert 2: CRITICAL - No core.delete events generated
+    let has_delete_event = events.iter().any(|e| e.attribute.ends_with("/core.delete"));
+    assert!(
+        !has_delete_event,
+        "Directory delete must NOT generate core.delete events (Reference Semantics violation!)"
+    );
+
+    // Assert 3: Entry removed from directory
+    let entries = events[0].value["contents"]["entries"].as_object().unwrap();
+    assert!(
+        !entries.contains_key("shared.md"),
+        "Entry should be removed from directory entries"
+    );
+}
