@@ -103,7 +103,7 @@ describe('EditorCanvas', () => {
       vi.spyOn(TauriClient.block, 'checkPermission').mockResolvedValue(true)
 
       render(<EditorCanvas />)
-      
+
       const saveButton = screen.getByText(/Save/)
       fireEvent.click(saveButton)
 

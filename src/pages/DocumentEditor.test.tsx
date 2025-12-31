@@ -65,7 +65,7 @@ describe('DocumentEditor', () => {
   it('should hide loading state after data loads', async () => {
     mockGetFileMetadata.mockReturnValue({ name: 'Test File', path: '/path' })
     renderWithRouter('test-project')
-    
+
     await waitFor(() => {
       expect(screen.queryByText(/loading/i)).not.toBeInTheDocument()
     })

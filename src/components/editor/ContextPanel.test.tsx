@@ -11,7 +11,9 @@ vi.mock('@/lib/app-store', () => ({
 
 // Mock components
 vi.mock('@/components/permission/CollaboratorList', () => ({
-  CollaboratorList: () => <div data-testid="collaborator-list">Collaborator List</div>,
+  CollaboratorList: () => (
+    <div data-testid="collaborator-list">Collaborator List</div>
+  ),
 }))
 
 describe('ContextPanel', () => {
@@ -88,7 +90,7 @@ describe('ContextPanel', () => {
 
   it('should switch to Timeline tab and show events', async () => {
     render(<ContextPanel />)
-    
+
     const timelineTab = screen.getByText('Timeline')
     fireEvent.click(timelineTab)
 
@@ -100,22 +102,24 @@ describe('ContextPanel', () => {
   describe('Description Editing', () => {
     it('should enter edit mode when clicking edit button', async () => {
       render(<ContextPanel />)
-      
+
       const editButton = screen.getByRole('button', { name: '' }) // The Edit2 icon button
       fireEvent.click(editButton)
 
-      expect(screen.getByPlaceholderText('Add a description...')).toBeInTheDocument()
+      expect(
+        screen.getByPlaceholderText('Add a description...')
+      ).toBeInTheDocument()
     })
 
     it('should save description when clicking save', async () => {
       render(<ContextPanel />)
-      
+
       // Enter edit mode
       fireEvent.click(screen.getByRole('button', { name: '' }))
-      
+
       const textarea = screen.getByPlaceholderText('Add a description...')
       fireEvent.change(textarea, { target: { value: 'New description' } })
-      
+
       const saveButton = screen.getByText('Save')
       fireEvent.click(saveButton)
 
@@ -133,7 +137,7 @@ describe('ContextPanel', () => {
     it('should display events related to selected block', () => {
       render(<ContextPanel />)
       fireEvent.click(screen.getByText('Timeline'))
-      
+
       expect(screen.getByText('test-user/markdown.write')).toBeInTheDocument()
     })
 
@@ -141,7 +145,7 @@ describe('ContextPanel', () => {
       mockGetEvents.mockReturnValue([])
       render(<ContextPanel />)
       fireEvent.click(screen.getByText('Timeline'))
-      
+
       expect(screen.getByText('No events yet.')).toBeInTheDocument()
     })
   })
