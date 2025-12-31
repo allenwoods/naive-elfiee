@@ -5,11 +5,6 @@ import { CollaboratorList } from './CollaboratorList'
 import { useAppStore } from '@/lib/app-store'
 import type { Block, Editor, Grant } from '@/bindings'
 
-// Mock the app store
-vi.mock('@/lib/app-store', () => ({
-  useAppStore: vi.fn(),
-}))
-
 // Mock child components
 vi.mock('@/lib/tauri-client', () => ({
   TauriClient: {

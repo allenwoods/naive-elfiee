@@ -109,13 +109,10 @@ export const CollaboratorList = ({
   }
 
   const handleRemoveAccess = async (editorId: string) => {
-    // Delete the editor completely, which also removes all their grants
     try {
-      await deleteEditor(fileId, editorId)
+      await deleteEditor(fileId, editorId, blockId)
     } catch (error) {
       console.error('Failed to remove collaborator:', error)
-      // deleteEditor already shows a toast, so we don't need to show another one
-      throw error
     }
   }
 

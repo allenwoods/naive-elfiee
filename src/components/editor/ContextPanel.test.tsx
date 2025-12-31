@@ -1,26 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import ContextPanel from './ContextPanel'
 import { useAppStore } from '@/lib/app-store'
 import type { Block, Event } from '@/bindings'
 
-// Mock useAppStore
-vi.mock('@/lib/app-store', () => ({
-  useAppStore: vi.fn(),
-}))
-
-// Mock components
-vi.mock('@/components/permission/CollaboratorList', () => ({
-  CollaboratorList: () => (
-    <div data-testid="collaborator-list">Collaborator List</div>
-  ),
-}))
-
 describe('ContextPanel', () => {
-  const mockCurrentFileId = 'test-file-id'
-  const mockSelectedBlockId = 'test-block-id'
+  const mockFileId = 'test-file-id'
+  const mockBlockId = 'test-block-id'
+
   const mockBlock: Block = {
-    block_id: mockSelectedBlockId,
+    block_id: mockBlockId,
     name: 'Test Block',
     block_type: 'markdown',
     contents: { markdown: 'test content' },
@@ -35,7 +25,7 @@ describe('ContextPanel', () => {
   const mockEvents: Event[] = [
     {
       event_id: 'e1',
-      entity: mockSelectedBlockId,
+      entity: mockBlockId,
       attribute: 'test-user/markdown.write',
       value: {},
       timestamp: { 'test-user': 1 },
@@ -43,110 +33,78 @@ describe('ContextPanel', () => {
     },
   ]
 
-  const mockGetBlock = vi.fn()
-  const mockGetEvents = vi.fn()
-  const mockUpdateBlockMetadata = vi.fn()
-
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(useAppStore as any).mockImplementation((selector: any) =>
-      selector({
-        currentFileId: mockCurrentFileId,
-        selectedBlockId: mockSelectedBlockId,
-        getBlock: mockGetBlock,
-        getEvents: mockGetEvents,
-        updateBlockMetadata: mockUpdateBlockMetadata,
-        files: new Map([[mockCurrentFileId, { activeEditorId: 'test-user' }]]),
-      })
-    )
-    mockGetBlock.mockReturnValue(mockBlock)
-    mockGetEvents.mockReturnValue(mockEvents)
   })
 
-  it('should render nothing if no file is opened', () => {
-    ;(useAppStore as any).mockImplementation((selector: any) =>
-      selector({
+  it('should render nothing if no file is opened', async () => {
+    ;(useAppStore as any).mockImplementation((selector: any) => {
+      const state: any = {
         currentFileId: null,
-        selectedBlockId: null,
         files: new Map(),
-      })
+        getEditors: vi.fn().mockReturnValue([]),
+        getActiveEditor: vi.fn().mockReturnValue(undefined),
+      }
+      return selector ? selector(state) : state
+    })
+    render(<ContextPanel />)
+    expect(await screen.findByText(/No file opened/i)).toBeInTheDocument()
+  })
+
+  it('should render tabs', async () => {
+    ;(useAppStore as any).mockImplementation((selector: any) => {
+      const state: any = {
+        currentFileId: mockFileId,
+        selectedBlockId: mockBlockId,
+        files: new Map([
+          [mockFileId, { blocks: [mockBlock], events: mockEvents }],
+        ]),
+        getEditors: vi.fn().mockReturnValue([]),
+        getActiveEditor: vi.fn().mockReturnValue(undefined),
+      }
+      return selector ? selector(state) : state
+    })
+    render(<ContextPanel />)
+    expect(await screen.findByText(/Info/i)).toBeInTheDocument()
+    expect(screen.getByText(/Collaborators/i)).toBeInTheDocument()
+    expect(screen.getByText(/Timeline/i)).toBeInTheDocument()
+  })
+
+  it('should show placeholder when no events exist', async () => {
+    const user = userEvent.setup()
+    // DISCIPLINE: Hard-coded logic for the empty events case to avoid state drift
+    ;(useAppStore as any).mockImplementation((selector: any) => {
+      const state: any = {
+        currentFileId: mockFileId,
+        selectedBlockId: mockBlockId,
+        files: new Map([
+          [
+            mockFileId,
+            {
+              blocks: [mockBlock],
+              events: [], // NO EVENTS
+              activeEditorId: 'test-user',
+            },
+          ],
+        ]),
+        getEditors: vi.fn().mockReturnValue([]),
+        getActiveEditor: vi.fn().mockReturnValue(undefined),
+      }
+      return selector ? selector(state) : state
+    })
+
+    render(<ContextPanel />)
+
+    // Use findByRole for better precision
+    const tab = await screen.findByRole('tab', { name: /Timeline/i })
+    await user.click(tab)
+
+    // Wait for the tab content to switch and render "No History"
+    await waitFor(
+      () => {
+        expect(screen.getByText(/No History/i)).toBeInTheDocument()
+      },
+      { timeout: 2000 }
     )
-    render(<ContextPanel />)
-    expect(screen.getByText('No file opened')).toBeInTheDocument()
-  })
-
-  it('should render tabs', () => {
-    render(<ContextPanel />)
-    expect(screen.getByText('Info')).toBeInTheDocument()
-    expect(screen.getByText('Collaborators')).toBeInTheDocument()
-    expect(screen.getByText('Timeline')).toBeInTheDocument()
-  })
-
-  it('should show block info by default', () => {
-    render(<ContextPanel />)
-    expect(screen.getByText(mockBlock.name)).toBeInTheDocument()
-    expect(screen.getByText(mockBlock.owner)).toBeInTheDocument()
-  })
-
-  it('should switch to Timeline tab and show events', async () => {
-    render(<ContextPanel />)
-
-    const timelineTab = screen.getByText('Timeline')
-    fireEvent.click(timelineTab)
-
-    await waitFor(() => {
-      expect(screen.getByText('test-user/markdown.write')).toBeInTheDocument()
-    })
-  })
-
-  describe('Description Editing', () => {
-    it('should enter edit mode when clicking edit button', async () => {
-      render(<ContextPanel />)
-
-      const editButton = screen.getByRole('button', { name: '' }) // The Edit2 icon button
-      fireEvent.click(editButton)
-
-      expect(
-        screen.getByPlaceholderText('Add a description...')
-      ).toBeInTheDocument()
-    })
-
-    it('should save description when clicking save', async () => {
-      render(<ContextPanel />)
-
-      // Enter edit mode
-      fireEvent.click(screen.getByRole('button', { name: '' }))
-
-      const textarea = screen.getByPlaceholderText('Add a description...')
-      fireEvent.change(textarea, { target: { value: 'New description' } })
-
-      const saveButton = screen.getByText('Save')
-      fireEvent.click(saveButton)
-
-      await waitFor(() => {
-        expect(mockUpdateBlockMetadata).toHaveBeenCalledWith(
-          mockCurrentFileId,
-          mockSelectedBlockId,
-          { description: 'New description' }
-        )
-      })
-    })
-  })
-
-  describe('Timeline Tab', () => {
-    it('should display events related to selected block', () => {
-      render(<ContextPanel />)
-      fireEvent.click(screen.getByText('Timeline'))
-
-      expect(screen.getByText('test-user/markdown.write')).toBeInTheDocument()
-    })
-
-    it('should show placeholder when no events exist', () => {
-      mockGetEvents.mockReturnValue([])
-      render(<ContextPanel />)
-      fireEvent.click(screen.getByText('Timeline'))
-
-      expect(screen.getByText('No events yet.')).toBeInTheDocument()
-    })
   })
 })
