@@ -543,10 +543,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
 
       // CRITICAL: Clear selected block when switching users to prevent unauthorized access
-      // The new user may not have permission to view the currently selected block
       set({ selectedBlockId: null })
 
-      toast.success('Switched user - please select a block')
+      // Reload all data for the new user context
+      // The backend will filter these based on the new active editor's permissions
+      await Promise.all([
+        get().loadBlocks(fileId),
+        get().loadGrants(fileId),
+        get().loadEvents(fileId),
+        get().loadEditors(fileId),
+      ])
+
+      toast.success('Switched user - permissions updated')
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)

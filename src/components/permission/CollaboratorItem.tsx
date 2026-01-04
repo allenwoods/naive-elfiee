@@ -195,6 +195,7 @@ export const CollaboratorItem = ({
                 size="icon"
                 className="h-6 w-6 text-muted-foreground hover:text-foreground"
                 disabled={isRemoving}
+                data-testid={`menu-trigger-${editor.editor_id}`}
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
@@ -256,6 +257,7 @@ export const CollaboratorItem = ({
                 checked={checked}
                 disabled={isOwner || isLoading}
                 className="pointer-events-none h-4 w-4"
+                data-testid={`checkbox-${editor.editor_id}-${capability.id}`}
               />
               <div
                 className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${

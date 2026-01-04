@@ -5,11 +5,8 @@ import { useAppStore } from '@/lib/app-store'
 import { CollaboratorItem } from './CollaboratorItem'
 import { AddCollaboratorDialog } from './AddCollaboratorDialog'
 import { toast } from 'sonner'
-import type { Block } from '@/bindings'
+import type { Block, Editor } from '@/bindings'
 import { TauriClient } from '@/lib/tauri-client'
-
-// Default capability granted to new collaborators
-const DEFAULT_CAPABILITY = 'markdown.read' as const
 
 interface CollaboratorListProps {
   fileId: string
@@ -24,7 +21,7 @@ export const CollaboratorList = ({
 }: CollaboratorListProps) => {
   const [showAddDialog, setShowAddDialog] = useState(false)
 
-  // Subscribe to store state changes - directly access files Map for reactivity
+  // Subscribe to store state changes
   const editors = useAppStore((state) => {
     const fileState = state.files.get(fileId)
     return fileState?.editors || []
@@ -42,7 +39,10 @@ export const CollaboratorList = ({
   })
   const grantCapability = useAppStore((state) => state.grantCapability)
   const revokeCapability = useAppStore((state) => state.revokeCapability)
-  const deleteEditor = useAppStore((state) => state.deleteEditor)
+
+  // NOTE: We do NOT use deleteEditor here anymore.
+  // "Removing access" simply means revoking all permissions on this block.
+  // Deleting a user from the project entirely should be an admin/owner function in Sidebar.
 
   // Filter grants relevant to this block (including wildcards)
   const relevantGrants = useMemo(() => {
@@ -104,77 +104,74 @@ export const CollaboratorList = ({
       }
     } catch (error) {
       console.error('Failed to change permission:', error)
-      // Errors from grantCapability/revokeCapability are already toasted by the store
     }
   }
 
   const handleRemoveAccess = async (editorId: string) => {
-    // Delete the editor completely, which also removes all their grants
-    // Backend will check permission: only block owner can delete editors
+    // Revoke ALL permissions for this editor on this block
     try {
-      await deleteEditor(fileId, editorId)
+      const userGrants = relevantGrants.filter((g) => g.editor_id === editorId)
+
+      // If user has no explicit grants (e.g. implicitly has access via wildcard or just viewing),
+      // there's nothing to revoke, but we can't "block" them unless we have a deny list (not implemented).
+      // For now, we just remove explicit grants.
+
+      if (userGrants.length === 0) {
+        toast.info('User has no explicit permissions to remove.')
+        return
+      }
+
+      // Execute revokes in parallel
+      await Promise.all(
+        userGrants.map((grant) =>
+          revokeCapability(fileId, editorId, grant.cap_id, blockId)
+        )
+      )
+
+      toast.success('Access removed (permissions revoked)')
     } catch (error) {
-      console.error('Failed to remove collaborator:', error)
-      // deleteEditor already shows a toast, so we don't need to show another one
-      throw error
+      console.error('Failed to remove access:', error)
+      toast.error('Failed to remove access')
     }
   }
 
-  // Check permission state for creating editors (only block owner can create)
-  // This is for UI state only - actual permission check happens in backend
-  const [canCreateEditor, setCanCreateEditor] = useState(false)
+  // Check permission state for granting (used to enable/disable Add button)
+  const [canAddCollaborator, setCanAddCollaborator] = useState(false)
 
-  // Check permission on mount and when dependencies change
   useEffect(() => {
     const checkPermission = async () => {
       if (!activeEditor?.editor_id) {
-        setCanCreateEditor(false)
+        setCanAddCollaborator(false)
         return
       }
       try {
+        // To add a collaborator, you generally need to be able to grant permissions
+        // or create editors. We check 'core.grant' as the primary gatekeeper.
         const hasPermission = await TauriClient.block.checkPermission(
           fileId,
           blockId,
-          'editor.create',
+          'core.grant',
           activeEditor.editor_id
         )
-        setCanCreateEditor(hasPermission)
+        setCanAddCollaborator(hasPermission)
       } catch (error) {
         console.error('Failed to check permission:', error)
-        setCanCreateEditor(false)
+        setCanAddCollaborator(false)
       }
     }
     checkPermission()
   }, [fileId, blockId, activeEditor?.editor_id])
 
-  const handleAddSuccess = async (editor: { editor_id: string }) => {
-    // Grant default read permission to the new collaborator
-    // Use block owner as the granter since they have permission to grant capabilities
-    try {
-      await grantCapability(
-        fileId,
-        editor.editor_id,
-        DEFAULT_CAPABILITY,
-        blockId,
-        block.owner // Explicitly use block owner to grant permissions
-      )
-      toast.success('Collaborator added with default read permission')
-    } catch (error) {
-      console.error('Failed to grant default read permission:', error)
-      toast.warning(
-        'Collaborator added but failed to grant read permission. You can manually grant permissions.'
-      )
-      // Don't throw - the collaborator was added successfully
-    }
+  const handleAddSuccess = (editor: Editor) => {
+    // Dialog handles the creation and granting. We just refresh the list (via store subscription).
+    // No extra action needed here.
   }
 
   const handleOpenAddDialog = () => {
-    // Permission check is done in backend when creating editor
-    // This is just for UI state - button is already disabled if no permission
     setShowAddDialog(true)
   }
 
-  // Show empty state if no collaborators
+  // Show empty state if no collaborators (except maybe owner who is filtered out if logic changes, but currently owner is always shown)
   if (collaborators.length === 0) {
     return (
       <div className="space-y-3">
@@ -189,11 +186,11 @@ export const CollaboratorList = ({
             size="icon"
             className="h-6 w-6 hover:bg-muted"
             title={
-              canCreateEditor
+              canAddCollaborator
                 ? 'Add Collaborator'
-                : 'Only the block owner can add collaborators'
+                : 'You do not have permission to add collaborators'
             }
-            disabled={!canCreateEditor}
+            disabled={!canAddCollaborator}
           >
             <UserPlus className="h-4 w-4" />
           </Button>
@@ -203,7 +200,7 @@ export const CollaboratorList = ({
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/50 bg-muted/10 py-8 text-center">
           <Users className="mb-2 h-8 w-8 text-muted-foreground/50" />
           <p className="text-xs text-muted-foreground">No collaborators yet</p>
-          {canCreateEditor ? (
+          {canAddCollaborator && (
             <Button
               variant="link"
               size="sm"
@@ -212,15 +209,12 @@ export const CollaboratorList = ({
             >
               Add one now
             </Button>
-          ) : (
-            <p className="text-xs text-muted-foreground/70">
-              Only the block owner can add collaborators
-            </p>
           )}
         </div>
 
         <AddCollaboratorDialog
           fileId={fileId}
+          blockId={blockId}
           existingEditors={collaborators}
           allEditors={editors}
           open={showAddDialog}
@@ -244,11 +238,11 @@ export const CollaboratorList = ({
           size="icon"
           className="h-6 w-6 hover:bg-muted"
           title={
-            canCreateEditor
+            canAddCollaborator
               ? 'Add Collaborator'
-              : 'Only the block owner can add collaborators'
+              : 'You do not have permission to add collaborators'
           }
-          disabled={!canCreateEditor}
+          disabled={!canAddCollaborator}
         >
           <UserPlus className="h-4 w-4" />
         </Button>
@@ -276,6 +270,7 @@ export const CollaboratorList = ({
       {/* Add Collaborator Dialog */}
       <AddCollaboratorDialog
         fileId={fileId}
+        blockId={blockId}
         existingEditors={collaborators}
         allEditors={editors}
         open={showAddDialog}

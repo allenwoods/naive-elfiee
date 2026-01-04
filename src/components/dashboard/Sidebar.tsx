@@ -1,4 +1,4 @@
-import { FolderKanban, FileEdit, User } from 'lucide-react'
+import { FolderKanban, FileEdit, User, X } from 'lucide-react'
 import { NavLink } from '@/components/NavLink'
 import { useAppStore } from '@/lib/app-store'
 import {
@@ -10,7 +10,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 const navItems = [
   { icon: FolderKanban, path: '/', label: 'Projects' },
@@ -18,11 +20,37 @@ const navItems = [
 ]
 
 export const Sidebar = () => {
-  const { currentFileId, getEditors, getActiveEditor, setActiveEditor } =
-    useAppStore()
+  const {
+    currentFileId,
+    getEditors,
+    getActiveEditor,
+    setActiveEditor,
+    deleteEditor,
+  } = useAppStore()
 
   const editors = currentFileId ? getEditors(currentFileId) : []
   const activeEditor = currentFileId ? getActiveEditor(currentFileId) : null
+
+  const handleDeleteUser = async (editorId: string) => {
+    if (!currentFileId) return
+
+    // Confirm deletion
+    if (
+      !confirm(
+        'Are you sure you want to delete this user? This will remove all their access and history association.'
+      )
+    ) {
+      return
+    }
+
+    try {
+      await deleteEditor(currentFileId, editorId)
+      // Success toast is handled by store
+    } catch (error) {
+      // Error toast is handled by store
+      console.error(error)
+    }
+  }
 
   return (
     <aside className="z-50 flex h-full min-h-0 w-20 flex-shrink-0 flex-col items-center bg-primary py-6">
@@ -65,31 +93,67 @@ export const Sidebar = () => {
                 </Avatar>
               </div>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="end" className="ml-2 w-56">
+            <DropdownMenuContent side="right" align="end" className="ml-2 w-64">
               <DropdownMenuLabel>Switch User</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {editors.map((editor) => (
-                <DropdownMenuItem
-                  key={editor.editor_id}
-                  onClick={() =>
-                    setActiveEditor(currentFileId, editor.editor_id)
-                  }
-                  className="flex cursor-pointer items-center gap-2"
-                >
-                  <User className="h-4 w-4" />
-                  <span
-                    className={cn(
-                      'flex-1 truncate',
-                      editor.editor_id === activeEditor.editor_id && 'font-bold'
-                    )}
+              {editors.map((editor) => {
+                const isActive = editor.editor_id === activeEditor.editor_id
+                const isSystem = editor.name === 'System'
+                // Can delete if: not active user, not System user
+                const canDelete = !isActive && !isSystem
+
+                return (
+                  <DropdownMenuItem
+                    key={editor.editor_id}
+                    className="flex items-center justify-between gap-2 p-2 focus:bg-accent/5"
+                    // Prevent default click behavior on the item to handle children separately
+                    onSelect={(e) => e.preventDefault()}
                   >
-                    {editor.name}
-                  </span>
-                  {editor.editor_id === activeEditor.editor_id && (
-                    <span className="h-2 w-2 rounded-full bg-green-500" />
-                  )}
-                </DropdownMenuItem>
-              ))}
+                    <div
+                      className="flex flex-1 cursor-pointer items-center gap-2 overflow-hidden"
+                      onClick={() =>
+                        setActiveEditor(currentFileId, editor.editor_id)
+                      }
+                    >
+                      <User
+                        className={cn(
+                          'h-4 w-4 shrink-0',
+                          isActive ? 'text-primary' : 'text-muted-foreground'
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          'truncate text-sm',
+                          isActive && 'font-semibold text-primary'
+                        )}
+                      >
+                        {editor.name}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {isActive && (
+                        <span className="h-2 w-2 rounded-full bg-green-500" />
+                      )}
+
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteUser(editor.editor_id)
+                          }}
+                          title="Delete User"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </DropdownMenuItem>
+                )
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (

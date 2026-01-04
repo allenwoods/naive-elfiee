@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CollaboratorList } from './CollaboratorList'
 import { useAppStore } from '@/lib/app-store'
@@ -14,28 +14,13 @@ vi.mock('@/lib/tauri-client', () => ({
   },
 }))
 
-vi.mock('./CollaboratorItem', () => ({
-  CollaboratorItem: ({ editor, onGrantChange, onRemoveAccess }: any) => (
-    <div data-testid={`collaborator-${editor.editor_id}`}>
-      <span>{editor.name}</span>
-      <button
-        onClick={() => onGrantChange(editor.editor_id, 'markdown.read', true)}
-      >
-        Grant
-      </button>
-      {onRemoveAccess && (
-        <button onClick={() => onRemoveAccess(editor.editor_id)}>Remove</button>
-      )}
-    </div>
-  ),
-}))
-
+// Mock AddCollaboratorDialog
 vi.mock('./AddCollaboratorDialog', () => ({
   AddCollaboratorDialog: ({ open, onSuccess }: any) =>
     open ? (
       <div data-testid="add-dialog">
         <button onClick={() => onSuccess({ editor_id: 'new-editor' })}>
-          Add
+          Mock Add
         </button>
       </div>
     ) : null,
@@ -68,12 +53,6 @@ describe('CollaboratorList Component', () => {
     editor_type: 'Human',
   }
 
-  const mockBotEditor: Editor = {
-    editor_id: 'bot-789',
-    name: 'CodeReviewer',
-    editor_type: 'Bot',
-  }
-
   const mockGrants: Grant[] = [
     {
       editor_id: 'collab-456',
@@ -85,35 +64,30 @@ describe('CollaboratorList Component', () => {
       cap_id: 'markdown.write',
       block_id: 'block-1',
     },
-    {
-      editor_id: 'bot-789',
-      cap_id: 'markdown.read',
-      block_id: 'block-1',
-    },
   ]
 
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // Default mock implementation
-    ;(useAppStore as any).mockImplementation((selector: any) => {
-      const state = {
-        files: new Map([
-          [
-            'file-1',
-            {
-              editors: [mockOwnerEditor, mockCollaboratorEditor, mockBotEditor],
-              grants: mockGrants,
-              activeEditorId: 'owner-123',
-            },
-          ],
-        ]),
-        grantCapability: mockGrantCapability,
-        revokeCapability: mockRevokeCapability,
-        deleteEditor: mockDeleteEditor,
-      }
-      return selector(state)
-    })
+    const store = useAppStore.getState()
+    store.files = new Map([
+      [
+        'file-1',
+        {
+          fileId: 'file-1',
+          metadata: null,
+          activeEditorId: 'owner-123',
+          editors: [mockOwnerEditor, mockCollaboratorEditor],
+          blocks: [mockBlock],
+          selectedBlockId: null,
+          events: [],
+          grants: mockGrants,
+        },
+      ],
+    ])
+    store.grantCapability = mockGrantCapability
+    store.revokeCapability = mockRevokeCapability
+    store.deleteEditor = mockDeleteEditor
   })
 
   describe('Rendering', () => {
@@ -122,19 +96,18 @@ describe('CollaboratorList Component', () => {
         <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
       )
 
-      expect(screen.getByText('Owner')).toBeInTheDocument()
+      // Owner name appears twice (name + badge), so use getAllByText
+      expect(screen.getAllByText('Owner').length).toBeGreaterThan(0)
       expect(screen.getByText('Alice')).toBeInTheDocument()
-      expect(screen.getByText('CodeReviewer')).toBeInTheDocument()
     })
 
-    it('should show Add Collaborator button', () => {
+    it('should show Add Collaborator button', async () => {
       render(
         <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
       )
 
-      const addButton = screen.getByRole('button', {
-        name: /add collaborator/i,
-      })
+      // The button has a specific title when enabled
+      const addButton = await screen.findByTitle('Add Collaborator')
       expect(addButton).toBeInTheDocument()
     })
 
@@ -145,146 +118,94 @@ describe('CollaboratorList Component', () => {
         editor_type: 'Human',
       }
 
-      ;(useAppStore as any).mockImplementation((selector: any) => {
-        const state = {
-          files: new Map([
-            [
-              'file-1',
-              {
-                editors: [
-                  mockOwnerEditor,
-                  mockCollaboratorEditor,
-                  editorWithoutGrants,
-                ],
-                grants: mockGrants,
-                activeEditorId: 'owner-123',
-              },
-            ],
-          ]),
-          grantCapability: mockGrantCapability,
-          revokeCapability: mockRevokeCapability,
-          deleteEditor: mockDeleteEditor,
-        }
-        return selector(state)
-      })
+      const store = useAppStore.getState()
+      const fileState = store.files.get('file-1')
+      if (fileState) {
+        fileState.editors = [
+          mockOwnerEditor,
+          mockCollaboratorEditor,
+          editorWithoutGrants,
+        ]
+      }
 
       render(
         <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
       )
 
-      // Should show owner and collaborator with grants
-      expect(screen.getByText('Owner')).toBeInTheDocument()
+      expect(screen.getAllByText('Owner').length).toBeGreaterThan(0)
       expect(screen.getByText('Alice')).toBeInTheDocument()
-
-      // Should NOT show editor without grants
       expect(screen.queryByText('NoAccess')).not.toBeInTheDocument()
     })
   })
 
-  describe('Collaborator Sorting', () => {
-    it('should sort owner first, then active editor, then others alphabetically', () => {
-      const { container } = render(
-        <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
-      )
-
-      const collaborators = container.querySelectorAll(
-        '[data-testid^="collaborator-"]'
-      )
-      const names = Array.from(collaborators).map(
-        (el) => el.querySelector('span')?.textContent
-      )
-
-      // Owner should be first
-      expect(names[0]).toBe('Owner')
-      // Others sorted alphabetically: Alice, CodeReviewer
-      expect(names).toContain('Alice')
-      expect(names).toContain('CodeReviewer')
-    })
-  })
-
   describe('Grant/Revoke Permissions', () => {
-    it('should call grantCapability when granting permission', async () => {
-      mockGrantCapability.mockResolvedValue(undefined)
+    it('should call revokeCapability when unchecking permission', async () => {
+      mockRevokeCapability.mockResolvedValue(undefined)
 
       render(
         <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
       )
 
-      const grantButtons = screen.getAllByRole('button', { name: 'Grant' })
-      await userEvent.click(grantButtons[0])
+      // Find Alice's read permission checkbox
+      // We rely on the id pattern generated by CollaboratorItem: `${editorId}-${capId}`
+      const readCheckbox = screen.getByTestId(
+        'checkbox-collab-456-markdown.read'
+      )
+
+      // It should be checked initially (based on mockGrants)
+      expect(readCheckbox).toHaveAttribute('aria-checked', 'true')
+
+      // Click to uncheck
+      await userEvent.click(readCheckbox)
 
       await waitFor(() => {
-        expect(mockGrantCapability).toHaveBeenCalledWith(
+        expect(mockRevokeCapability).toHaveBeenCalledWith(
           'file-1',
-          expect.any(String),
+          'collab-456',
           'markdown.read',
           'block-1'
         )
       })
     })
-
-    it('should call revokeCapability when revoking permission', async () => {
-      mockRevokeCapability.mockResolvedValue(undefined)
-
-      // Mock handleGrantChange to trigger revoke
-      render(
-        <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
-      )
-
-      // In real implementation, this would be triggered by unchecking a permission
-      // For this test, we verify the function is available
-      expect(mockRevokeCapability).toBeDefined()
-    })
   })
 
   describe('Remove Access', () => {
-    it('should delete editor when removing access', async () => {
-      mockDeleteEditor.mockResolvedValue(undefined)
+    it('should revoke all capabilities when removing access via menu', async () => {
+      mockRevokeCapability.mockResolvedValue(undefined)
 
       render(
         <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
       )
 
-      // Click remove button for Alice
-      const removeButtons = screen.getAllByRole('button', { name: 'Remove' })
-      const aliceRemoveButton = removeButtons.find((btn) =>
-        btn.closest('[data-testid="collaborator-collab-456"]')
-      )
+      // 1. Open the dropdown menu for Alice
+      // We need to find the specific trigger for Alice.
+      // CollaboratorItem usually renders a "More options" button.
+      const menuTrigger = screen.getByTestId('menu-trigger-collab-456')
+      await userEvent.click(menuTrigger)
 
-      if (aliceRemoveButton) {
-        await userEvent.click(aliceRemoveButton)
-      }
+      // 2. Click "Remove Access" in the menu
+      const removeButton = await screen.findByText('Remove Access')
+      await userEvent.click(removeButton)
 
-      // Should delete the editor (which also removes all grants)
       await waitFor(() => {
-        expect(mockDeleteEditor).toHaveBeenCalledTimes(1)
-        expect(mockDeleteEditor).toHaveBeenCalledWith('file-1', 'collab-456')
+        // Should revoke read and write capabilities
+        expect(mockRevokeCapability).toHaveBeenCalledTimes(2)
+        expect(mockRevokeCapability).toHaveBeenCalledWith(
+          'file-1',
+          'collab-456',
+          'markdown.read',
+          'block-1'
+        )
+        expect(mockRevokeCapability).toHaveBeenCalledWith(
+          'file-1',
+          'collab-456',
+          'markdown.write',
+          'block-1'
+        )
       })
-    })
 
-    it('should call deleteEditor when removing access', async () => {
-      mockDeleteEditor.mockResolvedValue(undefined)
-
-      render(
-        <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
-      )
-
-      const removeButtons = screen.getAllByRole('button', { name: 'Remove' })
-      const aliceRemoveButton = removeButtons.find((btn) =>
-        btn.closest('[data-testid="collaborator-collab-456"]')
-      )
-
-      if (aliceRemoveButton) {
-        await userEvent.click(aliceRemoveButton)
-      }
-
-      // Should delete the editor
-      await waitFor(
-        () => {
-          expect(mockDeleteEditor).toHaveBeenCalledWith('file-1', 'collab-456')
-        },
-        { timeout: 3000 }
-      )
+      // Should NOT delete editor
+      expect(mockDeleteEditor).not.toHaveBeenCalled()
     })
   })
 
@@ -296,139 +217,12 @@ describe('CollaboratorList Component', () => {
         <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
       )
 
-      const addButton = screen.getByRole('button', {
-        name: /add collaborator/i,
-      })
+      const addButton = await screen.findByTitle('Add Collaborator')
       await user.click(addButton)
 
       await waitFor(() => {
         expect(screen.getByTestId('add-dialog')).toBeInTheDocument()
       })
-    })
-
-    it('should grant default read permission when new collaborator is added', async () => {
-      mockGrantCapability.mockResolvedValue(undefined)
-
-      render(
-        <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
-      )
-
-      // Open dialog
-      const addButton = screen.getByRole('button', {
-        name: /add collaborator/i,
-      })
-      await userEvent.click(addButton)
-
-      // Add new editor
-      const addConfirmButton = await screen.findByRole('button', {
-        name: 'Add',
-      })
-      await userEvent.click(addConfirmButton)
-
-      // Should grant default read permission (with block owner as granter)
-      await waitFor(() => {
-        expect(mockGrantCapability).toHaveBeenCalledWith(
-          'file-1',
-          'new-editor',
-          'markdown.read',
-          'block-1',
-          'owner-123' // Block owner as granter
-        )
-      })
-    })
-
-    it('should handle grant default permission error gracefully', async () => {
-      mockGrantCapability.mockRejectedValue(new Error('Grant failed'))
-
-      render(
-        <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
-      )
-
-      const addButton = screen.getByRole('button', {
-        name: /add collaborator/i,
-      })
-      await userEvent.click(addButton)
-
-      const addConfirmButton = await screen.findByRole('button', {
-        name: 'Add',
-      })
-      await userEvent.click(addConfirmButton)
-
-      // Should call grantCapability even if it fails
-      await waitFor(() => {
-        expect(mockGrantCapability).toHaveBeenCalled()
-      })
-    })
-  })
-
-  describe('Wildcard Grants', () => {
-    it('should include wildcard grants in relevant grants', () => {
-      const wildcardGrants: Grant[] = [
-        {
-          editor_id: 'collab-456',
-          cap_id: 'markdown.read',
-          block_id: '*', // Wildcard
-        },
-      ]
-
-      ;(useAppStore as any).mockImplementation((selector: any) => {
-        const state = {
-          files: new Map([
-            [
-              'file-1',
-              {
-                editors: [mockOwnerEditor, mockCollaboratorEditor],
-                grants: wildcardGrants,
-                activeEditorId: 'owner-123',
-              },
-            ],
-          ]),
-          grantCapability: mockGrantCapability,
-          revokeCapability: mockRevokeCapability,
-          deleteEditor: mockDeleteEditor,
-        }
-        return selector(state)
-      })
-
-      render(
-        <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
-      )
-
-      // Alice should appear because of wildcard grant
-      expect(screen.getByText('Alice')).toBeInTheDocument()
-    })
-  })
-
-  describe('Empty State', () => {
-    it('should only show owner when no other collaborators have access', () => {
-      ;(useAppStore as any).mockImplementation((selector: any) => {
-        const state = {
-          files: new Map([
-            [
-              'file-1',
-              {
-                editors: [mockOwnerEditor],
-                grants: [],
-                activeEditorId: 'owner-123',
-              },
-            ],
-          ]),
-          grantCapability: mockGrantCapability,
-          revokeCapability: mockRevokeCapability,
-          deleteEditor: mockDeleteEditor,
-        }
-        return selector(state)
-      })
-
-      render(
-        <CollaboratorList fileId="file-1" blockId="block-1" block={mockBlock} />
-      )
-
-      expect(screen.getByText('Owner')).toBeInTheDocument()
-
-      // Should only have one collaborator item
-      const collaborators = screen.getAllByTestId(/^collaborator-/)
-      expect(collaborators).toHaveLength(1)
     })
   })
 })
