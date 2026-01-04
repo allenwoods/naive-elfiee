@@ -56,7 +56,7 @@ export const CollaboratorList = ({
       // Owner always has access
       if (editor.editor_id === block.owner) return true
 
-      // Check if editor has any grants for this block
+      // Check if editor has any grants for this block (not wildcards for other blocks)
       return relevantGrants.some((g) => g.editor_id === editor.editor_id)
     })
 
@@ -73,7 +73,7 @@ export const CollaboratorList = ({
       // Others by name
       return a.name.localeCompare(b.name)
     })
-  }, [editors, block.owner, activeEditor, relevantGrants])
+  }, [editors, block, activeEditor, relevantGrants])
 
   const handleGrantChange = async (
     editorId: string,
@@ -109,10 +109,14 @@ export const CollaboratorList = ({
   }
 
   const handleRemoveAccess = async (editorId: string) => {
+    // Delete the editor completely, which also removes all their grants
+    // Backend will check permission: only block owner can delete editors
     try {
-      await deleteEditor(fileId, editorId, blockId)
+      await deleteEditor(fileId, editorId)
     } catch (error) {
       console.error('Failed to remove collaborator:', error)
+      // deleteEditor already shows a toast, so we don't need to show another one
+      throw error
     }
   }
 
@@ -143,24 +147,24 @@ export const CollaboratorList = ({
     checkPermission()
   }, [fileId, blockId, activeEditor?.editor_id])
 
-  const handleAddSuccess = async (newEditor: { editor_id: string }) => {
+  const handleAddSuccess = async (editor: { editor_id: string }) => {
     // Grant default read permission to the new collaborator
     // Use block owner as the granter since they have permission to grant capabilities
     try {
       await grantCapability(
         fileId,
-        newEditor.editor_id,
+        editor.editor_id,
         DEFAULT_CAPABILITY,
         blockId,
         block.owner // Explicitly use block owner to grant permissions
       )
-      toast.success('Default read permission granted')
+      toast.success('Collaborator added with default read permission')
     } catch (error) {
       console.error('Failed to grant default read permission:', error)
       toast.warning(
-        'Collaborator created but failed to grant read permission. You can manually grant permissions.'
+        'Collaborator added but failed to grant read permission. You can manually grant permissions.'
       )
-      // Don't throw - the editor was created successfully
+      // Don't throw - the collaborator was added successfully
     }
   }
 
@@ -217,6 +221,8 @@ export const CollaboratorList = ({
 
         <AddCollaboratorDialog
           fileId={fileId}
+          existingEditors={collaborators}
+          allEditors={editors}
           open={showAddDialog}
           onOpenChange={setShowAddDialog}
           onSuccess={handleAddSuccess}
@@ -254,6 +260,7 @@ export const CollaboratorList = ({
           <CollaboratorItem
             key={editor.editor_id}
             blockId={blockId}
+            blockType={block.block_type}
             editor={editor}
             grants={relevantGrants.filter(
               (g) => g.editor_id === editor.editor_id
@@ -269,6 +276,8 @@ export const CollaboratorList = ({
       {/* Add Collaborator Dialog */}
       <AddCollaboratorDialog
         fileId={fileId}
+        existingEditors={collaborators}
+        allEditors={editors}
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         onSuccess={handleAddSuccess}

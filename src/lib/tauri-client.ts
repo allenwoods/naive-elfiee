@@ -17,7 +17,6 @@ import {
   type GrantPayload,
   type RevokePayload,
   type FileMetadata,
-  type DirectoryExportPayload,
 } from '@/bindings'
 
 /**
@@ -213,8 +212,11 @@ export class FileOperations {
  * Block Operations
  */
 export class BlockOperations {
-  static async getAllBlocks(fileId: string): Promise<Block[]> {
-    const result = await commands.getAllBlocks(fileId)
+  static async getAllBlocks(
+    fileId: string,
+    editorId?: string
+  ): Promise<Block[]> {
+    const result = await commands.getAllBlocks(fileId, editorId || null)
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -545,9 +547,15 @@ export class EditorOperations {
   static async createEditor(
     fileId: string,
     name: string,
-    editorType?: string
+    editorType?: string,
+    blockId?: string
   ): Promise<Editor> {
-    const result = await commands.createEditor(fileId, name, editorType ?? null)
+    const result = await commands.createEditor(
+      fileId,
+      name,
+      editorType ?? null,
+      blockId ?? null
+    )
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -555,8 +563,16 @@ export class EditorOperations {
     }
   }
 
-  static async deleteEditor(fileId: string, editorId: string): Promise<void> {
-    const result = await commands.deleteEditor(fileId, editorId)
+  static async deleteEditor(
+    fileId: string,
+    editorId: string,
+    blockId?: string
+  ): Promise<void> {
+    const result = await commands.deleteEditor(
+      fileId,
+      editorId,
+      blockId ?? null
+    )
     if (result.status === 'ok') {
       return
     } else {

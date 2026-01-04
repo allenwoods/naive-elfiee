@@ -58,10 +58,11 @@ const DocumentDetailsView = ({}: { documentId: string }) => {
 const BlockDetailsView = ({ block }: { block: Block }) => {
   const { currentFileId, getEditors } = useAppStore()
 
-  // Resolve owner name
+  // Resolve owner info
   const editors = currentFileId ? getEditors(currentFileId) : []
-  const ownerName =
-    editors.find((e) => e.editor_id === block.owner)?.name || block.owner
+  const ownerEditor = editors.find((e) => e.editor_id === block.owner)
+  const ownerName = ownerEditor?.name || block.owner
+  const ownerIdPreview = block.owner.slice(0, 8)
 
   return (
     <Tabs defaultValue="actions" className="flex flex-1 flex-col">
@@ -93,9 +94,12 @@ const BlockDetailsView = ({ block }: { block: Block }) => {
           <div className="space-y-2 text-sm text-muted-foreground">
             <p>Name: {block.name}</p>
             <p>Type: {block.block_type}</p>
-            <p>
+            <p className="flex items-center gap-1">
               Owner:{' '}
               <span className="font-medium text-foreground">{ownerName}</span>
+              <span className="text-xs text-muted-foreground">
+                ({ownerIdPreview}...)
+              </span>
             </p>
           </div>
         </TabsContent>

@@ -258,11 +258,7 @@ describe('CollaboratorList Component', () => {
       // Should delete the editor (which also removes all grants)
       await waitFor(() => {
         expect(mockDeleteEditor).toHaveBeenCalledTimes(1)
-        expect(mockDeleteEditor).toHaveBeenCalledWith(
-          'file-1',
-          'collab-456',
-          'block-1'
-        )
+        expect(mockDeleteEditor).toHaveBeenCalledWith('file-1', 'collab-456')
       })
     })
 
@@ -285,11 +281,7 @@ describe('CollaboratorList Component', () => {
       // Should delete the editor
       await waitFor(
         () => {
-          expect(mockDeleteEditor).toHaveBeenCalledWith(
-            'file-1',
-            'collab-456',
-            'block-1'
-          )
+          expect(mockDeleteEditor).toHaveBeenCalledWith('file-1', 'collab-456')
         },
         { timeout: 3000 }
       )

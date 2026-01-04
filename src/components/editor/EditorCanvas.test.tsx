@@ -81,10 +81,9 @@ describe('EditorCanvas', () => {
   })
 
   describe('Save Functionality', () => {
-    it('should call updateBlock and saveFile when save button is clicked', async () => {
-      // Mock permission check
-      const { TauriClient } = await import('@/lib/tauri-client')
-      vi.spyOn(TauriClient.block, 'checkPermission').mockResolvedValue(true)
+    it('should show toast when save button is clicked', async () => {
+      const { toast } = await import('sonner')
+      const toastSpy = vi.spyOn(toast, 'success')
 
       render(<EditorCanvas />)
 
@@ -92,10 +91,12 @@ describe('EditorCanvas', () => {
       fireEvent.click(saveButton)
 
       await waitFor(() => {
-        expect(mockUpdateBlock).toHaveBeenCalled()
-        expect(mockSaveFile).toHaveBeenCalledWith(mockCurrentFileId)
-        expect(mockLoadEvents).toHaveBeenCalledWith(mockCurrentFileId)
+        expect(toastSpy).toHaveBeenCalledWith(expect.stringContaining('Ctrl+S'))
       })
+
+      // Editor save button should NOT call updateBlock or saveFile
+      expect(mockUpdateBlock).not.toHaveBeenCalled()
+      expect(mockSaveFile).not.toHaveBeenCalled()
     })
   })
 })

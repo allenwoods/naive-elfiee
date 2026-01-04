@@ -37,6 +37,164 @@ interface CodeBlockNode extends ASTNode {
   value?: string
 }
 
+// Embedded Block Component - Renders referenced blocks inline
+const EmbeddedBlock = ({ blockId }: { blockId: string }) => {
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasPermission, setHasPermission] = useState(false)
+
+  // Get block from store
+  const block = useAppStore((state) => {
+    const currentFileId = state.currentFileId
+    if (!currentFileId) return null
+    return state.getBlock(currentFileId, blockId)
+  })
+
+  const currentFileId = useAppStore((state) => state.currentFileId)
+
+  useEffect(() => {
+    const checkPermission = async () => {
+      if (!currentFileId) {
+        setError('无法加载：未打开文件')
+        setIsLoading(false)
+        return
+      }
+
+      if (!block) {
+        setError('未找到块')
+        setIsLoading(false)
+        return
+      }
+
+      try {
+        // Check permission based on block type
+        let permissionGranted = false
+
+        if (block.block_type === 'markdown') {
+          permissionGranted = await TauriClient.block.checkPermission(
+            currentFileId,
+            blockId,
+            'markdown.read',
+            undefined
+          )
+        } else if (block.block_type === 'code') {
+          permissionGranted = await TauriClient.block.checkPermission(
+            currentFileId,
+            blockId,
+            'code.read',
+            undefined
+          )
+        } else {
+          // For other block types, just show them
+          permissionGranted = true
+        }
+
+        if (!permissionGranted) {
+          setError('🚫 无权访问此块')
+          setHasPermission(false)
+        } else {
+          setHasPermission(true)
+        }
+
+        setIsLoading(false)
+      } catch (err) {
+        console.error('Failed to check permission:', err)
+        setError(
+          '权限检查失败: ' + (err instanceof Error ? err.message : String(err))
+        )
+        setIsLoading(false)
+      }
+    }
+
+    checkPermission()
+  }, [blockId, currentFileId, block])
+
+  if (isLoading) {
+    return (
+      <div className="my-4 rounded-lg border border-border/50 bg-muted/10 p-4 text-center">
+        <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" />
+        <p className="mt-2 text-sm text-muted-foreground">加载中...</p>
+      </div>
+    )
+  }
+
+  if (error || !hasPermission) {
+    return (
+      <div className="my-4 rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+        <p className="text-sm text-destructive">{error || '无权访问'}</p>
+      </div>
+    )
+  }
+
+  if (!block) {
+    return (
+      <div className="my-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+        <p className="text-sm text-yellow-800">⚠️ 未找到块: {blockId}</p>
+      </div>
+    )
+  }
+
+  // Render markdown blocks
+  if (block.block_type === 'markdown') {
+    const contents = block.contents as { content?: string; text?: string }
+    const content = contents?.content || contents?.text || ''
+    return (
+      <div className="my-4 rounded-lg border-l-4 border-blue-500 bg-blue-50/50 p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-blue-800">
+            📄 {block.name}
+          </span>
+          <Badge variant="secondary" className="text-[10px]">
+            嵌入块
+          </Badge>
+        </div>
+        <div className="prose prose-sm max-w-none">
+          <MySTDocument content={content} />
+        </div>
+      </div>
+    )
+  }
+
+  // Render code blocks
+  if (block.block_type === 'code') {
+    const contents = block.contents as {
+      content?: string
+      text?: string
+      language?: string
+    }
+    const content = contents?.content || contents?.text || ''
+    const language = contents?.language || 'text'
+    return (
+      <div className="my-4 rounded-lg border-l-4 border-purple-500 bg-purple-50/50 p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-purple-800">
+            💻 {block.name}
+          </span>
+          <Badge variant="secondary" className="text-[10px]">
+            嵌入代码块
+          </Badge>
+        </div>
+        <CodeBlockWithRun code={content} language={language} />
+      </div>
+    )
+  }
+
+  // Other block types
+  return (
+    <div className="my-4 rounded-lg border border-border bg-muted/20 p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-semibold text-foreground">
+          📦 {block.name}
+        </span>
+        <Badge variant="secondary" className="text-[10px]">
+          {block.block_type}
+        </Badge>
+      </div>
+      <p className="text-sm text-muted-foreground">不支持嵌入此类型的块</p>
+    </div>
+  )
+}
+
 // Code Block Component with Run Button
 const CodeBlockWithRun = ({
   code,
@@ -284,10 +442,81 @@ const MySTDocument = ({
         )
       },
 
-      // Link
+      // Link - with elf:// protocol support
       link: ({ node }) => {
+        const url = node.url as string
+
+        // Check if this is an elf:// block reference
+        if (url && url.startsWith('elf://')) {
+          const blockId = url.replace('elf://', '')
+
+          const handleClick = async (e: React.MouseEvent) => {
+            e.preventDefault()
+
+            const currentFileId = useAppStore.getState().currentFileId
+            if (!currentFileId) {
+              toast.error('无法跳转：未打开文件')
+              return
+            }
+
+            // Check permission before navigating
+            try {
+              const hasPermission = await TauriClient.block.checkPermission(
+                currentFileId,
+                blockId,
+                'markdown.read',
+                undefined
+              )
+
+              if (!hasPermission) {
+                const hasCodePermission =
+                  await TauriClient.block.checkPermission(
+                    currentFileId,
+                    blockId,
+                    'code.read',
+                    undefined
+                  )
+
+                if (!hasCodePermission) {
+                  toast.error('您没有读取此块的权限')
+                  return
+                }
+              }
+
+              // Navigate to block
+              useAppStore.getState().selectBlock(blockId)
+              toast.success('已跳转到引用块')
+            } catch (error) {
+              console.error('Failed to check permission:', error)
+              toast.error('跳转失败')
+            }
+          }
+
+          return (
+            <a
+              href="#"
+              onClick={handleClick}
+              style={{
+                color: '#2563eb',
+                textDecoration: 'underline',
+                cursor: 'pointer',
+              }}
+              className="elf-block-link"
+              title={`跳转到块: ${blockId}`}
+            >
+              <MyST ast={node.children} />
+            </a>
+          )
+        }
+
+        // Regular link
         return (
-          <a href={node.url as string}>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: '#2563eb', textDecoration: 'underline' }}
+          >
             <MyST ast={node.children} />
           </a>
         )
@@ -324,6 +553,101 @@ const MySTDocument = ({
       // Break (line break)
       break: () => {
         return <br />
+      },
+
+      // MyST Directive - handles :::{embed} syntax
+      mystDirective: ({ node }) => {
+        const directiveName = node.name as string
+
+        // Handle embed directive
+        if (directiveName === 'embed') {
+          let blockId = ''
+
+          // First try to get from args (directive argument)
+          if (node.args && typeof node.args === 'string') {
+            blockId = node.args.trim()
+          }
+          // Fallback: try to get from children (content body)
+          else if (node.children && Array.isArray(node.children)) {
+            const firstChild = node.children[0] as ASTNode
+            if (firstChild && firstChild.type === 'text' && firstChild.value) {
+              blockId = firstChild.value.trim()
+            } else if (
+              firstChild &&
+              firstChild.type === 'paragraph' &&
+              firstChild.children
+            ) {
+              const textNode = firstChild.children[0] as ASTNode
+              if (textNode && textNode.value) {
+                blockId = textNode.value.trim()
+              }
+            }
+          }
+
+          if (!blockId) {
+            return (
+              <div className="my-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                <p className="text-sm text-yellow-800">⚠️ 嵌入指令缺少块 ID</p>
+              </div>
+            )
+          }
+
+          // Render embedded block content
+          return <EmbeddedBlock blockId={blockId} />
+        }
+
+        // Other directives - render children normally
+        return (
+          <div className="my-4 rounded-lg border border-border bg-muted/20 p-4">
+            <div className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+              {directiveName}
+            </div>
+            <MyST ast={node.children} />
+          </div>
+        )
+      },
+
+      // MyST Directive Error - handles directive parsing errors
+      mystDirectiveError: ({ node }) => {
+        const directiveName = node.name as string
+        const message = node.message as string
+        const value = node.value as string
+
+        return (
+          <div className="my-4 rounded-lg border-2 border-red-300 bg-red-50 p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-sm font-semibold text-red-800">
+                ⚠️ Directive Error: {directiveName}
+              </span>
+            </div>
+            <p className="text-sm text-red-700">{message}</p>
+            {value && (
+              <pre className="mt-2 rounded bg-red-100 p-2 text-xs text-red-900">
+                {value}
+              </pre>
+            )}
+            <p className="mt-2 text-xs text-red-600">
+              正确语法: :::{'{'}embed{'}'} block-id
+            </p>
+          </div>
+        )
+      },
+
+      // Embed Node - fallback handler
+      embed: ({ node }) => {
+        const blockId =
+          (node.args as string) ||
+          (node.value as string) ||
+          ((node.children?.[0] as ASTNode)?.value as string) ||
+          ''
+        if (blockId) {
+          return <EmbeddedBlock blockId={blockId} />
+        }
+        return (
+          <div className="my-4 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+            <p className="text-sm text-yellow-800">⚠️ Embed 节点缺少块 ID</p>
+          </div>
+        )
       },
     }),
     []
@@ -555,33 +879,13 @@ export const EditorCanvas = () => {
 
   // Handle save block only (called from editor)
   const handleBlockSave = useCallback(async () => {
-    if (!currentFileId || !selectedBlockId || !selectedBlock) {
-      toast.error('No block selected')
-      return
-    }
+    // Editor save button: Only saves editing state locally, does NOT generate event
+    // Event generation happens only when Ctrl+S is pressed (handleSave)
+    // This just confirms the edit and exits edit mode
+    toast.success('Editing saved - Press Ctrl+S to persist changes')
+  }, [])
 
-    try {
-      // Update block content in database
-      await updateBlock(
-        currentFileId,
-        selectedBlockId,
-        documentContent,
-        selectedBlock.block_type
-      )
-      toast.success('Block saved successfully')
-    } catch (error) {
-      console.error('Failed to save block:', error)
-      throw error // Re-throw to let editor handle the error
-    }
-  }, [
-    currentFileId,
-    selectedBlockId,
-    selectedBlock,
-    documentContent,
-    updateBlock,
-  ])
-
-  // Handle save file action (top-level save button)
+  // Handle save file action (Ctrl+S - top-level save button)
   const handleSave = useCallback(async () => {
     if (!currentFileId || !selectedBlockId || !selectedBlock) {
       toast.error('No block selected')
@@ -590,37 +894,61 @@ export const EditorCanvas = () => {
 
     setIsSaving(true)
     try {
-      // Check permission first (UI layer pre-validation)
-      const capId =
-        selectedBlock.block_type === 'code' ? 'code.write' : 'markdown.write'
-      const hasPermission = await TauriClient.block.checkPermission(
-        currentFileId,
-        selectedBlockId,
-        capId,
-        activeEditorId
-      )
-
-      if (!hasPermission) {
-        toast.error('You do not have permission to edit this block.')
-        setIsSaving(false)
-        return
+      // Get current block content
+      let currentContent = ''
+      if (selectedBlock.block_type === 'markdown') {
+        const contents = selectedBlock.contents as {
+          markdown?: string
+          text?: string
+        }
+        currentContent = contents?.markdown || contents?.text || ''
+      } else if (selectedBlock.block_type === 'code') {
+        const contents = selectedBlock.contents as { text?: string }
+        currentContent = contents?.text || ''
       }
 
-      // Step 1: Update block content in memory
-      await updateBlock(
-        currentFileId,
-        selectedBlockId,
-        documentContent,
-        selectedBlock.block_type
-      )
+      // Check if content has changed
+      const hasChanges = documentContent.trim() !== currentContent.trim()
 
-      // Step 2: Save file to disk (.elf file)
+      if (hasChanges) {
+        // Content changed: save block first (generates event)
+        const capId =
+          selectedBlock.block_type === 'code' ? 'code.write' : 'markdown.write'
+        const hasPermission = await TauriClient.block.checkPermission(
+          currentFileId,
+          selectedBlockId,
+          capId,
+          activeEditorId
+        )
+
+        if (!hasPermission) {
+          toast.error('You do not have permission to edit this block.')
+          setIsSaving(false)
+          return
+        }
+
+        await updateBlock(
+          currentFileId,
+          selectedBlockId,
+          documentContent,
+          selectedBlock.block_type
+        )
+      }
+
+      // Always save file to disk (persists all events)
       await saveFile(currentFileId)
 
-      // Step 3: Reload events to show the new event in Timeline
-      await loadEvents(currentFileId)
+      // Reload events to show any new events in Timeline
+      if (hasChanges) {
+        await loadEvents(currentFileId)
+      }
 
-      toast.success('Document and file saved successfully')
+      // Different message based on whether content changed
+      if (hasChanges) {
+        toast.success('Changes saved and file persisted to disk')
+      } else {
+        toast.success('File saved to disk')
+      }
     } catch (error) {
       console.error('Failed to save:', error)
       // Error toast is already shown by app-store methods
@@ -709,7 +1037,7 @@ export const EditorCanvas = () => {
                 className="bg-foreground px-4 text-sm font-medium text-background shadow-sm hover:bg-foreground/90"
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleSave()
+                  handleBlockSave()
                 }}
                 disabled={isSaving}
               >

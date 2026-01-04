@@ -68,10 +68,12 @@ interface AppStore {
 
   // Directory/VFS operations
   getOutlineTree: (fileId: string) => VfsNode[]
+  getOutlineRepos: (
+    fileId: string
+  ) => { blockId: string; name: string; tree: VfsNode[] }[]
   getLinkedRepos: (
     fileId: string
   ) => { blockId: string; name: string; tree: VfsNode[] }[]
-  ensureSystemOutline: (fileId: string) => Promise<void>
 
   // Editor operations
   loadEditors: (fileId: string) => Promise<void>
@@ -366,15 +368,37 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return buildTreeFromEntries(contents.entries || {}, blocks)
   },
 
-  getLinkedRepos: (fileId: string) => {
+  getOutlineRepos: (fileId: string) => {
     const blocks = get().getBlocks(fileId)
-    // Filter: directory blocks with source='linked'
+    const fileState = get().files.get(fileId)
+    const activeEditorId = fileState?.activeEditorId
+    const grants = fileState?.grants || []
+
+    // Filter: directory blocks with source='outline'
     const directoryBlocks = blocks.filter(
       (b) =>
-        b.block_type === 'directory' && (b.contents as any)?.source === 'linked'
+        b.block_type === 'directory' &&
+        (b.contents as any)?.source === 'outline'
     )
 
-    return directoryBlocks.map((block) => {
+    // Permission filter: only show blocks where active editor has directory.read permission
+    const visibleBlocks = directoryBlocks.filter((block) => {
+      // If no active editor, don't show any blocks
+      if (!activeEditorId) return false
+
+      // Owner always has access
+      if (block.owner === activeEditorId) return true
+
+      // Check if active editor has directory.read grant for this block or wildcard
+      return grants.some(
+        (g) =>
+          g.editor_id === activeEditorId &&
+          g.cap_id === 'directory.read' &&
+          (g.block_id === block.block_id || g.block_id === '*')
+      )
+    })
+
+    return visibleBlocks.map((block) => {
       const contents = block.contents as {
         entries?: Record<string, DirectoryEntry>
       }
@@ -386,32 +410,45 @@ export const useAppStore = create<AppStore>((set, get) => ({
     })
   },
 
-  ensureSystemOutline: async (fileId: string) => {
+  getLinkedRepos: (fileId: string) => {
     const blocks = get().getBlocks(fileId)
-    const hasOutline = blocks.some(
+    const fileState = get().files.get(fileId)
+    const activeEditorId = fileState?.activeEditorId
+    const grants = fileState?.grants || []
+
+    // Filter: directory blocks with source='linked'
+    const directoryBlocks = blocks.filter(
       (b) =>
-        b.block_type === 'directory' &&
-        (b.contents as any)?.source === 'outline'
+        b.block_type === 'directory' && (b.contents as any)?.source === 'linked'
     )
 
-    if (!hasOutline) {
-      try {
-        const systemEditorId = await TauriClient.file.getSystemEditorId()
-        // Create Outline directory block
-        // ID is auto-generated, Name is 'Outline' but only for display
-        await TauriClient.block.createBlock(
-          fileId,
-          'Outline',
-          'directory',
-          systemEditorId
-        )
-        // Note: backend createBlock defaults source to 'outline', so we are good.
+    // Permission filter: only show blocks where active editor has directory.read permission
+    const visibleBlocks = directoryBlocks.filter((block) => {
+      // If no active editor, don't show any blocks
+      if (!activeEditorId) return false
 
-        await get().loadBlocks(fileId)
-      } catch (error) {
-        console.error('Failed to initialize system outline:', error)
+      // Owner always has access
+      if (block.owner === activeEditorId) return true
+
+      // Check if active editor has directory.read grant for this block or wildcard
+      return grants.some(
+        (g) =>
+          g.editor_id === activeEditorId &&
+          g.cap_id === 'directory.read' &&
+          (g.block_id === block.block_id || g.block_id === '*')
+      )
+    })
+
+    return visibleBlocks.map((block) => {
+      const contents = block.contents as {
+        entries?: Record<string, DirectoryEntry>
       }
-    }
+      return {
+        blockId: block.block_id,
+        name: block.name,
+        tree: buildTreeFromEntries(contents.entries || {}, blocks),
+      }
+    })
   },
 
   // Editor operations
@@ -504,6 +541,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
         files.set(fileId, { ...fileState, activeEditorId: editorId })
         set({ files })
       }
+
+      // CRITICAL: Clear selected block when switching users to prevent unauthorized access
+      // The new user may not have permission to view the currently selected block
+      set({ selectedBlockId: null })
+
+      toast.success('Switched user - please select a block')
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)

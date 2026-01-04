@@ -13,6 +13,8 @@ import {
   ShieldAlert,
   Activity,
   History,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -38,8 +40,9 @@ const InfoTab = ({
   const [isEditingDescription, setIsEditingDescription] = useState(false)
   const [editedDescription, setEditedDescription] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [copiedBlockId, setCopiedBlockId] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { updateBlockMetadata } = useAppStore()
+  const { updateBlockMetadata, getEditors } = useAppStore()
 
   // Extract metadata
   const metadata = block?.metadata as {
@@ -61,6 +64,28 @@ const InfoTab = ({
       })
     } catch {
       return '-'
+    }
+  }
+
+  // Resolve owner info
+  const ownerEditor =
+    fileId && block
+      ? getEditors(fileId).find((e) => e.editor_id === block.owner)
+      : null
+  const ownerName = ownerEditor?.name || block?.owner || ''
+  const ownerIdPreview = block?.owner.slice(0, 8) || ''
+
+  // Copy block ID to clipboard
+  const handleCopyBlockId = async () => {
+    if (!block?.block_id) return
+
+    try {
+      await navigator.clipboard.writeText(block.block_id)
+      setCopiedBlockId(true)
+      toast.success('Block ID copied to clipboard')
+      setTimeout(() => setCopiedBlockId(false), 2000)
+    } catch (error) {
+      toast.error('Failed to copy Block ID')
     }
   }
 
@@ -227,12 +252,45 @@ const InfoTab = ({
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]" />
               <span className="font-semibold text-foreground">
-                {block.owner}
+                {ownerName}{' '}
+                <span className="text-xs text-muted-foreground">
+                  ({ownerIdPreview}...)
+                </span>
               </span>
             </div>
           </div>
 
           <div className="grid gap-y-3 p-4">
+            {/* Block ID Row with Copy Button */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Tag className="h-3.5 w-3.5 opacity-70" />
+                <span>Block ID</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="max-w-[140px] truncate font-mono text-xs text-muted-foreground"
+                  title={block.block_id}
+                >
+                  {block.block_id}
+                </span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                  onClick={handleCopyBlockId}
+                  title="Copy Block ID"
+                >
+                  {copiedBlockId ? (
+                    <Check className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Created - Always show */}
             {createdAt && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-muted-foreground">
@@ -462,18 +520,23 @@ const TimelineTab = ({
                     {meta.desc}
                   </p>
 
-                  <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                      onClick={() => handleRestore(event.event_id)}
-                      disabled={isRestoring}
-                      title="Restore this version"
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  {/* Only show Restore button for content-modifying events */}
+                  {(capId.includes('write') ||
+                    capId.includes('update') ||
+                    capId.includes('create')) && (
+                    <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleRestore(event.event_id)}
+                        disabled={isRestoring}
+                        title="Restore this version"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -503,6 +566,10 @@ const ContextPanel = () => {
     if (!currentFileId) return null
     return state.files.get(currentFileId)?.activeEditorId
   })
+
+  // IMPORTANT: Permission checks are handled by backend
+  // Backend only returns blocks/data that the current user has permission to access
+  // Frontend simply renders what backend provides
 
   // 1. Select the raw events array (stable reference from store)
   const allEvents = useAppStore((state) => {
