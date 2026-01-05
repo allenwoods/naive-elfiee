@@ -28,11 +28,11 @@ describe('EditorCanvas', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // Discipline: All-inclusive local mock to ensure absolute predictability
+    // Mock useAppStore with selector support
     ;(useAppStore as any).mockImplementation((selector: any) => {
       const state = {
         currentFileId:
-          (useAppStore as any)._selectedBlockId !== undefined
+          (useAppStore as any)._currentFileId !== undefined
             ? (useAppStore as any)._currentFileId
             : mockCurrentFileId,
         selectedBlockId:
@@ -81,22 +81,23 @@ describe('EditorCanvas', () => {
   })
 
   describe('Save Functionality', () => {
-    it('should show toast when save button is clicked', async () => {
-      const { toast } = await import('sonner')
-      const toastSpy = vi.spyOn(toast, 'success')
+    it('external save button should call saveFile', async () => {
+      mockSaveFile.mockResolvedValue(undefined)
 
       render(<EditorCanvas />)
 
-      const saveButton = await screen.findByText(/Save/i)
+      // Find the external save button (top-right "Save (Ctrl+S)" button)
+      const saveButton = screen.getByRole('button', {
+        name: /Save \(Ctrl\+S\)/i,
+      })
+      expect(saveButton).toBeInTheDocument()
+
       fireEvent.click(saveButton)
 
+      // External save button should call saveFile (our fix)
       await waitFor(() => {
-        expect(toastSpy).toHaveBeenCalledWith(expect.stringContaining('Ctrl+S'))
+        expect(mockSaveFile).toHaveBeenCalledWith('test-file-id')
       })
-
-      // Editor save button should NOT call updateBlock or saveFile
-      expect(mockUpdateBlock).not.toHaveBeenCalled()
-      expect(mockSaveFile).not.toHaveBeenCalled()
     })
   })
 })
