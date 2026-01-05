@@ -12,9 +12,9 @@ fn handle_revoke(cmd: &Command, _block: Option<&Block>) -> CapResult<Vec<Event>>
         .map_err(|e| format!("Invalid payload for core.revoke: {}", e))?;
 
     // Create revoke event
-    // Entity is the revoker's editor_id
+    // Entity is the target block (or "*" for wildcard)
     let event = create_event(
-        cmd.editor_id.clone(),
+        payload.target_block.clone(),
         "core.revoke", // cap_id
         serde_json::json!({
             "editor": payload.target_editor,

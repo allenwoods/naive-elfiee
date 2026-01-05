@@ -38,6 +38,9 @@ pub fn run() {
                 commands::file::delete_file,
                 commands::file::duplicate_file,
                 commands::file::get_system_editor_id_from_config,
+                // Event operations (Timeline feature)
+                commands::event::get_block_at_event,
+                commands::event::get_state_at_event,
                 // Block operations (core)
                 commands::block::execute_command,
                 commands::block::get_block,
@@ -96,7 +99,9 @@ pub fn run() {
             // File metadata types
             .typ::<commands::FileMetadata>()
             // Block metadata types
-            .typ::<models::BlockMetadata>();
+            .typ::<models::BlockMetadata>()
+            // Event types
+            .typ::<commands::event::StateSnapshot>();
 
         // Export TypeScript bindings on app startup
         #[cfg(debug_assertions)]
@@ -125,6 +130,9 @@ pub fn run() {
         commands::file::delete_file,
         commands::file::duplicate_file,
         commands::file::get_system_editor_id_from_config,
+        // Event operations (Timeline feature)
+        commands::event::get_block_at_event,
+        commands::event::get_state_at_event,
         // Block operations (core)
         commands::block::execute_command,
         commands::block::get_block,

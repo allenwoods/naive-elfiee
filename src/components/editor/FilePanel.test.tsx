@@ -45,8 +45,8 @@ const mockStore = {
   deleteBlock: vi.fn(),
   loadBlocks: vi.fn(),
   getOutlineTree: vi.fn(() => []),
+  getOutlineRepos: vi.fn(() => []),
   getLinkedRepos: vi.fn(() => []),
-  ensureSystemOutline: vi.fn(),
   getActiveEditor: vi.fn(),
 }
 
@@ -160,10 +160,10 @@ describe('FilePanel', () => {
   })
 
   describe('Rendering', () => {
-    it('should render outline tree', () => {
+    it('should render outline section', () => {
       renderWithRouter(<FilePanel />)
 
-      expect(screen.getByTestId('mock-vfs-tree')).toBeInTheDocument()
+      expect(screen.getByText('Outline')).toBeInTheDocument()
     })
 
     it('should render scroll area', () => {
@@ -174,14 +174,21 @@ describe('FilePanel', () => {
   })
 
   describe('Block Display', () => {
-    it('should display outline nodes from store', () => {
-      const mockOutline = [
-        { path: 'doc1.md', name: 'doc1.md', type: 'file', blockId: 'b1' },
+    it('should display outline repos from store', () => {
+      const mockOutlineRepos = [
+        {
+          blockId: 'outline1',
+          name: 'My Workdir',
+          tree: [
+            { path: 'doc1.md', name: 'doc1.md', type: 'file', blockId: 'b1' },
+          ],
+        },
       ]
-      mockStore.getOutlineTree.mockReturnValue(mockOutline as any)
+      mockStore.getOutlineRepos.mockReturnValue(mockOutlineRepos as any)
 
       renderWithRouter(<FilePanel />)
 
+      expect(screen.getByText('My Workdir')).toBeInTheDocument()
       expect(screen.getByText('doc1.md')).toBeInTheDocument()
     })
 
@@ -207,10 +214,16 @@ describe('FilePanel', () => {
   describe('Block Selection', () => {
     it('should call selectBlock when clicking on a node', async () => {
       const user = userEvent.setup()
-      const mockOutline = [
-        { path: 'doc1.md', name: 'doc1.md', type: 'file', blockId: 'b1' },
+      const mockOutlineRepos = [
+        {
+          blockId: 'outline1',
+          name: 'My Workdir',
+          tree: [
+            { path: 'doc1.md', name: 'doc1.md', type: 'file', blockId: 'b1' },
+          ],
+        },
       ]
-      mockStore.getOutlineTree.mockReturnValue(mockOutline as any)
+      mockStore.getOutlineRepos.mockReturnValue(mockOutlineRepos as any)
 
       renderWithRouter(<FilePanel />)
 
@@ -220,13 +233,6 @@ describe('FilePanel', () => {
       await waitFor(() => {
         expect(mockStore.selectBlock).toHaveBeenCalledWith('b1')
       })
-    })
-  })
-
-  describe('Outline Initialization', () => {
-    it('should call ensureSystemOutline on mount', () => {
-      renderWithRouter(<FilePanel />)
-      expect(mockStore.ensureSystemOutline).toHaveBeenCalledWith('test-file-id')
     })
   })
 

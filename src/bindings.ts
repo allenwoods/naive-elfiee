@@ -101,18 +101,26 @@ export const commands = {
   /**
    * Get all events for a specific file.
    *
+   * This command filters events based on permissions:
+   * - Block events: Only returns events for blocks where user has core.read permission
+   * - Editor events: Always returned (file-level information, similar to Git collaborators)
+   *
    * # Arguments
    * * `file_id` - Unique identifier of the file
+   * * `editor_id` - Optional editor ID (defaults to active editor)
    *
    * # Returns
-   * * `Ok(Vec<Event>)` - List of all events for the file
+   * * `Ok(Vec<Event>)` - List of events the user has permission to view
    * * `Err(message)` - Error description if retrieval fails
    */
-  async getAllEvents(fileId: string): Promise<Result<Event[], string>> {
+  async getAllEvents(
+    fileId: string,
+    editorId: string | null
+  ): Promise<Result<Event[], string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('get_all_events', { fileId }),
+        data: await TAURI_INVOKE('get_all_events', { fileId, editorId }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -241,6 +249,70 @@ export const commands = {
     }
   },
   /**
+   * Get block content at a specific event (time-travel to historical state).
+   *
+   * This command enables the "restore" functionality in the Timeline feature.
+   * It reconstructs the block's content at the moment of a specific event by
+   * replaying all events up to and including that event.
+   *
+   * # Arguments
+   * * `file_id` - Unique identifier of the file
+   * * `block_id` - Unique identifier of the block
+   * * `event_id` - Unique identifier of the target event
+   *
+   * # Returns
+   * * `Ok(String)` - The markdown content of the block at that event
+   * * `Err(message)` - Error description if retrieval fails
+   *
+   * # Implementation Details
+   * 1. Fetches all events from the event store
+   * 2. Finds the index of the target event
+   * 3. Creates a temporary StateProjector
+   * 4. Replays events up to the target event
+   * 5. Extracts the block's markdown content from the projected state
+   */
+  async getBlockAtEvent(
+    fileId: string,
+    blockId: string,
+    eventId: string
+  ): Promise<Result<Block, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('get_block_at_event', {
+          fileId,
+          blockId,
+          eventId,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
+   * Get the full state snapshot (block + grants) at a specific event.
+   */
+  async getStateAtEvent(
+    fileId: string,
+    blockId: string,
+    eventId: string
+  ): Promise<Result<StateSnapshot, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('get_state_at_event', {
+          fileId,
+          blockId,
+          eventId,
+        }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
+  /**
    * Execute a command on a block in the specified file.
    *
    * This is the primary way to modify blocks. Commands are processed by the engine actor,
@@ -271,22 +343,33 @@ export const commands = {
   /**
    * Get a specific block by ID from a file.
    *
+   * This command checks read permission before returning the block content.
+   * The permission check uses the capability system (CBAC):
+   * - markdown blocks require `markdown.read` permission
+   * - code blocks require `code.read` permission
+   * - directory blocks require `directory.read` permission
+   *
+   * Block owners always have read permission.
+   * Other editors need explicit grants in the grants table.
+   *
    * # Arguments
    * * `file_id` - Unique identifier of the file containing the block
    * * `block_id` - Unique identifier of the block to retrieve
+   * * `editor_id` - Optional editor ID (defaults to active editor)
    *
    * # Returns
-   * * `Ok(block)` - The requested block
-   * * `Err(message)` - Error if file not open or block not found
+   * * `Ok(block)` - The requested block (if authorized)
+   * * `Err(message)` - Error if file not open, block not found, or no read permission
    */
   async getBlock(
     fileId: string,
-    blockId: string
+    blockId: string,
+    editorId: string | null
   ): Promise<Result<Block, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('get_block', { fileId, blockId }),
+        data: await TAURI_INVOKE('get_block', { fileId, blockId, editorId }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -296,18 +379,27 @@ export const commands = {
   /**
    * Get all blocks from a file.
    *
+   * This command filters blocks based on permissions:
+   * - Only returns blocks where the user is owner OR has core.read OR has any other permission
+   * - For directory blocks with directory.read permission, returns full contents
+   * - For directory blocks without directory.read but with other permissions, returns empty entries
+   *
    * # Arguments
    * * `file_id` - Unique identifier of the file
+   * * `editor_id` - Optional editor ID (defaults to active editor)
    *
    * # Returns
-   * * `Ok(blocks)` - Vector of all blocks in the file
+   * * `Ok(blocks)` - Vector of blocks the user has permission to view
    * * `Err(message)` - Error if file is not open
    */
-  async getAllBlocks(fileId: string): Promise<Result<Block[], string>> {
+  async getAllBlocks(
+    fileId: string,
+    editorId: string | null
+  ): Promise<Result<Block[], string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('get_all_blocks', { fileId }),
+        data: await TAURI_INVOKE('get_all_blocks', { fileId, editorId }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -404,7 +496,8 @@ export const commands = {
   async checkPermission(
     fileId: string,
     blockId: string,
-    capability: string
+    capability: string,
+    editorId: string | null
   ): Promise<Result<boolean, string>> {
     try {
       return {
@@ -413,6 +506,7 @@ export const commands = {
           fileId,
           blockId,
           capability,
+          editorId,
         }),
       }
     } catch (e) {
@@ -429,6 +523,8 @@ export const commands = {
    * # Arguments
    * * `file_id` - Unique identifier of the file
    * * `name` - Display name for the new editor
+   * * `editor_type` - Optional editor type (Human or Bot)
+   * * `block_id` - Optional block ID. If provided, only the block owner can create editors.
    *
    * # Returns
    * * `Ok(Editor)` - The newly created editor
@@ -437,12 +533,18 @@ export const commands = {
   async createEditor(
     fileId: string,
     name: string,
-    editorType: string | null
+    editorType: string | null,
+    blockId: string | null
   ): Promise<Result<Editor, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('create_editor', { fileId, name, editorType }),
+        data: await TAURI_INVOKE('create_editor', {
+          fileId,
+          name,
+          editorType,
+          blockId,
+        }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -458,6 +560,7 @@ export const commands = {
    * # Arguments
    * * `file_id` - Unique identifier of the file
    * * `editor_id` - Unique identifier of the editor to delete
+   * * `block_id` - Optional block ID. If provided, only the block owner can delete editors.
    *
    * # Returns
    * * `Ok(())` - Success
@@ -465,12 +568,17 @@ export const commands = {
    */
   async deleteEditor(
     fileId: string,
-    editorId: string
+    editorId: string,
+    blockId: string | null
   ): Promise<Result<null, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('delete_editor', { fileId, editorId }),
+        data: await TAURI_INVOKE('delete_editor', {
+          fileId,
+          editorId,
+          blockId,
+        }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -578,20 +686,26 @@ export const commands = {
   /**
    * List all grants for the specified file.
    *
-   * Returns all capability grants in the system as Grant objects.
+   * This command filters grants based on permissions:
+   * - Only returns grants for blocks where the user has core.read permission
+   * - Wildcard grants (*) are always included as they are file-level
    *
    * # Arguments
    * * `file_id` - Unique identifier of the file
+   * * `editor_id` - Optional editor ID (defaults to active editor)
    *
    * # Returns
-   * * `Ok(Vec<Grant>)` - List of all grants
+   * * `Ok(Vec<Grant>)` - List of grants the user has permission to view
    * * `Err(message)` - Error if file is not open
    */
-  async listGrants(fileId: string): Promise<Result<Grant[], string>> {
+  async listGrants(
+    fileId: string,
+    editorId: string | null
+  ): Promise<Result<Grant[], string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('list_grants', { fileId }),
+        data: await TAURI_INVOKE('list_grants', { fileId, editorId }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -943,6 +1057,7 @@ export type Event = {
   attribute: string
   value: JsonValue
   timestamp: Partial<{ [key in string]: number }>
+  created_at: string
 }
 /**
  * File metadata for frontend display.
@@ -1050,6 +1165,19 @@ export type RevokePayload = {
    */
   target_block?: string
 }
+/**
+ * Full state snapshot at a specific point in time.
+ */
+export type StateSnapshot = {
+  /**
+   * Block state at that event
+   */
+  block: Block
+  /**
+   * All grants in the system at that event
+   */
+  grants: Grant[]
+}
 export type TerminalInitPayload = {
   cols: number
   rows: number
@@ -1119,7 +1247,6 @@ export type UpdateMetadataPayload = {
 
 import {
   invoke as TAURI_INVOKE,
-  // @ts-ignore
   Channel as TAURI_CHANNEL,
 } from '@tauri-apps/api/core'
 import * as TAURI_API_EVENT from '@tauri-apps/api/event'
@@ -1141,7 +1268,6 @@ export type Result<T, E> =
   | { status: 'ok'; data: T }
   | { status: 'error'; error: E }
 
-// @ts-ignore
 function __makeEvents__<T extends Record<string, any>>(
   mappings: Record<keyof T, string>
 ) {

@@ -35,18 +35,29 @@ pub async fn execute_command(
 
 /// Get a specific block by ID from a file.
 ///
+/// This command checks read permission before returning the block content.
+/// The permission check uses the capability system (CBAC):
+/// - markdown blocks require `markdown.read` permission
+/// - code blocks require `code.read` permission
+/// - directory blocks require `directory.read` permission
+///
+/// Block owners always have read permission.
+/// Other editors need explicit grants in the grants table.
+///
 /// # Arguments
 /// * `file_id` - Unique identifier of the file containing the block
 /// * `block_id` - Unique identifier of the block to retrieve
+/// * `editor_id` - Optional editor ID (defaults to active editor)
 ///
 /// # Returns
-/// * `Ok(block)` - The requested block
-/// * `Err(message)` - Error if file not open or block not found
+/// * `Ok(block)` - The requested block (if authorized)
+/// * `Err(message)` - Error if file not open, block not found, or no read permission
 #[tauri::command]
 #[specta]
 pub async fn get_block(
     file_id: String,
     block_id: String,
+    editor_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Block, String> {
     // Get engine handle for this file
@@ -56,24 +67,72 @@ pub async fn get_block(
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
     // Get block from engine
-    handle
-        .get_block(block_id)
+    let block = handle
+        .get_block(block_id.clone())
         .await
-        .ok_or_else(|| "Block not found".to_string())
+        .ok_or_else(|| "Block not found".to_string())?;
+
+    // Determine effective editor ID
+    let effective_editor_id = if let Some(id) = editor_id {
+        id
+    } else {
+        state
+            .get_active_editor(&file_id)
+            .ok_or_else(|| "No active editor".to_string())?
+    };
+
+    // Determine required read capability based on block type
+    let read_capability = match block.block_type.as_str() {
+        "markdown" => "markdown.read",
+        "code" => "code.read",
+        "directory" => "directory.read",
+        _ => "markdown.read", // Default fallback
+    };
+
+    // Check read permission using capability system (same logic as process_command)
+    // This checks: 1. Block owner always authorized 2. Explicit grants in grants table
+    let has_permission = handle
+        .check_grant(
+            effective_editor_id.clone(),
+            read_capability.to_string(),
+            block_id,
+        )
+        .await;
+
+    if !has_permission {
+        return Err(format!(
+            "您没有读取此{}的权限",
+            match block.block_type.as_str() {
+                "markdown" => "文档",
+                "code" => "代码文件",
+                "directory" => "目录",
+                _ => "block",
+            }
+        ));
+    }
+
+    Ok(block)
 }
 
 /// Get all blocks from a file.
 ///
+/// This command filters blocks based on permissions:
+/// - Only returns blocks where the user is owner OR has core.read OR has any other permission
+/// - For directory blocks with directory.read permission, returns full contents
+/// - For directory blocks without directory.read but with other permissions, returns empty entries
+///
 /// # Arguments
 /// * `file_id` - Unique identifier of the file
+/// * `editor_id` - Optional editor ID (defaults to active editor)
 ///
 /// # Returns
-/// * `Ok(blocks)` - Vector of all blocks in the file
+/// * `Ok(blocks)` - Vector of blocks the user has permission to view
 /// * `Err(message)` - Error if file is not open
 #[tauri::command]
 #[specta]
 pub async fn get_all_blocks(
     file_id: String,
+    editor_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Vec<Block>, String> {
     let handle = state
@@ -81,10 +140,54 @@ pub async fn get_all_blocks(
         .get_engine(&file_id)
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
-    let blocks_map = handle.get_all_blocks().await;
-    let blocks = blocks_map.into_values().collect();
+    // Determine effective editor ID
+    let effective_editor_id = if let Some(id) = editor_id {
+        id
+    } else {
+        state
+            .get_active_editor(&file_id)
+            .ok_or_else(|| "No active editor".to_string())?
+    };
 
-    Ok(blocks)
+    let blocks_map = handle.get_all_blocks().await;
+    let mut filtered_blocks = Vec::new();
+
+    for mut block in blocks_map.into_values() {
+        // Check if user has ANY permission on this block (owner, core.read, or any capability)
+        let has_core_read = handle
+            .check_grant(
+                effective_editor_id.clone(),
+                "core.read".to_string(),
+                block.block_id.clone(),
+            )
+            .await;
+
+        // If user has core.read, include the block
+        if has_core_read {
+            // For directory blocks, still check directory.read for entry access
+            if block.block_type == "directory" {
+                let has_dir_read = handle
+                    .check_grant(
+                        effective_editor_id.clone(),
+                        "directory.read".to_string(),
+                        block.block_id.clone(),
+                    )
+                    .await;
+
+                if !has_dir_read {
+                    // User can see directory exists but not its contents
+                    if let Some(obj) = block.contents.as_object_mut() {
+                        if let Some(entries) = obj.get_mut("entries") {
+                            *entries = serde_json::json!({});
+                        }
+                    }
+                }
+            }
+            filtered_blocks.push(block);
+        }
+    }
+
+    Ok(filtered_blocks)
 }
 
 /// Update block metadata.
@@ -208,6 +311,7 @@ pub async fn check_permission(
     file_id: String,
     block_id: String,
     capability: String,
+    editor_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<bool, String> {
     let handle = state
@@ -215,9 +319,21 @@ pub async fn check_permission(
         .get_engine(&file_id)
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
-    let editor_id = state
-        .get_active_editor(&file_id)
-        .ok_or_else(|| "No active editor".to_string())?;
+    let effective_editor_id = if let Some(id) = editor_id {
+        id
+    } else {
+        state
+            .get_active_editor(&file_id)
+            .ok_or_else(|| "No active editor".to_string())?
+    };
 
-    Ok(handle.check_grant(editor_id, capability, block_id).await)
+    // Special handling for core.create: allow for backward compatibility
+    // (core.create is typically used for creating new blocks, which should be allowed)
+    if capability == "core.create" {
+        return Ok(true);
+    }
+
+    Ok(handle
+        .check_grant(effective_editor_id, capability, block_id)
+        .await)
 }

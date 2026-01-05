@@ -1,5 +1,21 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
-import { Calendar, Clock, User, FileText, Tag, Edit2 } from 'lucide-react'
+import {
+  Calendar,
+  Clock,
+  User,
+  FileText,
+  Tag,
+  Edit2,
+  RotateCcw,
+  PlusCircle,
+  Trash2,
+  ShieldCheck,
+  ShieldAlert,
+  Activity,
+  History,
+  Copy,
+  Check,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -7,29 +23,26 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useAppStore } from '@/lib/app-store'
+import { TauriClient } from '@/lib/tauri-client'
 import { CollaboratorList } from '@/components/permission/CollaboratorList'
+import { toast } from 'sonner'
 import type { Block, Event } from '@/bindings'
-
-const formatTime = (timestamp: Partial<{ [key: string]: number }>): string => {
-  const values = Object.values(timestamp).filter(
-    (v): v is number => v !== undefined
-  )
-  const max = values.length > 0 ? Math.max(...values, 0) : 0
-  return max ? new Date(max * 1000).toLocaleTimeString() : '--'
-}
 
 const InfoTab = ({
   block,
   fileId,
+  activeEditorId,
 }: {
   block: Block | null
   fileId: string | null
+  activeEditorId: string | null | undefined
 }) => {
   const [isEditingDescription, setIsEditingDescription] = useState(false)
   const [editedDescription, setEditedDescription] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [copiedBlockId, setCopiedBlockId] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { updateBlockMetadata } = useAppStore()
+  const { updateBlockMetadata, getEditors } = useAppStore()
 
   // Extract metadata
   const metadata = block?.metadata as {
@@ -54,6 +67,28 @@ const InfoTab = ({
     }
   }
 
+  // Resolve owner info
+  const ownerEditor =
+    fileId && block
+      ? getEditors(fileId).find((e) => e.editor_id === block.owner)
+      : null
+  const ownerName = ownerEditor?.name || block?.owner || ''
+  const ownerIdPreview = block?.owner.slice(0, 8) || ''
+
+  // Copy block ID to clipboard
+  const handleCopyBlockId = async () => {
+    if (!block?.block_id) return
+
+    try {
+      await navigator.clipboard.writeText(block.block_id)
+      setCopiedBlockId(true)
+      toast.success('Block ID copied to clipboard')
+      setTimeout(() => setCopiedBlockId(false), 2000)
+    } catch (error) {
+      toast.error('Failed to copy Block ID')
+    }
+  }
+
   // Start editing description
   const handleStartEdit = () => {
     setEditedDescription(description)
@@ -72,6 +107,19 @@ const InfoTab = ({
 
     setIsSaving(true)
     try {
+      // Permission check
+      const hasPermission = await TauriClient.block.checkPermission(
+        fileId,
+        block.block_id,
+        'core.update_metadata',
+        activeEditorId || undefined
+      )
+
+      if (!hasPermission) {
+        toast.error('You do not have permission to update metadata.')
+        return
+      }
+
       await updateBlockMetadata(fileId, block.block_id, {
         description: editedDescription,
       })
@@ -204,12 +252,45 @@ const InfoTab = ({
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]" />
               <span className="font-semibold text-foreground">
-                {block.owner}
+                {ownerName}{' '}
+                <span className="text-xs text-muted-foreground">
+                  ({ownerIdPreview}...)
+                </span>
               </span>
             </div>
           </div>
 
           <div className="grid gap-y-3 p-4">
+            {/* Block ID Row with Copy Button */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Tag className="h-3.5 w-3.5 opacity-70" />
+                <span>Block ID</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="max-w-[140px] truncate font-mono text-xs text-muted-foreground"
+                  title={block.block_id}
+                >
+                  {block.block_id}
+                </span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                  onClick={handleCopyBlockId}
+                  title="Copy Block ID"
+                >
+                  {copiedBlockId ? (
+                    <Check className="h-3 w-3 text-green-500" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Created - Always show */}
             {createdAt && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-muted-foreground">
@@ -265,47 +346,259 @@ const CollaboratorsTab = ({
   )
 }
 
-const TimelineTab = ({ events }: { events: Event[] }) => {
-  if (events.length === 0) {
-    return <div className="text-sm text-muted-foreground">No events yet.</div>
+const TimelineTab = ({
+  events,
+  fileId,
+  blockId,
+}: {
+  events: Event[]
+  fileId: string | null
+  blockId: string | null
+}) => {
+  const { restoreToEvent } = useAppStore()
+  const [isRestoring, setIsRestoring] = useState(false)
+
+  // Retrieve editors to resolve names
+  const editors = useAppStore((state) => {
+    if (!fileId) return []
+    return state.files.get(fileId)?.editors || []
+  })
+
+  const sortedEvents = useMemo(() => {
+    // Use the project's standardized vector clock sorting for ordering (descending: newest first)
+    return TauriClient.event.sortEventsByVectorClock(events)
+  }, [events])
+
+  const handleRestore = async (eventId: string) => {
+    if (!fileId || !blockId) return
+    setIsRestoring(true)
+    try {
+      await restoreToEvent(fileId, blockId, eventId)
+    } catch (error) {
+      console.error('Failed to restore:', error)
+    } finally {
+      setIsRestoring(false)
+    }
   }
-  return (
-    <div className="space-y-3">
-      {events.map((e) => (
-        <div
-          key={e.event_id}
-          className="flex items-center gap-3 rounded-lg border px-3 py-2"
-        >
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <div className="min-w-0">
-            <p className="text-sm text-foreground">{e.attribute}</p>
-            <p className="text-xs text-muted-foreground">
-              {formatTime(e.timestamp)}
-            </p>
-          </div>
+
+  const getEventMeta = (capId: string, value?: any) => {
+    if (capId.includes('create')) {
+      return {
+        icon: PlusCircle,
+        color: 'text-emerald-500',
+        bg: 'bg-emerald-500/10',
+        label: 'Created',
+        desc: 'Created new block',
+      }
+    }
+    if (capId.includes('write') || capId.includes('update')) {
+      return {
+        icon: Edit2,
+        color: 'text-blue-500',
+        bg: 'bg-blue-500/10',
+        label: 'Edited',
+        desc: 'Modified content',
+      }
+    }
+    if (capId.includes('delete')) {
+      return {
+        icon: Trash2,
+        color: 'text-red-500',
+        bg: 'bg-red-500/10',
+        label: 'Deleted',
+        desc: 'Removed block',
+      }
+    }
+    if (capId.includes('grant')) {
+      let desc = 'Granted permission'
+      if (value && value.editor && value.capability) {
+        const targetEditor = editors.find((e) => e.editor_id === value.editor)
+        const targetName = targetEditor ? targetEditor.name : value.editor
+        desc = `Granted '${value.capability}' to ${targetName}`
+      }
+      return {
+        icon: ShieldCheck,
+        color: 'text-indigo-500',
+        bg: 'bg-indigo-500/10',
+        label: 'Access',
+        desc,
+      }
+    }
+    if (capId.includes('revoke')) {
+      let desc = 'Revoked permission'
+      if (value && value.editor && value.capability) {
+        const targetEditor = editors.find((e) => e.editor_id === value.editor)
+        const targetName = targetEditor ? targetEditor.name : value.editor
+        desc = `Revoked '${value.capability}' from ${targetName}`
+      }
+      return {
+        icon: ShieldAlert,
+        color: 'text-orange-500',
+        bg: 'bg-orange-500/10',
+        label: 'Access',
+        desc,
+      }
+    }
+    return {
+      icon: Activity,
+      color: 'text-foreground',
+      bg: 'bg-muted',
+      label: 'System',
+      desc: 'System activity',
+    }
+  }
+
+  if (sortedEvents.length === 0) {
+    return (
+      <div className="flex h-40 flex-col items-center justify-center p-4 text-center">
+        <div className="mb-3 rounded-full bg-muted/50 p-3">
+          <History className="h-5 w-5 text-muted-foreground/50" />
         </div>
-      ))}
+        <p className="text-sm font-medium text-foreground">No History</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Changes will appear here
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative px-4 pb-4 pt-2">
+      <div className="ml-2.5 space-y-6 border-l border-border/50 pl-6 pt-1">
+        {sortedEvents.map((event) => {
+          const [editorId, capId] = event.attribute.split('/')
+
+          // Resolve editor name
+          let operatorName = editorId
+          if (editorId === 'system') {
+            operatorName = 'System'
+          } else {
+            const editor = editors.find((e) => e.editor_id === editorId)
+            if (editor) {
+              operatorName = editor.name
+            }
+          }
+
+          const meta = getEventMeta(capId, event.value)
+          const Icon = meta.icon
+          const date = new Date(event.created_at)
+
+          return (
+            <div key={event.event_id} className="group relative">
+              {/* Icon Marker */}
+              <div
+                className={`absolute -left-[31px] top-0.5 flex h-5 w-5 items-center justify-center rounded-full border bg-background ring-4 ring-background transition-colors ${meta.color} border-border/50`}
+              >
+                <Icon className="h-2.5 w-2.5" />
+              </div>
+
+              {/* Content */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-semibold text-foreground/90">
+                      {operatorName}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {date.toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      · {date.toLocaleDateString()}
+                    </span>
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className={`h-5 px-1.5 text-[10px] font-normal tracking-wide ${meta.bg} ${meta.color} hover:${meta.bg} border-0`}
+                  >
+                    {meta.label}
+                  </Badge>
+                </div>
+
+                <div className="relative rounded-md border border-border/40 bg-muted/20 p-2.5 transition-all hover:bg-muted/40 group-hover:border-border/60">
+                  <p className="text-xs leading-relaxed text-foreground/80">
+                    {meta.desc}
+                  </p>
+
+                  {/* Only show Restore button for content-modifying events */}
+                  {(capId.includes('write') ||
+                    capId.includes('update') ||
+                    capId.includes('create')) && (
+                    <div className="absolute right-2 top-2 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleRestore(event.event_id)}
+                        disabled={isRestoring}
+                        title="Restore this version"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
 const ContextPanel = () => {
+  // CRITICAL: Use selector properly - all dependencies from 'state' parameter
+  const block: Block | null = useAppStore((state) => {
+    const currentFileId = state.currentFileId
+    const selectedBlockId = state.selectedBlockId
+
+    if (!currentFileId || !selectedBlockId) return null
+    const fileState = state.files.get(currentFileId)
+    return fileState?.blocks.find((b) => b.block_id === selectedBlockId) || null
+  })
+
+  // Get values separately for use in other components and hooks
   const currentFileId = useAppStore((state) => state.currentFileId)
   const selectedBlockId = useAppStore((state) => state.selectedBlockId)
-  const getEvents = useAppStore((state) => state.getEvents)
+  // Retrieve active editor ID
+  const activeEditorId = useAppStore((state) => {
+    if (!currentFileId) return null
+    return state.files.get(currentFileId)?.activeEditorId
+  })
 
-  // Subscribe to block changes by accessing it through a selector
-  const block: Block | null = useAppStore((state) =>
-    currentFileId && selectedBlockId
-      ? state.getBlock(currentFileId, selectedBlockId) || null
-      : null
-  )
+  // IMPORTANT: Permission checks are handled by backend
+  // Backend only returns blocks/data that the current user has permission to access
+  // Frontend simply renders what backend provides
 
-  const events = useMemo(() => {
+  // 1. Select the raw events array (stable reference from store)
+  const allEvents = useAppStore((state) => {
     if (!currentFileId) return []
-    const all = getEvents(currentFileId)
-    return block ? all.filter((e) => e.entity === block.block_id) : all
-  }, [currentFileId, block, getEvents])
+    return state.files.get(currentFileId)?.events || []
+  })
+
+  // 2. Filter events locally to avoid new array references in the selector
+  const events = useMemo(() => {
+    if (!block) return allEvents
+    return allEvents.filter((e) => {
+      // Block events: entity matches block_id
+      if (e.entity === block.block_id) return true
+
+      // Grant/Revoke events: check if the event value contains this block_id
+      // Grant/revoke events have entity as editor_id, but value.block contains the target block
+      if (
+        e.attribute.includes('core.grant') ||
+        e.attribute.includes('core.revoke')
+      ) {
+        const value = e.value as { block?: string } | null
+        if (value?.block === block.block_id || value?.block === '*') {
+          return true
+        }
+      }
+
+      return false
+    })
+  }, [allEvents, block?.block_id])
 
   if (!currentFileId) {
     return (
@@ -358,7 +651,11 @@ const ContextPanel = () => {
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-6 p-4">
             <TabsContent value="info" className="mt-0">
-              <InfoTab block={block} fileId={currentFileId} />
+              <InfoTab
+                block={block}
+                fileId={currentFileId}
+                activeEditorId={activeEditorId}
+              />
             </TabsContent>
 
             <TabsContent value="collaborators" className="mt-0">
@@ -366,7 +663,11 @@ const ContextPanel = () => {
             </TabsContent>
 
             <TabsContent value="timeline" className="mt-0">
-              <TimelineTab events={events} />
+              <TimelineTab
+                events={events}
+                fileId={currentFileId}
+                blockId={selectedBlockId}
+              />
             </TabsContent>
           </div>
         </ScrollArea>
