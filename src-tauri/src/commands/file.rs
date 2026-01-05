@@ -245,16 +245,22 @@ pub async fn list_open_files(state: State<'_, AppState>) -> Result<Vec<String>, 
 
 /// Get all events for a specific file.
 ///
+/// This command filters events based on permissions:
+/// - Block events: Only returns events for blocks where user has core.read permission
+/// - Editor events: Always returned (file-level information, similar to Git collaborators)
+///
 /// # Arguments
 /// * `file_id` - Unique identifier of the file
+/// * `editor_id` - Optional editor ID (defaults to active editor)
 ///
 /// # Returns
-/// * `Ok(Vec<Event>)` - List of all events for the file
+/// * `Ok(Vec<Event>)` - List of events the user has permission to view
 /// * `Err(message)` - Error description if retrieval fails
 #[tauri::command]
 #[specta]
 pub async fn get_all_events(
     file_id: String,
+    editor_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::models::Event>, String> {
     // Get engine handle
@@ -263,8 +269,43 @@ pub async fn get_all_events(
         .get_engine(&file_id)
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
+    // Determine effective editor ID
+    let effective_editor_id = if let Some(id) = editor_id {
+        id
+    } else {
+        state
+            .get_active_editor(&file_id)
+            .ok_or_else(|| "No active editor".to_string())?
+    };
+
     // Get all events from the engine
-    handle.get_all_events().await
+    let all_events = handle.get_all_events().await?;
+
+    // Filter events based on permissions
+    let mut filtered_events = Vec::new();
+    for event in all_events {
+        // Editor events are file-level information (like Git collaborators)
+        // No filtering needed - if user can open the file, they can see editors
+        if event.entity.starts_with("editor-") {
+            filtered_events.push(event);
+            continue;
+        }
+
+        // Block events: check core.read permission
+        let has_core_read = handle
+            .check_grant(
+                effective_editor_id.clone(),
+                "core.read".to_string(),
+                event.entity.clone(),
+            )
+            .await;
+
+        if has_core_read {
+            filtered_events.push(event);
+        }
+    }
+
+    Ok(filtered_events)
 }
 
 /// Get detailed information about a file.

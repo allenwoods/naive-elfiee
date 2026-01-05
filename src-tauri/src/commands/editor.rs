@@ -306,18 +306,22 @@ pub async fn get_active_editor(
 
 /// List all grants for the specified file.
 ///
-/// Returns all capability grants in the system as Grant objects.
+/// This command filters grants based on permissions:
+/// - Only returns grants for blocks where the user has core.read permission
+/// - Wildcard grants (*) are always included as they are file-level
 ///
 /// # Arguments
 /// * `file_id` - Unique identifier of the file
+/// * `editor_id` - Optional editor ID (defaults to active editor)
 ///
 /// # Returns
-/// * `Ok(Vec<Grant>)` - List of all grants
+/// * `Ok(Vec<Grant>)` - List of grants the user has permission to view
 /// * `Err(message)` - Error if file is not open
 #[tauri::command]
 #[specta]
 pub async fn list_grants(
     file_id: String,
+    editor_id: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Vec<Grant>, String> {
     // Get engine handle for this file
@@ -326,14 +330,40 @@ pub async fn list_grants(
         .get_engine(&file_id)
         .ok_or_else(|| format!("File '{}' is not open", file_id))?;
 
+    // Determine effective editor ID
+    let effective_editor_id = if let Some(id) = editor_id {
+        id
+    } else {
+        state
+            .get_active_editor(&file_id)
+            .ok_or_else(|| "No active editor".to_string())?
+    };
+
     // Get all grants from engine actor
     let grants_map = handle.get_all_grants().await;
 
-    // Convert to Grant objects
+    // Convert to Grant objects and filter by permission
     let mut grants = Vec::new();
-    for (editor_id, grant_list) in grants_map {
+    for (grant_editor_id, grant_list) in grants_map {
         for (cap_id, block_id) in grant_list {
-            grants.push(Grant::new(editor_id.clone(), cap_id, block_id));
+            // Wildcard grants are file-level, always visible
+            if block_id == "*" {
+                grants.push(Grant::new(grant_editor_id.clone(), cap_id, block_id));
+                continue;
+            }
+
+            // Block-specific grants: check core.read permission
+            let has_core_read = handle
+                .check_grant(
+                    effective_editor_id.clone(),
+                    "core.read".to_string(),
+                    block_id.clone(),
+                )
+                .await;
+
+            if has_core_read {
+                grants.push(Grant::new(grant_editor_id.clone(), cap_id, block_id));
+            }
         }
     }
 

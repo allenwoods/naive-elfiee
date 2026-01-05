@@ -116,17 +116,17 @@ pub async fn get_block(
 
 /// Get all blocks from a file.
 ///
-/// This command applies read permission filtering for directory blocks:
-/// - If editor has `directory.read` permission on a directory block, returns full contents
-/// - If no permission, returns the directory block but with empty entries (user can see it exists but not its contents)
-/// - Non-directory blocks are always returned (permission checks happen when reading individual blocks)
+/// This command filters blocks based on permissions:
+/// - Only returns blocks where the user is owner OR has core.read OR has any other permission
+/// - For directory blocks with directory.read permission, returns full contents
+/// - For directory blocks without directory.read but with other permissions, returns empty entries
 ///
 /// # Arguments
 /// * `file_id` - Unique identifier of the file
 /// * `editor_id` - Optional editor ID (defaults to active editor)
 ///
 /// # Returns
-/// * `Ok(blocks)` - Vector of all blocks in the file (directory entries filtered by permission)
+/// * `Ok(blocks)` - Vector of blocks the user has permission to view
 /// * `Err(message)` - Error if file is not open
 #[tauri::command]
 #[specta]
@@ -150,33 +150,44 @@ pub async fn get_all_blocks(
     };
 
     let blocks_map = handle.get_all_blocks().await;
-    let mut blocks: Vec<Block> = blocks_map.into_values().collect();
+    let mut filtered_blocks = Vec::new();
 
-    // Filter directory blocks based on read permission
-    for block in blocks.iter_mut() {
-        if block.block_type == "directory" {
-            // Check directory.read permission
-            let has_permission = handle
-                .check_grant(
-                    effective_editor_id.clone(),
-                    "directory.read".to_string(),
-                    block.block_id.clone(),
-                )
-                .await;
+    for mut block in blocks_map.into_values() {
+        // Check if user has ANY permission on this block (owner, core.read, or any capability)
+        let has_core_read = handle
+            .check_grant(
+                effective_editor_id.clone(),
+                "core.read".to_string(),
+                block.block_id.clone(),
+            )
+            .await;
 
-            if !has_permission {
-                // User can see the directory exists, but not its contents
-                // Clear entries to hide children
-                if let Some(obj) = block.contents.as_object_mut() {
-                    if let Some(entries) = obj.get_mut("entries") {
-                        *entries = serde_json::json!({});
+        // If user has core.read, include the block
+        if has_core_read {
+            // For directory blocks, still check directory.read for entry access
+            if block.block_type == "directory" {
+                let has_dir_read = handle
+                    .check_grant(
+                        effective_editor_id.clone(),
+                        "directory.read".to_string(),
+                        block.block_id.clone(),
+                    )
+                    .await;
+
+                if !has_dir_read {
+                    // User can see directory exists but not its contents
+                    if let Some(obj) = block.contents.as_object_mut() {
+                        if let Some(entries) = obj.get_mut("entries") {
+                            *entries = serde_json::json!({});
+                        }
                     }
                 }
             }
+            filtered_blocks.push(block);
         }
     }
 
-    Ok(blocks)
+    Ok(filtered_blocks)
 }
 
 /// Update block metadata.

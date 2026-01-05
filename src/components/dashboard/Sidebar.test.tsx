@@ -10,6 +10,16 @@ vi.mock('@/lib/app-store', () => ({
   useAppStore: vi.fn(),
 }))
 
+vi.mock('@/lib/tauri-client', () => ({
+  TauriClient: {
+    file: {
+      getSystemEditorIdFromConfig: vi
+        .fn()
+        .mockResolvedValue('system-editor-id'),
+    },
+  },
+}))
+
 const mockEditors = [
   { editor_id: 'editor-1', name: 'Alice', editor_type: 'Human' },
   { editor_id: 'editor-2', name: 'Bob', editor_type: 'Human' },

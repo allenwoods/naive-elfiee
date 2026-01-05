@@ -583,7 +583,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   loadEvents: async (fileId: string) => {
     try {
-      const events = await TauriClient.event.getAllEvents(fileId)
+      const events = await TauriClient.event.getAllEvents(fileId, null)
       const files = new Map(get().files)
       const fileState = files.get(fileId)
       if (fileState) {
@@ -656,7 +656,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   loadGrants: async (fileId: string) => {
     try {
-      const grants = await TauriClient.editor.listGrants(fileId)
+      const grants = await TauriClient.editor.listGrants(fileId, null)
       const files = new Map(get().files)
       const fileState = files.get(fileId)
       if (fileState) {

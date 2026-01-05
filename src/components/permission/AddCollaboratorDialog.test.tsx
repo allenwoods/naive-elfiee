@@ -27,6 +27,9 @@ describe('AddCollaboratorDialog Component', () => {
     it('should not render when open is false', () => {
       render(
         <AddCollaboratorDialog
+          fileId="test-file"
+          blockId="test-block"
+          blockType="markdown"
           existingEditors={mockExistingEditors}
           allEditors={mockAllEditors}
           open={false}
@@ -40,6 +43,9 @@ describe('AddCollaboratorDialog Component', () => {
     it('should render when open is true', () => {
       render(
         <AddCollaboratorDialog
+          fileId="test-file"
+          blockId="test-block"
+          blockType="markdown"
           existingEditors={mockExistingEditors}
           allEditors={mockAllEditors}
           open={true}
@@ -53,6 +59,9 @@ describe('AddCollaboratorDialog Component', () => {
     it('should render name input field', () => {
       render(
         <AddCollaboratorDialog
+          fileId="test-file"
+          blockId="test-block"
+          blockType="markdown"
           existingEditors={mockExistingEditors}
           allEditors={mockAllEditors}
           open={true}
@@ -67,6 +76,9 @@ describe('AddCollaboratorDialog Component', () => {
     it('should have Human selected by default', () => {
       render(
         <AddCollaboratorDialog
+          fileId="test-file"
+          blockId="test-block"
+          blockType="markdown"
           existingEditors={mockExistingEditors}
           allEditors={mockAllEditors}
           open={true}
@@ -83,6 +95,9 @@ describe('AddCollaboratorDialog Component', () => {
     it('should show available editors in dropdown', async () => {
       render(
         <AddCollaboratorDialog
+          fileId="test-file"
+          blockId="test-block"
+          blockType="markdown"
           existingEditors={mockExistingEditors}
           allEditors={mockAllEditors}
           open={true}
@@ -103,6 +118,9 @@ describe('AddCollaboratorDialog Component', () => {
 
       render(
         <AddCollaboratorDialog
+          fileId="test-file"
+          blockId="test-block"
+          blockType="markdown"
           existingEditors={mockExistingEditors}
           allEditors={mockAllEditors}
           open={true}
@@ -122,6 +140,9 @@ describe('AddCollaboratorDialog Component', () => {
     it('should disable inputs while creating', async () => {
       render(
         <AddCollaboratorDialog
+          fileId="test-file"
+          blockId="test-block"
+          blockType="markdown"
           existingEditors={mockExistingEditors}
           allEditors={mockAllEditors}
           open={true}

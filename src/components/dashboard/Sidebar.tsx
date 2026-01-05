@@ -13,6 +13,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useEffect, useState } from 'react'
+import { TauriClient } from '@/lib/tauri-client'
 
 const navItems = [
   { icon: FolderKanban, path: '/', label: 'Projects' },
@@ -30,6 +32,24 @@ export const Sidebar = () => {
 
   const editors = currentFileId ? getEditors(currentFileId) : []
   const activeEditor = currentFileId ? getActiveEditor(currentFileId) : null
+
+  // Get system editor ID from config (the local user/owner)
+  const [systemEditorId, setSystemEditorId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const loadSystemEditorId = async () => {
+      try {
+        const id = await TauriClient.file.getSystemEditorIdFromConfig()
+        setSystemEditorId(id)
+      } catch (error) {
+        console.error('Failed to get system editor ID:', error)
+      }
+    }
+    loadSystemEditorId()
+  }, [])
+
+  // Check if current user is the system owner
+  const isSystemOwner = activeEditor?.editor_id === systemEditorId
 
   const handleDeleteUser = async (editorId: string) => {
     if (!currentFileId) return
@@ -99,8 +119,8 @@ export const Sidebar = () => {
               {editors.map((editor) => {
                 const isActive = editor.editor_id === activeEditor.editor_id
                 const isSystem = editor.name === 'System'
-                // Can delete if: not active user, not System user
-                const canDelete = !isActive && !isSystem
+                // Can delete if: current user is system owner, not deleting self, not System user
+                const canDelete = isSystemOwner && !isActive && !isSystem
 
                 return (
                   <DropdownMenuItem
@@ -145,7 +165,11 @@ export const Sidebar = () => {
                             e.stopPropagation()
                             handleDeleteUser(editor.editor_id)
                           }}
-                          title="Delete User"
+                          title={
+                            isSystemOwner
+                              ? 'Delete User'
+                              : 'Only the system owner can delete users'
+                          }
                         >
                           <X className="h-3 w-3" />
                         </Button>

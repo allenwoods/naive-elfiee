@@ -50,6 +50,7 @@ impl CapabilityRegistry {
         use super::builtins::*;
 
         self.register(Arc::new(CoreCreateCapability));
+        self.register(Arc::new(CoreReadCapability));
         self.register(Arc::new(CoreLinkCapability));
         self.register(Arc::new(CoreUnlinkCapability));
         self.register(Arc::new(CoreDeleteCapability));
@@ -547,6 +548,149 @@ mod tests {
         assert!(
             !is_authorized,
             "Grant for one capability should not authorize another"
+        );
+    }
+
+    #[test]
+    fn test_core_read_capability_execution() {
+        use crate::models::{Block, Command};
+
+        let registry = CapabilityRegistry::new();
+        let cap = registry.get("core.read").unwrap();
+
+        let block = Block::new(
+            "test".to_string(),
+            "markdown".to_string(),
+            "editor1".to_string(),
+        );
+        let cmd = Command::new(
+            "editor1".to_string(),
+            "core.read".to_string(),
+            block.block_id.clone(),
+            serde_json::json!({}),
+        );
+
+        let events = cap.handler(&cmd, Some(&block)).unwrap();
+        // core.read is a permission-only capability, no events generated
+        assert_eq!(events.len(), 0);
+    }
+
+    #[test]
+    fn test_core_read_owner_always_authorized() {
+        use crate::capabilities::grants::GrantsTable;
+        use crate::models::{Block, Command};
+
+        let grants_table = GrantsTable::new(); // Empty grants table
+        let registry = CapabilityRegistry::new();
+
+        // Owner is "alice"
+        let block = Block::new(
+            "Test Block".to_string(),
+            "markdown".to_string(),
+            "alice".to_string(),
+        );
+
+        // Alice (owner) tries to read metadata
+        let cmd = Command::new(
+            "alice".to_string(),
+            "core.read".to_string(),
+            block.block_id.clone(),
+            serde_json::json!({}),
+        );
+
+        // Certificator check: owner should always have permission
+        assert!(
+            block.owner == cmd.editor_id
+                || grants_table.has_grant(&cmd.editor_id, "core.read", &block.block_id),
+            "Owner should always be authorized for core.read"
+        );
+
+        // Execute capability
+        let cap = registry.get("core.read").unwrap();
+        let result = cap.handler(&cmd, Some(&block));
+        assert!(
+            result.is_ok(),
+            "Owner should be able to execute core.read capability"
+        );
+    }
+
+    #[test]
+    fn test_core_read_with_grant_authorized() {
+        use crate::capabilities::grants::GrantsTable;
+        use crate::models::{Block, Command};
+
+        let mut grants_table = GrantsTable::new();
+        let registry = CapabilityRegistry::new();
+
+        // Owner is "alice"
+        let block = Block::new(
+            "Test Block".to_string(),
+            "markdown".to_string(),
+            "alice".to_string(),
+        );
+
+        // Grant bob core.read permission
+        grants_table.add_grant(
+            "bob".to_string(),
+            "core.read".to_string(),
+            block.block_id.clone(),
+        );
+
+        // Bob tries to read metadata with explicit grant
+        let cmd = Command::new(
+            "bob".to_string(),
+            "core.read".to_string(),
+            block.block_id.clone(),
+            serde_json::json!({}),
+        );
+
+        // Certificator check: non-owner with grant should be authorized
+        let is_authorized = block.owner == cmd.editor_id
+            || grants_table.has_grant(&cmd.editor_id, "core.read", &block.block_id);
+
+        assert!(
+            is_authorized,
+            "Non-owner with core.read grant should be authorized"
+        );
+
+        // Execute capability
+        let cap = registry.get("core.read").unwrap();
+        let result = cap.handler(&cmd, Some(&block));
+        assert!(
+            result.is_ok(),
+            "User with core.read grant should be able to execute capability"
+        );
+    }
+
+    #[test]
+    fn test_core_read_without_grant_not_authorized() {
+        use crate::capabilities::grants::GrantsTable;
+        use crate::models::{Block, Command};
+
+        let grants_table = GrantsTable::new(); // Empty grants table
+
+        // Owner is "alice"
+        let block = Block::new(
+            "Test Block".to_string(),
+            "markdown".to_string(),
+            "alice".to_string(),
+        );
+
+        // Bob (non-owner) tries to read metadata without grant
+        let cmd = Command::new(
+            "bob".to_string(),
+            "core.read".to_string(),
+            block.block_id.clone(),
+            serde_json::json!({}),
+        );
+
+        // Certificator check: non-owner without grant should not be authorized
+        let is_authorized = block.owner == cmd.editor_id
+            || grants_table.has_grant(&cmd.editor_id, "core.read", &block.block_id);
+
+        assert!(
+            !is_authorized,
+            "Non-owner without core.read grant should not be authorized"
         );
     }
 }

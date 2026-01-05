@@ -17,6 +17,7 @@ import { Separator } from '@/components/ui/separator'
 import { ImportRepositoryModal } from './ImportRepositoryModal'
 import { VfsTree } from './VfsTree'
 import { CreateEntryDialog } from './CreateEntryDialog'
+import { AddWorkdirDialog } from './AddWorkdirDialog'
 import type { VfsNode } from '@/utils/vfs-tree'
 import { toast } from 'sonner'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -39,6 +40,7 @@ export const FilePanel = () => {
     files,
   } = useAppStore()
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [showAddWorkdirDialog, setShowAddWorkdirDialog] = useState(false)
   const [createDialog, setCreateDialog] = useState({
     open: false,
     directoryBlockId: '',
@@ -265,11 +267,8 @@ export const FilePanel = () => {
     }
   }
 
-  const handleAddWorkdir = async () => {
+  const handleAddWorkdir = async (name: string) => {
     if (!currentFileId) return
-
-    const name = prompt('Enter workdir name:')
-    if (!name) return
 
     try {
       // Create a new outline directory block
@@ -285,6 +284,7 @@ export const FilePanel = () => {
       toast.success(`Workdir "${name}" created`)
     } catch (error) {
       toast.error(`Failed to create workdir: ${error}`)
+      throw error // Re-throw to let dialog handle loading state
     }
   }
 
@@ -318,7 +318,7 @@ export const FilePanel = () => {
                 size="sm"
                 variant="ghost"
                 className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                onClick={handleAddWorkdir}
+                onClick={() => setShowAddWorkdirDialog(true)}
               >
                 <Plus className="h-3.5 w-3.5" />
               </Button>
@@ -552,6 +552,12 @@ export const FilePanel = () => {
           if (source === 'Local File') handleImport(false)
           else handleImport(true)
         }}
+      />
+
+      <AddWorkdirDialog
+        open={showAddWorkdirDialog}
+        onOpenChange={setShowAddWorkdirDialog}
+        onConfirm={handleAddWorkdir}
       />
     </aside>
   )

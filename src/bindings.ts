@@ -101,18 +101,26 @@ export const commands = {
   /**
    * Get all events for a specific file.
    *
+   * This command filters events based on permissions:
+   * - Block events: Only returns events for blocks where user has core.read permission
+   * - Editor events: Always returned (file-level information, similar to Git collaborators)
+   *
    * # Arguments
    * * `file_id` - Unique identifier of the file
+   * * `editor_id` - Optional editor ID (defaults to active editor)
    *
    * # Returns
-   * * `Ok(Vec<Event>)` - List of all events for the file
+   * * `Ok(Vec<Event>)` - List of events the user has permission to view
    * * `Err(message)` - Error description if retrieval fails
    */
-  async getAllEvents(fileId: string): Promise<Result<Event[], string>> {
+  async getAllEvents(
+    fileId: string,
+    editorId: string | null
+  ): Promise<Result<Event[], string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('get_all_events', { fileId }),
+        data: await TAURI_INVOKE('get_all_events', { fileId, editorId }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -371,17 +379,17 @@ export const commands = {
   /**
    * Get all blocks from a file.
    *
-   * This command applies read permission filtering for directory blocks:
-   * - If editor has `directory.read` permission on a directory block, returns full contents
-   * - If no permission, returns the directory block but with empty entries (user can see it exists but not its contents)
-   * - Non-directory blocks are always returned (permission checks happen when reading individual blocks)
+   * This command filters blocks based on permissions:
+   * - Only returns blocks where the user is owner OR has core.read OR has any other permission
+   * - For directory blocks with directory.read permission, returns full contents
+   * - For directory blocks without directory.read but with other permissions, returns empty entries
    *
    * # Arguments
    * * `file_id` - Unique identifier of the file
    * * `editor_id` - Optional editor ID (defaults to active editor)
    *
    * # Returns
-   * * `Ok(blocks)` - Vector of all blocks in the file (directory entries filtered by permission)
+   * * `Ok(blocks)` - Vector of blocks the user has permission to view
    * * `Err(message)` - Error if file is not open
    */
   async getAllBlocks(
@@ -678,20 +686,26 @@ export const commands = {
   /**
    * List all grants for the specified file.
    *
-   * Returns all capability grants in the system as Grant objects.
+   * This command filters grants based on permissions:
+   * - Only returns grants for blocks where the user has core.read permission
+   * - Wildcard grants (*) are always included as they are file-level
    *
    * # Arguments
    * * `file_id` - Unique identifier of the file
+   * * `editor_id` - Optional editor ID (defaults to active editor)
    *
    * # Returns
-   * * `Ok(Vec<Grant>)` - List of all grants
+   * * `Ok(Vec<Grant>)` - List of grants the user has permission to view
    * * `Err(message)` - Error if file is not open
    */
-  async listGrants(fileId: string): Promise<Result<Grant[], string>> {
+  async listGrants(
+    fileId: string,
+    editorId: string | null
+  ): Promise<Result<Grant[], string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('list_grants', { fileId }),
+        data: await TAURI_INVOKE('list_grants', { fileId, editorId }),
       }
     } catch (e) {
       if (e instanceof Error) throw e

@@ -97,10 +97,22 @@ export const CollaboratorList = ({
         return
       }
 
+      // Check if this is a content read capability (markdown.read, code.read, directory.read)
+      const isContentRead =
+        capability.endsWith('.read') && capability !== 'core.read'
+
       if (granted) {
+        // When granting content read, also grant core.read for metadata access
+        if (isContentRead) {
+          await grantCapability(fileId, editorId, 'core.read', blockId)
+        }
         await grantCapability(fileId, editorId, capability, blockId)
       } else {
+        // When revoking content read, also revoke core.read
         await revokeCapability(fileId, editorId, capability, blockId)
+        if (isContentRead) {
+          await revokeCapability(fileId, editorId, 'core.read', blockId)
+        }
       }
     } catch (error) {
       console.error('Failed to change permission:', error)
@@ -215,6 +227,7 @@ export const CollaboratorList = ({
         <AddCollaboratorDialog
           fileId={fileId}
           blockId={blockId}
+          blockType={block.block_type}
           existingEditors={collaborators}
           allEditors={editors}
           open={showAddDialog}
@@ -271,6 +284,7 @@ export const CollaboratorList = ({
       <AddCollaboratorDialog
         fileId={fileId}
         blockId={blockId}
+        blockType={block.block_type}
         existingEditors={collaborators}
         allEditors={editors}
         open={showAddDialog}

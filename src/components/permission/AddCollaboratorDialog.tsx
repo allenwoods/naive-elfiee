@@ -27,6 +27,7 @@ import { toast } from 'sonner'
 interface AddCollaboratorDialogProps {
   fileId: string
   blockId: string
+  blockType: string // Block type to determine default permission
   existingEditors: Editor[] // Editors who already have access to this block
   allEditors: Editor[] // All editors in the file system
   open: boolean
@@ -34,9 +35,17 @@ interface AddCollaboratorDialogProps {
   onSuccess?: (editor: Editor) => void
 }
 
+// Get default read permission based on block type
+const getDefaultReadPermission = (blockType: string): string => {
+  if (blockType === 'code') return 'code.read'
+  if (blockType === 'directory') return 'directory.read'
+  return 'markdown.read' // Default for markdown and other types
+}
+
 export const AddCollaboratorDialog = ({
   fileId,
   blockId,
+  blockType,
   existingEditors,
   allEditors,
   open,
@@ -81,13 +90,26 @@ export const AddCollaboratorDialog = ({
 
     setIsProcessing(true)
     try {
-      // Grant default read permission
-      // We pass activeEditorId as granter (optional, backend can infer it but explicit is better)
+      // Grant permissions: core.read + type-specific read permission
+      // core.read allows viewing metadata/events/grants
+      // type-specific read allows viewing block content
+      const defaultPermission = getDefaultReadPermission(blockType)
       const granterId = getActiveEditor(fileId)?.editor_id
+
+      // Grant core.read first
       await grantCapability(
         fileId,
         selectedEditor.editor_id,
-        'markdown.read',
+        'core.read',
+        blockId,
+        granterId
+      )
+
+      // Grant type-specific read permission
+      await grantCapability(
+        fileId,
+        selectedEditor.editor_id,
+        defaultPermission,
         blockId,
         granterId
       )
@@ -116,12 +138,24 @@ export const AddCollaboratorDialog = ({
         newEditorType
       )
 
-      // 2. Grant default read permission
+      // 2. Grant permissions: core.read + type-specific read permission
+      const defaultPermission = getDefaultReadPermission(blockType)
       const granterId = getActiveEditor(fileId)?.editor_id
+
+      // Grant core.read first
       await grantCapability(
         fileId,
         newEditor.editor_id,
-        'markdown.read',
+        'core.read',
+        blockId,
+        granterId
+      )
+
+      // Grant type-specific read permission
+      await grantCapability(
+        fileId,
+        newEditor.editor_id,
+        defaultPermission,
         blockId,
         granterId
       )
@@ -156,9 +190,19 @@ export const AddCollaboratorDialog = ({
           onValueChange={(v) => setActiveTab(v as 'existing' | 'new')}
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="existing">Select Existing</TabsTrigger>
-            <TabsTrigger value="new">Create New</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 bg-muted">
+            <TabsTrigger
+              value="existing"
+              className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground"
+            >
+              Select Existing
+            </TabsTrigger>
+            <TabsTrigger
+              value="new"
+              className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground"
+            >
+              Create New
+            </TabsTrigger>
           </TabsList>
 
           <div className="py-4">
