@@ -845,7 +845,14 @@ export const EditorCanvas = () => {
   } = useAppStore()
   const [isSaving, setIsSaving] = useState(false)
   const [documentContent, setDocumentContent] = useState<string>('')
-  const [selectedBlock, setSelectedBlock] = useState<Block | null>(null)
+
+  // Subscribe directly to block changes from Zustand store
+  // This ensures UI refreshes when restoreToEvent updates blocks
+  const selectedBlock = useAppStore((state) => {
+    if (!currentFileId || !selectedBlockId) return null
+    const fileState = state.files.get(currentFileId)
+    return fileState?.blocks.find((b) => b.block_id === selectedBlockId) || null
+  })
 
   // Retrieve active editor ID to check permissions against
   const activeEditorId = useAppStore((state) => {
@@ -853,29 +860,27 @@ export const EditorCanvas = () => {
     return state.files.get(currentFileId)?.activeEditorId || undefined
   })
 
-  // Load block content when selectedBlockId changes
+  // Load block content when selectedBlock changes
   useEffect(() => {
-    if (currentFileId && selectedBlockId) {
-      const block = getBlock(currentFileId, selectedBlockId)
-      if (block) {
-        setSelectedBlock(block)
-        // Extract content based on type
-        // Strategy:
-        // 1. 'code' blocks strictly use the 'text' field.
-        // 2. 'markdown' blocks prefer 'markdown' field but fall back to 'text'
-        //    to maintain backward compatibility with older blocks or importers.
-        const contents = block.contents as { markdown?: string; text?: string }
-        if (block.block_type === 'code') {
-          setDocumentContent(contents?.text || '')
-        } else {
-          setDocumentContent(contents?.markdown || contents?.text || '')
-        }
+    if (selectedBlock) {
+      // Extract content based on type
+      // Strategy:
+      // 1. 'code' blocks strictly use the 'text' field.
+      // 2. 'markdown' blocks prefer 'markdown' field but fall back to 'text'
+      //    to maintain backward compatibility with older blocks or importers.
+      const contents = selectedBlock.contents as {
+        markdown?: string
+        text?: string
+      }
+      if (selectedBlock.block_type === 'code') {
+        setDocumentContent(contents?.text || '')
+      } else {
+        setDocumentContent(contents?.markdown || contents?.text || '')
       }
     } else {
-      setSelectedBlock(null)
       setDocumentContent('')
     }
-  }, [currentFileId, selectedBlockId, getBlock])
+  }, [selectedBlock])
 
   // Handle save block only (called from editor)
   const handleBlockSave = useCallback(async () => {
@@ -1037,7 +1042,7 @@ export const EditorCanvas = () => {
                 className="bg-foreground px-4 text-sm font-medium text-background shadow-sm hover:bg-foreground/90"
                 onClick={(e) => {
                   e.stopPropagation()
-                  handleBlockSave()
+                  handleSave()
                 }}
                 disabled={isSaving}
               >

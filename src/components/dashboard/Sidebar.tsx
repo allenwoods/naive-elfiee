@@ -118,9 +118,10 @@ export const Sidebar = () => {
               <DropdownMenuSeparator />
               {editors.map((editor) => {
                 const isActive = editor.editor_id === activeEditor.editor_id
-                const isSystem = editor.name === 'System'
-                // Can delete if: current user is system owner, not deleting self, not System user
-                const canDelete = isSystemOwner && !isActive && !isSystem
+                // Check if this editor is the system owner (by ID, not name)
+                const isSystemUser = editor.editor_id === systemEditorId
+                // Can delete if: current user is system owner, not deleting self, not deleting the system owner
+                const canDelete = isSystemOwner && !isActive && !isSystemUser
 
                 return (
                   <DropdownMenuItem
