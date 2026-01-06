@@ -22,6 +22,17 @@ export default defineConfig(async () => ({
     globals: true,
     environment: 'happy-dom',
     setupFiles: ['./src/test/setup.ts'],
+    // Timeout configurations
+    testTimeout: 10000, // 10 seconds per test
+    hookTimeout: 10000, // 10 seconds for before/after hooks
+    teardownTimeout: 10000, // 10 seconds for teardown
+    // Pool configuration to prevent fork timeout
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        singleThread: true, // Run tests sequentially to avoid resource conflicts
+      },
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
