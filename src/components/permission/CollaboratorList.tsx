@@ -1,14 +1,12 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { UserPlus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/lib/app-store'
 import { CollaboratorItem } from './CollaboratorItem'
 import { AddCollaboratorDialog } from './AddCollaboratorDialog'
 import { toast } from 'sonner'
-import type { Block } from '@/bindings'
-
-// Default capability granted to new collaborators
-const DEFAULT_CAPABILITY = 'markdown.read' as const
+import type { Block, Editor } from '@/bindings'
+import { TauriClient } from '@/lib/tauri-client'
 
 interface CollaboratorListProps {
   fileId: string
@@ -23,7 +21,7 @@ export const CollaboratorList = ({
 }: CollaboratorListProps) => {
   const [showAddDialog, setShowAddDialog] = useState(false)
 
-  // Subscribe to store state changes - directly access files Map for reactivity
+  // Subscribe to store state changes
   const editors = useAppStore((state) => {
     const fileState = state.files.get(fileId)
     return fileState?.editors || []
@@ -41,7 +39,10 @@ export const CollaboratorList = ({
   })
   const grantCapability = useAppStore((state) => state.grantCapability)
   const revokeCapability = useAppStore((state) => state.revokeCapability)
-  const deleteEditor = useAppStore((state) => state.deleteEditor)
+
+  // NOTE: We do NOT use deleteEditor here anymore.
+  // "Removing access" simply means revoking all permissions on this block.
+  // Deleting a user from the project entirely should be an admin/owner function in Sidebar.
 
   // Filter grants relevant to this block (including wildcards)
   const relevantGrants = useMemo(() => {
@@ -55,7 +56,7 @@ export const CollaboratorList = ({
       // Owner always has access
       if (editor.editor_id === block.owner) return true
 
-      // Check if editor has any grants for this block
+      // Check if editor has any grants for this block (not wildcards for other blocks)
       return relevantGrants.some((g) => g.editor_id === editor.editor_id)
     })
 
@@ -72,53 +73,117 @@ export const CollaboratorList = ({
       // Others by name
       return a.name.localeCompare(b.name)
     })
-  }, [editors, block.owner, activeEditor, relevantGrants])
+  }, [editors, block, activeEditor, relevantGrants])
 
   const handleGrantChange = async (
     editorId: string,
     capability: string,
     granted: boolean
   ) => {
-    if (granted) {
-      await grantCapability(fileId, editorId, capability, blockId)
-    } else {
-      await revokeCapability(fileId, editorId, capability, blockId)
+    try {
+      // Check if current user has permission to grant/revoke
+      const requiredCap = granted ? 'core.grant' : 'core.revoke'
+      const hasPermission = await TauriClient.block.checkPermission(
+        fileId,
+        blockId,
+        requiredCap,
+        activeEditor?.editor_id
+      )
+
+      if (!hasPermission) {
+        toast.error(
+          `You do not have permission to ${granted ? 'grant' : 'revoke'} permissions.`
+        )
+        return
+      }
+
+      // Check if this is a content read capability (markdown.read, code.read, directory.read)
+      const isContentRead =
+        capability.endsWith('.read') && capability !== 'core.read'
+
+      if (granted) {
+        // When granting content read, also grant core.read for metadata access
+        if (isContentRead) {
+          await grantCapability(fileId, editorId, 'core.read', blockId)
+        }
+        await grantCapability(fileId, editorId, capability, blockId)
+      } else {
+        // When revoking content read, also revoke core.read
+        await revokeCapability(fileId, editorId, capability, blockId)
+        if (isContentRead) {
+          await revokeCapability(fileId, editorId, 'core.read', blockId)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to change permission:', error)
     }
   }
 
   const handleRemoveAccess = async (editorId: string) => {
-    // Delete the editor completely, which also removes all their grants
+    // Revoke ALL permissions for this editor on this block
     try {
-      await deleteEditor(fileId, editorId)
+      const userGrants = relevantGrants.filter((g) => g.editor_id === editorId)
+
+      // If user has no explicit grants (e.g. implicitly has access via wildcard or just viewing),
+      // there's nothing to revoke, but we can't "block" them unless we have a deny list (not implemented).
+      // For now, we just remove explicit grants.
+
+      if (userGrants.length === 0) {
+        toast.info('User has no explicit permissions to remove.')
+        return
+      }
+
+      // Execute revokes in parallel
+      await Promise.all(
+        userGrants.map((grant) =>
+          revokeCapability(fileId, editorId, grant.cap_id, blockId)
+        )
+      )
+
+      toast.success('Access removed (permissions revoked)')
     } catch (error) {
-      console.error('Failed to remove collaborator:', error)
-      // deleteEditor already shows a toast, so we don't need to show another one
-      throw error
+      console.error('Failed to remove access:', error)
+      toast.error('Failed to remove access')
     }
   }
 
-  const handleAddSuccess = async (newEditor: { editor_id: string }) => {
-    // Grant default read permission to the new collaborator
-    // Use block owner as the granter since they have permission to grant capabilities
-    try {
-      await grantCapability(
-        fileId,
-        newEditor.editor_id,
-        DEFAULT_CAPABILITY,
-        blockId,
-        block.owner // Explicitly use block owner to grant permissions
-      )
-      toast.success('Default read permission granted')
-    } catch (error) {
-      console.error('Failed to grant default read permission:', error)
-      toast.warning(
-        'Collaborator created but failed to grant read permission. You can manually grant permissions.'
-      )
-      // Don't throw - the editor was created successfully
+  // Check permission state for granting (used to enable/disable Add button)
+  const [canAddCollaborator, setCanAddCollaborator] = useState(false)
+
+  useEffect(() => {
+    const checkPermission = async () => {
+      if (!activeEditor?.editor_id) {
+        setCanAddCollaborator(false)
+        return
+      }
+      try {
+        // To add a collaborator, you generally need to be able to grant permissions
+        // or create editors. We check 'core.grant' as the primary gatekeeper.
+        const hasPermission = await TauriClient.block.checkPermission(
+          fileId,
+          blockId,
+          'core.grant',
+          activeEditor.editor_id
+        )
+        setCanAddCollaborator(hasPermission)
+      } catch (error) {
+        console.error('Failed to check permission:', error)
+        setCanAddCollaborator(false)
+      }
     }
+    checkPermission()
+  }, [fileId, blockId, activeEditor?.editor_id])
+
+  const handleAddSuccess = (editor: Editor) => {
+    // Dialog handles the creation and granting. We just refresh the list (via store subscription).
+    // No extra action needed here.
   }
 
-  // Show empty state if no collaborators
+  const handleOpenAddDialog = () => {
+    setShowAddDialog(true)
+  }
+
+  // Show empty state if no collaborators (except maybe owner who is filtered out if logic changes, but currently owner is always shown)
   if (collaborators.length === 0) {
     return (
       <div className="space-y-3">
@@ -128,11 +193,16 @@ export const CollaboratorList = ({
             Collaborators (0)
           </h3>
           <Button
-            onClick={() => setShowAddDialog(true)}
+            onClick={handleOpenAddDialog}
             variant="ghost"
             size="icon"
             className="h-6 w-6 hover:bg-muted"
-            title="Add Collaborator"
+            title={
+              canAddCollaborator
+                ? 'Add Collaborator'
+                : 'You do not have permission to add collaborators'
+            }
+            disabled={!canAddCollaborator}
           >
             <UserPlus className="h-4 w-4" />
           </Button>
@@ -142,18 +212,24 @@ export const CollaboratorList = ({
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border/50 bg-muted/10 py-8 text-center">
           <Users className="mb-2 h-8 w-8 text-muted-foreground/50" />
           <p className="text-xs text-muted-foreground">No collaborators yet</p>
-          <Button
-            variant="link"
-            size="sm"
-            onClick={() => setShowAddDialog(true)}
-            className="h-auto px-0 py-1 text-xs text-primary"
-          >
-            Add one now
-          </Button>
+          {canAddCollaborator && (
+            <Button
+              variant="link"
+              size="sm"
+              onClick={handleOpenAddDialog}
+              className="h-auto px-0 py-1 text-xs text-primary"
+            >
+              Add one now
+            </Button>
+          )}
         </div>
 
         <AddCollaboratorDialog
           fileId={fileId}
+          blockId={blockId}
+          blockType={block.block_type}
+          existingEditors={collaborators}
+          allEditors={editors}
           open={showAddDialog}
           onOpenChange={setShowAddDialog}
           onSuccess={handleAddSuccess}
@@ -170,11 +246,16 @@ export const CollaboratorList = ({
           Collaborators ({collaborators.length})
         </h3>
         <Button
-          onClick={() => setShowAddDialog(true)}
+          onClick={handleOpenAddDialog}
           variant="ghost"
           size="icon"
           className="h-6 w-6 hover:bg-muted"
-          title="Add Collaborator"
+          title={
+            canAddCollaborator
+              ? 'Add Collaborator'
+              : 'You do not have permission to add collaborators'
+          }
+          disabled={!canAddCollaborator}
         >
           <UserPlus className="h-4 w-4" />
         </Button>
@@ -186,6 +267,7 @@ export const CollaboratorList = ({
           <CollaboratorItem
             key={editor.editor_id}
             blockId={blockId}
+            blockType={block.block_type}
             editor={editor}
             grants={relevantGrants.filter(
               (g) => g.editor_id === editor.editor_id
@@ -201,6 +283,10 @@ export const CollaboratorList = ({
       {/* Add Collaborator Dialog */}
       <AddCollaboratorDialog
         fileId={fileId}
+        blockId={blockId}
+        blockType={block.block_type}
+        existingEditors={collaborators}
+        allEditors={editors}
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         onSuccess={handleAddSuccess}

@@ -68,25 +68,38 @@ interface AppStore {
 
   // Directory/VFS operations
   getOutlineTree: (fileId: string) => VfsNode[]
+  getOutlineRepos: (
+    fileId: string
+  ) => { blockId: string; name: string; tree: VfsNode[] }[]
   getLinkedRepos: (
     fileId: string
   ) => { blockId: string; name: string; tree: VfsNode[] }[]
-  ensureSystemOutline: (fileId: string) => Promise<void>
 
   // Editor operations
   loadEditors: (fileId: string) => Promise<void>
   createEditor: (
     fileId: string,
     name: string,
-    editorType?: string
+    editorType?: string,
+    blockId?: string
   ) => Promise<Editor>
-  deleteEditor: (fileId: string, editorId: string) => Promise<void>
+  deleteEditor: (
+    fileId: string,
+    editorId: string,
+    blockId?: string
+  ) => Promise<void>
   setActiveEditor: (fileId: string, editorId: string) => Promise<void>
   getActiveEditor: (fileId: string) => Editor | undefined
   getEditors: (fileId: string) => Editor[]
 
   // Event and Grant operations
   getEvents: (fileId: string) => Event[]
+  loadEvents: (fileId: string) => Promise<void>
+  restoreToEvent: (
+    fileId: string,
+    blockId: string,
+    eventId: string
+  ) => Promise<void>
   getGrants: (fileId: string) => Grant[]
   getBlockGrants: (fileId: string, blockId: string) => Grant[]
   loadGrants: (fileId: string) => Promise<void>
@@ -204,7 +217,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   saveFile: async (fileId: string) => {
     try {
       await TauriClient.file.saveFile(fileId)
-      toast.success('File saved to disk')
+      // Note: Success toast is handled by the caller (EditorCanvas) to avoid duplicate messages
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
@@ -262,7 +275,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await TauriClient.block.writeBlock(fileId, blockId, content, blockType)
       // Reload blocks to get the updated content
       await get().loadBlocks(fileId)
-      toast.success('Block updated successfully')
+      // Note: Success toast is handled by the caller (EditorCanvas) to avoid duplicate messages
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
@@ -355,15 +368,37 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return buildTreeFromEntries(contents.entries || {}, blocks)
   },
 
-  getLinkedRepos: (fileId: string) => {
+  getOutlineRepos: (fileId: string) => {
     const blocks = get().getBlocks(fileId)
-    // Filter: directory blocks with source='linked'
+    const fileState = get().files.get(fileId)
+    const activeEditorId = fileState?.activeEditorId
+    const grants = fileState?.grants || []
+
+    // Filter: directory blocks with source='outline'
     const directoryBlocks = blocks.filter(
       (b) =>
-        b.block_type === 'directory' && (b.contents as any)?.source === 'linked'
+        b.block_type === 'directory' &&
+        (b.contents as any)?.source === 'outline'
     )
 
-    return directoryBlocks.map((block) => {
+    // Permission filter: only show blocks where active editor has directory.read permission
+    const visibleBlocks = directoryBlocks.filter((block) => {
+      // If no active editor, don't show any blocks
+      if (!activeEditorId) return false
+
+      // Owner always has access
+      if (block.owner === activeEditorId) return true
+
+      // Check if active editor has directory.read grant for this block or wildcard
+      return grants.some(
+        (g) =>
+          g.editor_id === activeEditorId &&
+          g.cap_id === 'directory.read' &&
+          (g.block_id === block.block_id || g.block_id === '*')
+      )
+    })
+
+    return visibleBlocks.map((block) => {
       const contents = block.contents as {
         entries?: Record<string, DirectoryEntry>
       }
@@ -375,32 +410,45 @@ export const useAppStore = create<AppStore>((set, get) => ({
     })
   },
 
-  ensureSystemOutline: async (fileId: string) => {
+  getLinkedRepos: (fileId: string) => {
     const blocks = get().getBlocks(fileId)
-    const hasOutline = blocks.some(
+    const fileState = get().files.get(fileId)
+    const activeEditorId = fileState?.activeEditorId
+    const grants = fileState?.grants || []
+
+    // Filter: directory blocks with source='linked'
+    const directoryBlocks = blocks.filter(
       (b) =>
-        b.block_type === 'directory' &&
-        (b.contents as any)?.source === 'outline'
+        b.block_type === 'directory' && (b.contents as any)?.source === 'linked'
     )
 
-    if (!hasOutline) {
-      try {
-        const systemEditorId = await TauriClient.file.getSystemEditorId()
-        // Create Outline directory block
-        // ID is auto-generated, Name is 'Outline' but only for display
-        await TauriClient.block.createBlock(
-          fileId,
-          'Outline',
-          'directory',
-          systemEditorId
-        )
-        // Note: backend createBlock defaults source to 'outline', so we are good.
+    // Permission filter: only show blocks where active editor has directory.read permission
+    const visibleBlocks = directoryBlocks.filter((block) => {
+      // If no active editor, don't show any blocks
+      if (!activeEditorId) return false
 
-        await get().loadBlocks(fileId)
-      } catch (error) {
-        console.error('Failed to initialize system outline:', error)
+      // Owner always has access
+      if (block.owner === activeEditorId) return true
+
+      // Check if active editor has directory.read grant for this block or wildcard
+      return grants.some(
+        (g) =>
+          g.editor_id === activeEditorId &&
+          g.cap_id === 'directory.read' &&
+          (g.block_id === block.block_id || g.block_id === '*')
+      )
+    })
+
+    return visibleBlocks.map((block) => {
+      const contents = block.contents as {
+        entries?: Record<string, DirectoryEntry>
       }
-    }
+      return {
+        blockId: block.block_id,
+        name: block.name,
+        tree: buildTreeFromEntries(contents.entries || {}, blocks),
+      }
+    })
   },
 
   // Editor operations
@@ -443,12 +491,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  createEditor: async (fileId: string, name: string, editorType?: string) => {
+  createEditor: async (
+    fileId: string,
+    name: string,
+    editorType?: string,
+    blockId?: string
+  ) => {
     try {
       const newEditor = await TauriClient.editor.createEditor(
         fileId,
         name,
-        editorType
+        editorType,
+        blockId
       )
       // Reload editors to get the updated list
       await get().loadEditors(fileId)
@@ -462,9 +516,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  deleteEditor: async (fileId: string, editorId: string) => {
+  deleteEditor: async (fileId: string, editorId: string, blockId?: string) => {
     try {
-      await TauriClient.editor.deleteEditor(fileId, editorId)
+      await TauriClient.editor.deleteEditor(fileId, editorId, blockId)
       // Reload editors to get the updated list
       await get().loadEditors(fileId)
       // Also reload grants since deleting an editor removes all their grants
@@ -487,6 +541,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
         files.set(fileId, { ...fileState, activeEditorId: editorId })
         set({ files })
       }
+
+      // CRITICAL: Clear selected block when switching users to prevent unauthorized access
+      set({ selectedBlockId: null })
+
+      // Reload all data for the new user context
+      // The backend will filter these based on the new active editor's permissions
+      await Promise.all([
+        get().loadBlocks(fileId),
+        get().loadGrants(fileId),
+        get().loadEvents(fileId),
+        get().loadEditors(fileId),
+      ])
+
+      toast.success('Switched user - permissions updated')
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
@@ -513,6 +581,66 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return fileState?.events || []
   },
 
+  loadEvents: async (fileId: string) => {
+    try {
+      const events = await TauriClient.event.getAllEvents(fileId, null)
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState) {
+        files.set(fileId, { ...fileState, events })
+        set({ files })
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to load events: ${errorMessage}`)
+    }
+  },
+
+  /**
+   * 回溯到指定事件时刻的内容
+   * 直接替换编辑器内容，用户可继续编辑和保存
+   */
+  restoreToEvent: async (fileId: string, blockId: string, eventId: string) => {
+    try {
+      // 1. 获取历史状态 (包含 name, content, metadata 以及权限 grants 等)
+      const { block: historicalBlock, grants: historicalGrants } =
+        await TauriClient.event.getStateAtEvent(fileId, blockId, eventId)
+
+      // 2. 更新当前 block 的状态和权限（仅在内存中，不保存到数据库）
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState) {
+        // 更新 blocks
+        const updatedBlocks = fileState.blocks.map((block) => {
+          if (block.block_id === blockId) {
+            // 完整替换 block 状态，恢复 name, content 和 metadata
+            return {
+              ...historicalBlock,
+            }
+          }
+          return block
+        })
+
+        // 更新 fileState，同时包含新的 grants
+        files.set(fileId, {
+          ...fileState,
+          blocks: updatedBlocks,
+          grants: historicalGrants,
+        })
+        set({ files })
+      }
+
+      // 3. 触发通知
+      toast.success('已恢复到历史快照，包含描述、标题和权限')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to restore: ${errorMessage}`)
+      throw error
+    }
+  },
+
   getGrants: (fileId: string) => {
     const fileState = get().files.get(fileId)
     return fileState?.grants || []
@@ -528,7 +656,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   loadGrants: async (fileId: string) => {
     try {
-      const grants = await TauriClient.editor.listGrants(fileId)
+      const grants = await TauriClient.editor.listGrants(fileId, null)
       const files = new Map(get().files)
       const fileState = files.get(fileId)
       if (fileState) {
@@ -557,8 +685,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         targetBlock,
         granterEditorId
       )
-      // Reload grants to update UI
+      // Reload grants and events to update UI
       await get().loadGrants(fileId)
+      await get().loadEvents(fileId)
       toast.success('Permission granted')
     } catch (error) {
       const errorMessage =
@@ -581,8 +710,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         capability,
         targetBlock
       )
-      // Reload grants to update UI
+      // Reload grants and events to update UI
       await get().loadGrants(fileId)
+      await get().loadEvents(fileId)
       toast.success('Permission revoked')
     } catch (error) {
       const errorMessage =

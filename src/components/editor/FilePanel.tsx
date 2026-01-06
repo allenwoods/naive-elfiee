@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Plus,
@@ -17,6 +17,7 @@ import { Separator } from '@/components/ui/separator'
 import { ImportRepositoryModal } from './ImportRepositoryModal'
 import { VfsTree } from './VfsTree'
 import { CreateEntryDialog } from './CreateEntryDialog'
+import { AddWorkdirDialog } from './AddWorkdirDialog'
 import type { VfsNode } from '@/utils/vfs-tree'
 import { toast } from 'sonner'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -27,24 +28,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-interface DirectoryContents {
-  source: 'outline' | 'linked'
-  entries?: Record<string, import('@/utils/vfs-tree').DirectoryEntry>
-}
-
 export const FilePanel = () => {
   const {
     currentFileId,
     selectedBlockId,
     selectBlock,
     loadBlocks,
-    getBlocks,
     getActiveEditor,
-    getOutlineTree,
+    getOutlineRepos,
     getLinkedRepos,
     files,
   } = useAppStore()
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [showAddWorkdirDialog, setShowAddWorkdirDialog] = useState(false)
   const [createDialog, setCreateDialog] = useState({
     open: false,
     directoryBlockId: '',
@@ -58,32 +54,18 @@ export const FilePanel = () => {
     ? getActiveEditor(currentFileId)?.editor_id
     : undefined
 
-  // Initialize Outline and load data
-  useEffect(() => {
-    if (currentFileId) {
-      useAppStore.getState().ensureSystemOutline(currentFileId)
-    }
-  }, [currentFileId])
+  // No need to initialize system outline - users create their own outline blocks
 
   // Selectors for trees - Memoized to prevent redundant sorting/building
-  const outlineTree = useMemo(
-    () => (currentFileId ? getOutlineTree(currentFileId) : []),
-    [currentFileId, getOutlineTree, files]
+  const outlineRepos = useMemo(
+    () => (currentFileId ? getOutlineRepos(currentFileId) : []),
+    [currentFileId, getOutlineRepos, files]
   )
 
   const linkedRepos = useMemo(
     () => (currentFileId ? getLinkedRepos(currentFileId) : []),
     [currentFileId, getLinkedRepos, files]
   )
-
-  // Find the block ID of the system outline (identified strictly by source="outline")
-  const outlineBlockId = currentFileId
-    ? getBlocks(currentFileId).find(
-        (b) =>
-          b.block_type === 'directory' &&
-          (b.contents as unknown as DirectoryContents)?.source === 'outline'
-      )?.block_id
-    : null
 
   // --- Handlers ---
 
@@ -285,6 +267,27 @@ export const FilePanel = () => {
     }
   }
 
+  const handleAddWorkdir = async (name: string) => {
+    if (!currentFileId) return
+
+    try {
+      // Create a new outline directory block
+      await TauriClient.block.createBlock(
+        currentFileId,
+        name,
+        'directory',
+        activeEditorId,
+        'outline'
+      )
+
+      await loadBlocks(currentFileId)
+      toast.success(`Workdir "${name}" created`)
+    } catch (error) {
+      toast.error(`Failed to create workdir: ${error}`)
+      throw error // Re-throw to let dialog handle loading state
+    }
+  }
+
   return (
     <aside className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-secondary/30">
       {/* Breadcrumbs */}
@@ -308,105 +311,109 @@ export const FilePanel = () => {
           {/* OUTLINE Section */}
           <div className="mb-3 px-2">
             <div className="mb-2 flex items-center justify-between px-1">
-              <span
-                className={cn(
-                  'cursor-pointer rounded-sm px-1 text-xs font-semibold uppercase tracking-wide transition-colors',
-                  outlineBlockId && selectedBlockId === outlineBlockId
-                    ? 'bg-accent/10 text-accent'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                )}
-                onClick={() => outlineBlockId && selectBlock(outlineBlockId)}
-              >
+              <span className="whitespace-nowrap text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Outline
               </span>
-              <div className="flex items-center gap-1">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() =>
-                        outlineBlockId &&
-                        openCreateDialog(outlineBlockId, '', 'file', 'outline')
-                      }
-                    >
-                      <FileUp className="mr-2 h-3.5 w-3.5" />
-                      Add Document
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() =>
-                        outlineBlockId &&
-                        openCreateDialog(
-                          outlineBlockId,
-                          '',
-                          'directory',
-                          'outline'
-                        )
-                      }
-                    >
-                      <FolderUp className="mr-2 h-3.5 w-3.5" />
-                      Add Folder
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                    >
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() =>
-                        outlineBlockId &&
-                        handleExport(outlineBlockId, {
-                          path: '',
-                          name: 'Outline',
-                          type: 'directory',
-                          blockId: null,
-                          source: 'outline',
-                          children: [],
-                        })
-                      }
-                    >
-                      <Download className="mr-2 h-3.5 w-3.5" />
-                      Export All
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowAddWorkdirDialog(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
             </div>
-
-            <VfsTree
-              nodes={outlineTree}
-              activeBlockId={selectedBlockId}
-              onSelect={handleSelect}
-              onAddChild={(node, type) =>
-                outlineBlockId &&
-                openCreateDialog(outlineBlockId, node.path, type, 'outline')
-              }
-              onRename={(node, newName) =>
-                outlineBlockId && handleRename(outlineBlockId, node, newName)
-              }
-              onDelete={(node) =>
-                outlineBlockId && handleDelete(outlineBlockId, node)
-              }
-              onExport={(node) =>
-                outlineBlockId && handleExport(outlineBlockId, node)
-              }
-            />
+            <div className="space-y-4">
+              {outlineRepos.map((repo) => (
+                <div key={repo.blockId} className="space-y-1">
+                  <div className="group flex items-center justify-between px-1">
+                    <span
+                      className={cn(
+                        'cursor-pointer truncate rounded-sm px-1 text-xs font-medium transition-colors',
+                        selectedBlockId === repo.blockId
+                          ? 'bg-accent/10 text-accent'
+                          : 'text-muted-foreground/80 hover:bg-muted hover:text-foreground'
+                      )}
+                      onClick={() => selectBlock(repo.blockId)}
+                    >
+                      {repo.name}
+                    </span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="rounded p-0.5 text-muted-foreground opacity-0 hover:bg-muted group-hover:opacity-100">
+                          <MoreHorizontal className="h-3 w-3" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() =>
+                            openCreateDialog(
+                              repo.blockId,
+                              '',
+                              'file',
+                              'outline'
+                            )
+                          }
+                        >
+                          <FileUp className="mr-2 h-3.5 w-3.5" />
+                          Add Document
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            openCreateDialog(
+                              repo.blockId,
+                              '',
+                              'directory',
+                              'outline'
+                            )
+                          }
+                        >
+                          <FolderUp className="mr-2 h-3.5 w-3.5" />
+                          Add Folder
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            handleExport(repo.blockId, {
+                              path: '',
+                              name: repo.name,
+                              type: 'directory',
+                              blockId: null,
+                              source: 'outline',
+                              children: [],
+                            })
+                          }
+                        >
+                          <Download className="mr-2 h-3.5 w-3.5" />
+                          Export
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            handleDeleteRepo(repo.blockId, repo.name)
+                          }
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-3.5 w-3.5" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <VfsTree
+                    nodes={repo.tree}
+                    activeBlockId={selectedBlockId}
+                    onSelect={handleSelect}
+                    onAddChild={(node, type) =>
+                      openCreateDialog(repo.blockId, node.path, type, 'outline')
+                    }
+                    onRename={(node, newName) =>
+                      handleRename(repo.blockId, node, newName)
+                    }
+                    onDelete={(node) => handleDelete(repo.blockId, node)}
+                    onExport={(node) => handleExport(repo.blockId, node)}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
 
           <Separator className="my-2" />
@@ -495,7 +502,7 @@ export const FilePanel = () => {
                           }
                         >
                           <Download className="mr-2 h-3.5 w-3.5" />
-                          Export Project
+                          Export
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() =>
@@ -504,7 +511,7 @@ export const FilePanel = () => {
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 className="mr-2 h-3.5 w-3.5" />
-                          Delete Project
+                          Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -545,6 +552,12 @@ export const FilePanel = () => {
           if (source === 'Local File') handleImport(false)
           else handleImport(true)
         }}
+      />
+
+      <AddWorkdirDialog
+        open={showAddWorkdirDialog}
+        onOpenChange={setShowAddWorkdirDialog}
+        onConfirm={handleAddWorkdir}
       />
     </aside>
   )

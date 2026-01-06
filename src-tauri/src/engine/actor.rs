@@ -322,11 +322,14 @@ impl ElfileEngineActor {
         let mut events = handler.handler(&cmd, block_opt.as_ref())?;
 
         // 5. Update vector clock
-        let current_count = self.state.get_editor_count(&cmd.editor_id);
+        // Get the full current vector clock state and increment the current editor's count
+        let mut full_timestamp = self.state.editor_counts.clone();
+        let current_count = *full_timestamp.get(&cmd.editor_id).unwrap_or(&0);
         let new_count = current_count + 1;
+        full_timestamp.insert(cmd.editor_id.clone(), new_count);
 
         for event in &mut events {
-            event.timestamp.insert(cmd.editor_id.clone(), new_count);
+            event.timestamp = full_timestamp.clone();
         }
 
         // 5.5. Special handling: inject _block_dir for core.create

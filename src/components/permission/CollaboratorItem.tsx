@@ -25,6 +25,7 @@ import type { Editor, Grant } from '@/bindings'
 
 interface CollaboratorItemProps {
   blockId: string
+  blockType: string
   editor: Editor
   grants: Grant[]
   isOwner: boolean
@@ -37,14 +38,41 @@ interface CollaboratorItemProps {
   onRemoveAccess?: (editorId: string) => Promise<void>
 }
 
-const AVAILABLE_CAPABILITIES = [
-  { id: 'markdown.read', label: 'Read', icon: BookOpen },
-  { id: 'markdown.write', label: 'Write', icon: Edit2 },
-  { id: 'core.delete', label: 'Delete', icon: Trash2 },
-]
+// Permission mapping:
+// - All blocks have unified Read, Write, Delete permissions
+// - Read: block_type.read (markdown.read, code.read, directory.read)
+// - Write:
+//   - Markdown/Code: block_type.write (markdown.write, code.write)
+//   - Directory: Represents directory.create, delete, rename, export capabilities
+// - Delete: core.delete (unified for all block types)
+const getAvailableCapabilities = (blockType: string) => {
+  if (blockType === 'code') {
+    return [
+      { id: 'code.read', label: 'Read', icon: BookOpen },
+      { id: 'code.write', label: 'Write', icon: Edit2 },
+      { id: 'core.delete', label: 'Delete', icon: Trash2 },
+    ]
+  } else if (blockType === 'directory') {
+    return [
+      { id: 'directory.read', label: 'Read', icon: BookOpen },
+      // Directory Write represents directory.create, directory.delete, directory.rename, directory.export
+      // Frontend shows as "Write" but backend checks these individual capabilities
+      { id: 'directory.write', label: 'Write', icon: Edit2 },
+      { id: 'core.delete', label: 'Delete', icon: Trash2 },
+    ]
+  } else {
+    // markdown and other types default to markdown capabilities
+    return [
+      { id: 'markdown.read', label: 'Read', icon: BookOpen },
+      { id: 'markdown.write', label: 'Write', icon: Edit2 },
+      { id: 'core.delete', label: 'Delete', icon: Trash2 },
+    ]
+  }
+}
 
 export const CollaboratorItem = ({
   blockId,
+  blockType,
   editor,
   grants,
   isOwner,
@@ -110,6 +138,9 @@ export const CollaboratorItem = ({
 
   const isBot = editor.editor_type === 'Bot'
 
+  // Get available capabilities for this block type
+  const availableCapabilities = getAvailableCapabilities(blockType)
+
   return (
     <div className="rounded-lg border border-border/50 bg-card p-3 transition-colors hover:bg-muted/50">
       {/* Top Row: User Info */}
@@ -164,6 +195,7 @@ export const CollaboratorItem = ({
                 size="icon"
                 className="h-6 w-6 text-muted-foreground hover:text-foreground"
                 disabled={isRemoving}
+                data-testid={`menu-trigger-${editor.editor_id}`}
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
@@ -190,7 +222,7 @@ export const CollaboratorItem = ({
 
       {/* Bottom Row: Permissions */}
       <div className="flex flex-wrap items-center gap-3 pl-12">
-        {AVAILABLE_CAPABILITIES.map((capability) => {
+        {availableCapabilities.map((capability) => {
           const Icon = capability.icon
           const checked = hasCapability(capability.id)
           const isLoading = loadingCapabilities.has(capability.id)
@@ -225,6 +257,7 @@ export const CollaboratorItem = ({
                 checked={checked}
                 disabled={isOwner || isLoading}
                 className="pointer-events-none h-4 w-4"
+                data-testid={`checkbox-${editor.editor_id}-${capability.id}`}
               />
               <div
                 className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${
