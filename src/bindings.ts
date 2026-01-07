@@ -180,30 +180,6 @@ export const commands = {
     }
   },
   /**
-   * Remove a file from the open files list.
-   *
-   * This closes the file and removes it from memory, but does NOT delete the physical file.
-   * The file remains on disk and can be reopened later.
-   *
-   * # Arguments
-   * * `file_id` - Unique identifier of the file to remove from the list
-   *
-   * # Returns
-   * * `Ok(())` - File removed from list successfully
-   * * `Err(message)` - Error description if removal fails
-   */
-  async deleteFile(fileId: string): Promise<Result<null, string>> {
-    try {
-      return {
-        status: 'ok',
-        data: await TAURI_INVOKE('delete_file', { fileId }),
-      }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e as any }
-    }
-  },
-  /**
    * Duplicate (copy) an existing .elf file.
    *
    * This creates a copy of the file with a new name and opens it for editing.
@@ -242,48 +218,6 @@ export const commands = {
       return {
         status: 'ok',
         data: await TAURI_INVOKE('get_system_editor_id_from_config'),
-      }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e as any }
-    }
-  },
-  /**
-   * Get block content at a specific event (time-travel to historical state).
-   *
-   * This command enables the "restore" functionality in the Timeline feature.
-   * It reconstructs the block's content at the moment of a specific event by
-   * replaying all events up to and including that event.
-   *
-   * # Arguments
-   * * `file_id` - Unique identifier of the file
-   * * `block_id` - Unique identifier of the block
-   * * `event_id` - Unique identifier of the target event
-   *
-   * # Returns
-   * * `Ok(String)` - The markdown content of the block at that event
-   * * `Err(message)` - Error description if retrieval fails
-   *
-   * # Implementation Details
-   * 1. Fetches all events from the event store
-   * 2. Finds the index of the target event
-   * 3. Creates a temporary StateProjector
-   * 4. Replays events up to the target event
-   * 5. Extracts the block's markdown content from the projected state
-   */
-  async getBlockAtEvent(
-    fileId: string,
-    blockId: string,
-    eventId: string
-  ): Promise<Result<Block, string>> {
-    try {
-      return {
-        status: 'ok',
-        data: await TAURI_INVOKE('get_block_at_event', {
-          fileId,
-          blockId,
-          eventId,
-        }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -457,33 +391,6 @@ export const commands = {
       return {
         status: 'ok',
         data: await TAURI_INVOKE('rename_block', { fileId, blockId, name }),
-      }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e as any }
-    }
-  },
-  /**
-   * Update block type.
-   *
-   * # Arguments
-   * * `file_id` - Unique identifier of the file
-   * * `block_id` - Unique identifier of the block
-   * * `block_type` - New type for the block
-   */
-  async updateBlockType(
-    fileId: string,
-    blockId: string,
-    blockType: string
-  ): Promise<Result<Event[], string>> {
-    try {
-      return {
-        status: 'ok',
-        data: await TAURI_INVOKE('update_block_type', {
-          fileId,
-          blockId,
-          blockType,
-        }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -706,31 +613,6 @@ export const commands = {
       return {
         status: 'ok',
         data: await TAURI_INVOKE('list_grants', { fileId, editorId }),
-      }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e as any }
-    }
-  },
-  /**
-   * Get grants for a specific editor.
-   *
-   * # Arguments
-   * * `file_id` - Unique identifier of the file
-   * * `editor_id` - Unique identifier of the editor
-   *
-   * # Returns
-   * * `Ok(Vec<Grant>)` - List of grants for the editor
-   * * `Err(message)` - Error if file is not open
-   */
-  async getEditorGrants(
-    fileId: string,
-    editorId: string
-  ): Promise<Result<Grant[], string>> {
-    try {
-      return {
-        status: 'ok',
-        data: await TAURI_INVOKE('get_editor_grants', { fileId, editorId }),
       }
     } catch (e) {
       if (e instanceof Error) throw e

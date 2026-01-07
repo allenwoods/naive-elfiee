@@ -15,39 +15,6 @@ pub struct StateSnapshot {
     pub grants: Vec<Grant>,
 }
 
-/// Get block content at a specific event (time-travel to historical state).
-///
-/// This command enables the "restore" functionality in the Timeline feature.
-/// It reconstructs the block's content at the moment of a specific event by
-/// replaying all events up to and including that event.
-///
-/// # Arguments
-/// * `file_id` - Unique identifier of the file
-/// * `block_id` - Unique identifier of the block
-/// * `event_id` - Unique identifier of the target event
-///
-/// # Returns
-/// * `Ok(String)` - The markdown content of the block at that event
-/// * `Err(message)` - Error description if retrieval fails
-///
-/// # Implementation Details
-/// 1. Fetches all events from the event store
-/// 2. Finds the index of the target event
-/// 3. Creates a temporary StateProjector
-/// 4. Replays events up to the target event
-/// 5. Extracts the block's markdown content from the projected state
-#[tauri::command]
-#[specta]
-pub async fn get_block_at_event(
-    file_id: String,
-    block_id: String,
-    event_id: String,
-    state: State<'_, AppState>,
-) -> Result<crate::models::Block, String> {
-    let snapshot = get_state_at_event(file_id, block_id, event_id, state).await?;
-    Ok(snapshot.block)
-}
-
 /// Get the full state snapshot (block + grants) at a specific event.
 #[tauri::command]
 #[specta]

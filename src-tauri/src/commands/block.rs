@@ -271,39 +271,6 @@ pub async fn rename_block(
     handle.process_command(cmd).await
 }
 
-/// Update block type.
-///
-/// # Arguments
-/// * `file_id` - Unique identifier of the file
-/// * `block_id` - Unique identifier of the block
-/// * `block_type` - New type for the block
-#[tauri::command]
-#[specta]
-pub async fn update_block_type(
-    file_id: String,
-    block_id: String,
-    block_type: String,
-    state: State<'_, AppState>,
-) -> Result<Vec<Event>, String> {
-    let handle = state
-        .engine_manager
-        .get_engine(&file_id)
-        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
-
-    let editor_id = state
-        .get_active_editor(&file_id)
-        .ok_or_else(|| "No active editor".to_string())?;
-
-    let cmd = Command::new(
-        editor_id,
-        "core.change_type".to_string(),
-        block_id,
-        serde_json::json!({ "block_type": block_type }),
-    );
-
-    handle.process_command(cmd).await
-}
-
 /// Check if current editor has permission for a capability on a block.
 #[tauri::command]
 #[specta]

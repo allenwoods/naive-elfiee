@@ -6,7 +6,6 @@ import { CollaboratorItem } from './CollaboratorItem'
 import { AddCollaboratorDialog } from './AddCollaboratorDialog'
 import { toast } from 'sonner'
 import type { Block, Editor } from '@/bindings'
-import { TauriClient } from '@/lib/tauri-client'
 
 interface CollaboratorListProps {
   fileId: string
@@ -39,6 +38,7 @@ export const CollaboratorList = ({
   })
   const grantCapability = useAppStore((state) => state.grantCapability)
   const revokeCapability = useAppStore((state) => state.revokeCapability)
+  const checkPermission = useAppStore((state) => state.checkPermission)
 
   // NOTE: We do NOT use deleteEditor here anymore.
   // "Removing access" simply means revoking all permissions on this block.
@@ -83,12 +83,7 @@ export const CollaboratorList = ({
     try {
       // Check if current user has permission to grant/revoke
       const requiredCap = granted ? 'core.grant' : 'core.revoke'
-      const hasPermission = await TauriClient.block.checkPermission(
-        fileId,
-        blockId,
-        requiredCap,
-        activeEditor?.editor_id
-      )
+      const hasPermission = await checkPermission(fileId, blockId, requiredCap)
 
       if (!hasPermission) {
         toast.error(
@@ -151,7 +146,7 @@ export const CollaboratorList = ({
   const [canAddCollaborator, setCanAddCollaborator] = useState(false)
 
   useEffect(() => {
-    const checkPermission = async () => {
+    const checkCanAddCollaborator = async () => {
       if (!activeEditor?.editor_id) {
         setCanAddCollaborator(false)
         return
@@ -159,11 +154,10 @@ export const CollaboratorList = ({
       try {
         // To add a collaborator, you generally need to be able to grant permissions
         // or create editors. We check 'core.grant' as the primary gatekeeper.
-        const hasPermission = await TauriClient.block.checkPermission(
+        const hasPermission = await checkPermission(
           fileId,
           blockId,
-          'core.grant',
-          activeEditor.editor_id
+          'core.grant'
         )
         setCanAddCollaborator(hasPermission)
       } catch (error) {
@@ -171,10 +165,10 @@ export const CollaboratorList = ({
         setCanAddCollaborator(false)
       }
     }
-    checkPermission()
-  }, [fileId, blockId, activeEditor?.editor_id])
+    checkCanAddCollaborator()
+  }, [fileId, blockId, activeEditor?.editor_id, checkPermission])
 
-  const handleAddSuccess = (editor: Editor) => {
+  const handleAddSuccess = (_editor: Editor) => {
     // Dialog handles the creation and granting. We just refresh the list (via store subscription).
     // No extra action needed here.
   }

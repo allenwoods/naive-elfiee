@@ -10,7 +10,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/lib/app-store'
-import { TauriClient } from '@/lib/tauri-client'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -33,10 +32,16 @@ export const FilePanel = () => {
     currentFileId,
     selectedBlockId,
     selectBlock,
-    loadBlocks,
-    getActiveEditor,
     getOutlineRepos,
     getLinkedRepos,
+    getBlocks,
+    createEntry,
+    renameEntry,
+    deleteEntry,
+    importDirectory,
+    checkoutWorkspace,
+    createBlock,
+    deleteBlock,
     files,
   } = useAppStore()
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
@@ -48,11 +53,6 @@ export const FilePanel = () => {
     type: 'file' as 'file' | 'directory',
     source: 'outline' as 'outline' | 'linked',
   })
-
-  // Get active editor ID for operations
-  const activeEditorId = currentFileId
-    ? getActiveEditor(currentFileId)?.editor_id
-    : undefined
 
   // No need to initialize system outline - users create their own outline blocks
 
@@ -97,24 +97,13 @@ export const FilePanel = () => {
     const path = parentPath ? `${parentPath}/${name}` : name
 
     try {
-      await TauriClient.directory.createEntry(
-        currentFileId,
-        directoryBlockId,
-        path,
-        type,
-        {
-          source,
-          // Note: block_type will be inferred by backend based on file extension
-        },
-        activeEditorId
-      )
-      await loadBlocks(currentFileId)
-      toast.success(
-        `${type === 'file' ? (source === 'outline' ? 'Document' : 'File') : 'Folder'} created`
-      )
+      await createEntry(currentFileId, directoryBlockId, path, type, {
+        source,
+        // Note: block_type will be inferred by backend based on file extension
+      })
+      // Note: toast is already shown by the createEntry Action
     } catch (error) {
-      // Backend validation errors will be displayed here
-      toast.error(`Failed to create ${type}: ${error}`)
+      // Error toast is already shown by the Action
     }
   }
 
@@ -126,20 +115,17 @@ export const FilePanel = () => {
     if (!currentFileId) return
 
     try {
-      await TauriClient.directory.renameEntry(
+      await renameEntry(
         currentFileId,
         directoryBlockId,
         node.path,
         node.path.includes('/')
           ? `${node.path.substring(0, node.path.lastIndexOf('/'))}/${newName}`
-          : newName,
-        activeEditorId
+          : newName
       )
-      await loadBlocks(currentFileId)
-      toast.success('Renamed successfully')
+      // Note: toast is already shown by the renameEntry Action
     } catch (error) {
-      // Backend validation errors will be displayed here
-      toast.error(`Failed to rename: ${error}`)
+      // Error toast is already shown by the Action
     }
   }
 
@@ -152,16 +138,10 @@ export const FilePanel = () => {
     if (!confirmed) return
 
     try {
-      await TauriClient.directory.deleteEntry(
-        currentFileId,
-        directoryBlockId,
-        node.path,
-        activeEditorId
-      )
-      await loadBlocks(currentFileId)
-      toast.success('Deleted successfully')
+      await deleteEntry(currentFileId, directoryBlockId, node.path)
+      // Note: toast is already shown by the deleteEntry Action
     } catch (error) {
-      toast.error(`Failed to delete: ${error}`)
+      // Error toast is already shown by the Action
     }
   }
 
@@ -175,15 +155,10 @@ export const FilePanel = () => {
     if (!confirmed) return
 
     try {
-      await TauriClient.block.deleteBlock(
-        currentFileId,
-        blockId,
-        activeEditorId
-      )
-      await loadBlocks(currentFileId)
-      toast.success('Repository deleted successfully')
+      await deleteBlock(currentFileId, blockId)
+      // Note: toast is already shown by the deleteBlock Action
     } catch (error) {
-      toast.error(`Failed to delete repository: ${error}`)
+      // Error toast is already shown by the Action
     }
   }
 
@@ -198,16 +173,16 @@ export const FilePanel = () => {
       })
 
       if (selected && typeof selected === 'string') {
-        await TauriClient.directory.checkoutWorkspace(
+        await checkoutWorkspace(
           currentFileId,
           directoryBlockId,
           selected,
           node.path !== '' ? node.path : undefined
         )
-        toast.success(`Exported to ${selected}`)
+        // Note: toast is already shown by the checkoutWorkspace Action
       }
     } catch (error) {
-      toast.error(`Export failed: ${error}`)
+      // Error toast is already shown by the Action
     }
   }
 
@@ -234,34 +209,22 @@ export const FilePanel = () => {
       }
 
       // 1. Create the Directory Block
-      const events = await TauriClient.block.createBlock(
-        currentFileId,
-        uniqueName,
-        'directory',
-        activeEditorId,
-        'linked'
+      await createBlock(currentFileId, uniqueName, 'directory')
+
+      // 2. Get the newly created block ID
+      const blocks = getBlocks(currentFileId)
+      const newBlock = blocks.find(
+        (b) => b.name === uniqueName && b.block_type === 'directory'
       )
-      const createEvent = events.find((e) =>
-        e.attribute.endsWith('/core.create')
-      )
-      if (!createEvent) {
-        throw new Error(
-          'Failed to create directory block: no create event returned'
-        )
+      if (!newBlock) {
+        throw new Error('Failed to create directory block')
       }
-      const newBlockId = createEvent.entity
+      const newBlockId = newBlock.block_id
 
-      // 2. Import the directory contents
-      await TauriClient.directory.importDirectory(
-        currentFileId,
-        newBlockId,
-        sourcePath,
-        undefined,
-        activeEditorId
-      )
+      // 3. Import the directory contents
+      await importDirectory(currentFileId, newBlockId, sourcePath, undefined)
 
-      await loadBlocks(currentFileId)
-      toast.success(`Imported "${uniqueName}" successfully`)
+      // Note: toast is already shown by the Actions
     } catch (error) {
       toast.error(`Import failed: ${error}`)
     }
@@ -272,18 +235,10 @@ export const FilePanel = () => {
 
     try {
       // Create a new outline directory block
-      await TauriClient.block.createBlock(
-        currentFileId,
-        name,
-        'directory',
-        activeEditorId,
-        'outline'
-      )
-
-      await loadBlocks(currentFileId)
-      toast.success(`Workdir "${name}" created`)
+      await createBlock(currentFileId, name, 'directory', 'outline')
+      // Note: toast is already shown by the createBlock Action
     } catch (error) {
-      toast.error(`Failed to create workdir: ${error}`)
+      // Error toast is already shown by the Action
       throw error // Re-throw to let dialog handle loading state
     }
   }

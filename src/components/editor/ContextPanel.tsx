@@ -23,7 +23,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useAppStore } from '@/lib/app-store'
-import { TauriClient } from '@/lib/tauri-client'
+import { sortEventsByVectorClock } from '@/utils/event-utils'
 import { CollaboratorList } from '@/components/permission/CollaboratorList'
 import { toast } from 'sonner'
 import type { Block, Event } from '@/bindings'
@@ -31,18 +31,16 @@ import type { Block, Event } from '@/bindings'
 const InfoTab = ({
   block,
   fileId,
-  activeEditorId,
 }: {
   block: Block | null
   fileId: string | null
-  activeEditorId: string | null | undefined
 }) => {
   const [isEditingDescription, setIsEditingDescription] = useState(false)
   const [editedDescription, setEditedDescription] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [copiedBlockId, setCopiedBlockId] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { updateBlockMetadata, getEditors } = useAppStore()
+  const { updateBlockMetadata, getEditors, checkPermission } = useAppStore()
 
   // Extract metadata
   const metadata = block?.metadata as {
@@ -107,12 +105,11 @@ const InfoTab = ({
 
     setIsSaving(true)
     try {
-      // Permission check
-      const hasPermission = await TauriClient.block.checkPermission(
+      // Permission check using Action
+      const hasPermission = await checkPermission(
         fileId,
         block.block_id,
-        'core.update_metadata',
-        activeEditorId || undefined
+        'core.update_metadata'
       )
 
       if (!hasPermission) {
@@ -365,8 +362,8 @@ const TimelineTab = ({
   })
 
   const sortedEvents = useMemo(() => {
-    // Use the project's standardized vector clock sorting for ordering (descending: newest first)
-    return TauriClient.event.sortEventsByVectorClock(events)
+    // Use the standardized vector clock sorting for ordering (descending: newest first)
+    return sortEventsByVectorClock(events)
   }, [events])
 
   const handleRestore = async (eventId: string) => {
@@ -561,11 +558,6 @@ const ContextPanel = () => {
   // Get values separately for use in other components and hooks
   const currentFileId = useAppStore((state) => state.currentFileId)
   const selectedBlockId = useAppStore((state) => state.selectedBlockId)
-  // Retrieve active editor ID
-  const activeEditorId = useAppStore((state) => {
-    if (!currentFileId) return null
-    return state.files.get(currentFileId)?.activeEditorId
-  })
 
   // IMPORTANT: Permission checks are handled by backend
   // Backend only returns blocks/data that the current user has permission to access
@@ -651,11 +643,7 @@ const ContextPanel = () => {
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-6 p-4">
             <TabsContent value="info" className="mt-0">
-              <InfoTab
-                block={block}
-                fileId={currentFileId}
-                activeEditorId={activeEditorId}
-              />
+              <InfoTab block={block} fileId={currentFileId} />
             </TabsContent>
 
             <TabsContent value="collaborators" className="mt-0">

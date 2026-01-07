@@ -35,11 +35,9 @@ pub fn run() {
                 commands::file::get_all_events,
                 commands::file::get_file_info,
                 commands::file::rename_file,
-                commands::file::delete_file,
                 commands::file::duplicate_file,
                 commands::file::get_system_editor_id_from_config,
                 // Event operations (Timeline feature)
-                commands::event::get_block_at_event,
                 commands::event::get_state_at_event,
                 // Block operations (core)
                 commands::block::execute_command,
@@ -47,7 +45,6 @@ pub fn run() {
                 commands::block::get_all_blocks,
                 commands::block::update_block_metadata,
                 commands::block::rename_block,
-                commands::block::update_block_type,
                 commands::block::check_permission,
                 // Editor operations
                 commands::editor::create_editor,
@@ -58,7 +55,6 @@ pub fn run() {
                 commands::editor::get_active_editor,
                 // Grant operations
                 commands::editor::list_grants,
-                commands::editor::get_editor_grants,
                 commands::editor::get_block_grants,
                 // Workspace/Checkout operations
                 commands::checkout::checkout_workspace,
@@ -127,11 +123,9 @@ pub fn run() {
         commands::file::get_all_events,
         commands::file::get_file_info,
         commands::file::rename_file,
-        commands::file::delete_file,
         commands::file::duplicate_file,
         commands::file::get_system_editor_id_from_config,
         // Event operations (Timeline feature)
-        commands::event::get_block_at_event,
         commands::event::get_state_at_event,
         // Block operations (core)
         commands::block::execute_command,
@@ -139,17 +133,16 @@ pub fn run() {
         commands::block::get_all_blocks,
         commands::block::update_block_metadata,
         commands::block::rename_block,
-        commands::block::update_block_type,
         commands::block::check_permission,
         // Editor operations
         commands::editor::create_editor,
+        commands::editor::delete_editor,
         commands::editor::list_editors,
         commands::editor::get_editor,
         commands::editor::set_active_editor,
         commands::editor::get_active_editor,
         // Grant operations
         commands::editor::list_grants,
-        commands::editor::get_editor_grants,
         commands::editor::get_block_grants,
         // Workspace/Checkout operations
         commands::checkout::checkout_workspace,

@@ -34,9 +34,13 @@ interface AppStore {
   openFile: (path: string) => Promise<string>
   setCurrentFile: (fileId: string | null) => void
   getFileMetadata: (fileId: string) => FileMetadata | null
-  getAllFiles: () => string[]
-  initializeOpenFiles: () => Promise<void>
+  getFileInfo: (fileId: string) => Promise<FileMetadata>
+  listOpenFiles: () => Promise<string[]>
   saveFile: (fileId: string) => Promise<void>
+  createFile: (path: string) => Promise<string>
+  renameFile: (fileId: string, newName: string) => Promise<void>
+  duplicateFile: (fileId: string) => Promise<string>
+  closeFile: (fileId: string) => Promise<void>
 
   // Block operations
   loadBlocks: (fileId: string) => Promise<void>
@@ -52,7 +56,8 @@ interface AppStore {
   createBlock: (
     fileId: string,
     name: string,
-    blockType: string
+    blockType: string,
+    source?: string
   ) => Promise<void>
   deleteBlock: (fileId: string, blockId: string) => Promise<void>
   renameBlock: (
@@ -65,6 +70,11 @@ interface AppStore {
     blockId: string,
     metadata: Record<string, unknown>
   ) => Promise<void>
+  checkPermission: (
+    fileId: string,
+    blockId: string,
+    capability: string
+  ) => Promise<boolean>
 
   // Directory/VFS operations
   getOutlineTree: (fileId: string) => VfsNode[]
@@ -74,6 +84,32 @@ interface AppStore {
   getLinkedRepos: (
     fileId: string
   ) => { blockId: string; name: string; tree: VfsNode[] }[]
+  createEntry: (
+    fileId: string,
+    blockId: string,
+    path: string,
+    type: 'file' | 'directory',
+    options?: { content?: string; block_type?: string; source?: string }
+  ) => Promise<void>
+  renameEntry: (
+    fileId: string,
+    blockId: string,
+    oldPath: string,
+    newPath: string
+  ) => Promise<void>
+  deleteEntry: (fileId: string, blockId: string, path: string) => Promise<void>
+  importDirectory: (
+    fileId: string,
+    blockId: string,
+    sourcePath: string,
+    targetPath?: string
+  ) => Promise<void>
+  checkoutWorkspace: (
+    fileId: string,
+    blockId: string,
+    targetPath: string,
+    sourcePath?: string
+  ) => Promise<void>
 
   // Editor operations
   loadEditors: (fileId: string) => Promise<void>
@@ -91,6 +127,7 @@ interface AppStore {
   setActiveEditor: (fileId: string, editorId: string) => Promise<void>
   getActiveEditor: (fileId: string) => Editor | undefined
   getEditors: (fileId: string) => Editor[]
+  getSystemEditorId: () => Promise<string>
 
   // Event and Grant operations
   getEvents: (fileId: string) => Event[]
@@ -170,47 +207,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return fileState?.metadata || null
   },
 
-  getAllFiles: () => {
-    return Array.from(get().files.keys())
-  },
-
-  initializeOpenFiles: async () => {
+  getFileInfo: async (fileId: string) => {
     try {
-      // Get all open files from backend
-      const fileIds = await TauriClient.file.listOpenFiles()
-
-      // Load metadata and editors for each file
-      const files = new Map(get().files)
-
-      for (const fileId of fileIds) {
-        // Skip if already loaded
-        if (files.has(fileId)) continue
-
-        // Get file metadata
-        const metadata = await TauriClient.file.getFileInfo(fileId)
-
-        // Initialize file state
-        files.set(fileId, {
-          fileId,
-          metadata,
-          editors: [],
-          activeEditorId: null,
-          blocks: [],
-          selectedBlockId: null,
-          events: [],
-          grants: [],
-        })
-      }
-
-      set({ files })
-
-      // Load editors for each file
-      for (const fileId of fileIds) {
-        await get().loadEditors(fileId)
-      }
+      return await TauriClient.file.getFileInfo(fileId)
     } catch (error) {
-      console.error('Failed to initialize open files:', error)
-      // Don't show toast on initialization failure - this is background work
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to get file info: ${errorMessage}`)
+      throw error
     }
   },
 
@@ -222,6 +226,82 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const errorMessage =
         error instanceof Error ? error.message : String(error)
       toast.error(`Failed to save file: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  listOpenFiles: async () => {
+    try {
+      return await TauriClient.file.listOpenFiles()
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to list open files: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  createFile: async (path: string) => {
+    try {
+      const fileId = await TauriClient.file.createFile(path)
+      // Note: Success toast is handled by the caller
+      return fileId
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to create file: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  renameFile: async (fileId: string, newName: string) => {
+    try {
+      await TauriClient.file.renameFile(fileId, newName)
+      // Update metadata in store if file is loaded
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState && fileState.metadata) {
+        const updatedMetadata = { ...fileState.metadata, name: newName }
+        files.set(fileId, { ...fileState, metadata: updatedMetadata })
+        set({ files })
+      }
+      // Note: Success toast is handled by the caller
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to rename file: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  duplicateFile: async (fileId: string) => {
+    try {
+      const newFileId = await TauriClient.file.duplicateFile(fileId)
+      // Note: Success toast is handled by the caller
+      return newFileId
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to duplicate file: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  closeFile: async (fileId: string) => {
+    try {
+      await TauriClient.file.closeFile(fileId)
+      // Remove file from store
+      const files = new Map(get().files)
+      files.delete(fileId)
+      // If this was the current file, clear current file
+      const currentFileId =
+        get().currentFileId === fileId ? null : get().currentFileId
+      set({ files, currentFileId })
+      // Note: Success toast is handled by the caller
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to close file: ${errorMessage}`)
       throw error
     }
   },
@@ -284,9 +364,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  createBlock: async (fileId: string, name: string, blockType: string) => {
+  createBlock: async (
+    fileId: string,
+    name: string,
+    blockType: string,
+    source?: string
+  ) => {
     try {
-      await TauriClient.block.createBlock(fileId, name, blockType)
+      await TauriClient.block.createBlock(
+        fileId,
+        name,
+        blockType,
+        undefined,
+        source
+      )
       // Reload blocks to get the new block
       await get().loadBlocks(fileId)
       toast.success('Block created successfully')
@@ -345,6 +436,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
         error instanceof Error ? error.message : String(error)
       toast.error(`Failed to update metadata: ${errorMessage}`)
       throw error
+    }
+  },
+
+  checkPermission: async (
+    fileId: string,
+    blockId: string,
+    capability: string
+  ) => {
+    try {
+      const fileState = get().files.get(fileId)
+      const activeEditorId = fileState?.activeEditorId || undefined
+      return await TauriClient.block.checkPermission(
+        fileId,
+        blockId,
+        capability,
+        activeEditorId
+      )
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.error(`Failed to check permission: ${errorMessage}`)
+      return false
     }
   },
 
@@ -449,6 +562,107 @@ export const useAppStore = create<AppStore>((set, get) => ({
         tree: buildTreeFromEntries(contents.entries || {}, blocks),
       }
     })
+  },
+
+  createEntry: async (
+    fileId: string,
+    blockId: string,
+    path: string,
+    type: 'file' | 'directory',
+    options?: { content?: string; block_type?: string; source?: string }
+  ) => {
+    try {
+      await TauriClient.directory.createEntry(
+        fileId,
+        blockId,
+        path,
+        type,
+        options
+      )
+      await get().loadBlocks(fileId)
+      toast.success('Entry created successfully')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to create entry: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  renameEntry: async (
+    fileId: string,
+    blockId: string,
+    oldPath: string,
+    newPath: string
+  ) => {
+    try {
+      await TauriClient.directory.renameEntry(fileId, blockId, oldPath, newPath)
+      await get().loadBlocks(fileId)
+      toast.success('Entry renamed successfully')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to rename entry: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  deleteEntry: async (fileId: string, blockId: string, path: string) => {
+    try {
+      await TauriClient.directory.deleteEntry(fileId, blockId, path)
+      await get().loadBlocks(fileId)
+      toast.success('Entry deleted successfully')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to delete entry: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  importDirectory: async (
+    fileId: string,
+    blockId: string,
+    sourcePath: string,
+    targetPath?: string
+  ) => {
+    try {
+      await TauriClient.directory.importDirectory(
+        fileId,
+        blockId,
+        sourcePath,
+        targetPath
+      )
+      await get().loadBlocks(fileId)
+      toast.success('Directory imported successfully')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to import directory: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  checkoutWorkspace: async (
+    fileId: string,
+    blockId: string,
+    targetPath: string,
+    sourcePath?: string
+  ) => {
+    try {
+      await TauriClient.directory.checkoutWorkspace(
+        fileId,
+        blockId,
+        targetPath,
+        sourcePath
+      )
+      toast.success('Workspace checked out successfully')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to checkout workspace: ${errorMessage}`)
+      throw error
+    }
   },
 
   // Editor operations
@@ -575,6 +789,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return fileState?.editors || []
   },
 
+  getSystemEditorId: async () => {
+    try {
+      return await TauriClient.file.getSystemEditorId()
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to get system editor ID: ${errorMessage}`)
+      throw error
+    }
+  },
+
   // Event and Grant operations
   getEvents: (fileId: string) => {
     const fileState = get().files.get(fileId)
@@ -583,7 +808,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   loadEvents: async (fileId: string) => {
     try {
-      const events = await TauriClient.event.getAllEvents(fileId, null)
+      const events = await TauriClient.event.getAllEvents(fileId)
       const files = new Map(get().files)
       const fileState = files.get(fileId)
       if (fileState) {
@@ -656,7 +881,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   loadGrants: async (fileId: string) => {
     try {
-      const grants = await TauriClient.editor.listGrants(fileId, null)
+      const grants = await TauriClient.editor.listGrants(fileId)
       const files = new Map(get().files)
       const fileState = files.get(fileId)
       if (fileState) {

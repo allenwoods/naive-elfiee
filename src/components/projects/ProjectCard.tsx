@@ -206,7 +206,7 @@ export const ProjectCard = ({
                     className="cursor-pointer text-destructive focus:text-destructive"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
+                    Remove
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

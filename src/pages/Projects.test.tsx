@@ -3,27 +3,38 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter } from 'react-router-dom'
 import Projects from './Projects'
-import { TauriClient } from '@/lib/tauri-client'
 import type { FileMetadata } from '@/bindings'
 
-// Mock TauriClient
-vi.mock('@/lib/tauri-client', () => ({
-  TauriClient: {
-    file: {
-      listOpenFiles: vi.fn(),
-      getFileInfo: vi.fn(),
-      renameFile: vi.fn(),
-      duplicateFile: vi.fn(),
-      deleteFile: vi.fn(),
-      openFile: vi.fn(),
-      createFile: vi.fn(),
-    },
-    block: {
-      createBlock: vi.fn(),
-      getAllBlocks: vi.fn(),
-      writeBlock: vi.fn(),
-    },
-  },
+// Mock useAppStore
+const mockListOpenFiles = vi.fn()
+const mockGetFileInfo = vi.fn()
+const mockRenameFile = vi.fn()
+const mockDuplicateFile = vi.fn()
+const mockCloseFile = vi.fn()
+const mockOpenFile = vi.fn()
+const mockCreateFile = vi.fn()
+const mockGetSystemEditorId = vi.fn().mockResolvedValue('system-owner')
+const mockGetEditors = vi.fn().mockReturnValue([])
+const mockGetActiveEditor = vi.fn().mockReturnValue(undefined)
+const mockSetActiveEditor = vi.fn()
+const mockDeleteEditor = vi.fn()
+
+vi.mock('@/lib/app-store', () => ({
+  useAppStore: () => ({
+    listOpenFiles: mockListOpenFiles,
+    getFileInfo: mockGetFileInfo,
+    renameFile: mockRenameFile,
+    duplicateFile: mockDuplicateFile,
+    closeFile: mockCloseFile,
+    openFile: mockOpenFile,
+    createFile: mockCreateFile,
+    getSystemEditorId: mockGetSystemEditorId,
+    getEditors: mockGetEditors,
+    getActiveEditor: mockGetActiveEditor,
+    setActiveEditor: mockSetActiveEditor,
+    deleteEditor: mockDeleteEditor,
+    currentFileId: null,
+  }),
 }))
 
 // Mock sonner toast
@@ -66,7 +77,7 @@ describe('Projects Component', () => {
 
   describe('Loading State', () => {
     it('should show loading state initially', () => {
-      vi.mocked(TauriClient.file.listOpenFiles).mockImplementation(
+      mockListOpenFiles.mockImplementation(
         () =>
           new Promise((resolve) => {
             setTimeout(() => resolve([]), 100)
@@ -79,7 +90,7 @@ describe('Projects Component', () => {
     })
 
     it('should hide loading state after data loads', async () => {
-      vi.mocked(TauriClient.file.listOpenFiles).mockResolvedValue([])
+      mockListOpenFiles.mockResolvedValue([])
 
       renderWithRouter(<Projects />)
 
@@ -96,11 +107,8 @@ describe('Projects Component', () => {
         createMockFileMetadata('file-2', 'Project 2'),
       ]
 
-      vi.mocked(TauriClient.file.listOpenFiles).mockResolvedValue([
-        'file-1',
-        'file-2',
-      ])
-      vi.mocked(TauriClient.file.getFileInfo).mockImplementation((id) => {
+      mockListOpenFiles.mockResolvedValue(['file-1', 'file-2'])
+      mockGetFileInfo.mockImplementation((id) => {
         const file = mockFiles.find((f) => f.file_id === id)
         return Promise.resolve(file!)
       })
@@ -114,7 +122,7 @@ describe('Projects Component', () => {
     })
 
     it('should show empty state when no projects', async () => {
-      vi.mocked(TauriClient.file.listOpenFiles).mockResolvedValue([])
+      mockListOpenFiles.mockResolvedValue([])
 
       renderWithRouter(<Projects />)
 
@@ -126,9 +134,7 @@ describe('Projects Component', () => {
     })
 
     it('should handle loading error', async () => {
-      vi.mocked(TauriClient.file.listOpenFiles).mockRejectedValue(
-        new Error('Failed to load')
-      )
+      mockListOpenFiles.mockRejectedValue(new Error('Failed to load'))
 
       renderWithRouter(<Projects />)
 
@@ -146,12 +152,8 @@ describe('Projects Component', () => {
         createMockFileMetadata('file-3', 'Angular App'),
       ]
 
-      vi.mocked(TauriClient.file.listOpenFiles).mockResolvedValue([
-        'file-1',
-        'file-2',
-        'file-3',
-      ])
-      vi.mocked(TauriClient.file.getFileInfo).mockImplementation((id) => {
+      mockListOpenFiles.mockResolvedValue(['file-1', 'file-2', 'file-3'])
+      mockGetFileInfo.mockImplementation((id) => {
         const file = mockFiles.find((f) => f.file_id === id)
         return Promise.resolve(file!)
       })
@@ -198,8 +200,8 @@ describe('Projects Component', () => {
         }),
       ]
 
-      vi.mocked(TauriClient.file.listOpenFiles).mockResolvedValue(['file-1'])
-      vi.mocked(TauriClient.file.getFileInfo).mockResolvedValue(mockFiles[0])
+      mockListOpenFiles.mockResolvedValue(['file-1'])
+      mockGetFileInfo.mockResolvedValue(mockFiles[0])
 
       renderWithRouter(<Projects />)
       const user = userEvent.setup()
@@ -262,13 +264,13 @@ describe('Projects Component', () => {
         'Original Project Copy'
       )
 
-      vi.mocked(TauriClient.file.listOpenFiles).mockResolvedValue(['file-1'])
-      vi.mocked(TauriClient.file.getFileInfo).mockImplementation((id) => {
+      mockListOpenFiles.mockResolvedValue(['file-1'])
+      mockGetFileInfo.mockImplementation((id) => {
         if (id === 'file-1') return Promise.resolve(originalFile)
         if (id === 'file-2') return Promise.resolve(duplicatedFile)
         return Promise.reject(new Error('File not found'))
       })
-      vi.mocked(TauriClient.file.duplicateFile).mockResolvedValue('file-2')
+      mockDuplicateFile.mockResolvedValue('file-2')
 
       renderWithRouter(<Projects />)
 
@@ -278,7 +280,7 @@ describe('Projects Component', () => {
 
       // Note: Actual button clicking would require the ProjectCard component to be properly rendered
       // This is a simplified test that verifies the handler logic
-      expect(TauriClient.file.duplicateFile).toBeDefined()
+      expect(mockDuplicateFile).toBeDefined()
     })
 
     it('should show success message after duplication', async () => {
@@ -290,13 +292,13 @@ describe('Projects Component', () => {
         'Test Project Copy'
       )
 
-      vi.mocked(TauriClient.file.listOpenFiles).mockResolvedValue(['file-1'])
-      vi.mocked(TauriClient.file.getFileInfo).mockImplementation((id) => {
+      mockListOpenFiles.mockResolvedValue(['file-1'])
+      mockGetFileInfo.mockImplementation((id) => {
         if (id === 'file-1') return Promise.resolve(originalFile)
         if (id === 'file-2') return Promise.resolve(duplicatedFile)
         return Promise.reject(new Error('File not found'))
       })
-      vi.mocked(TauriClient.file.duplicateFile).mockResolvedValue('file-2')
+      mockDuplicateFile.mockResolvedValue('file-2')
 
       renderWithRouter(<Projects />)
 
@@ -314,11 +316,9 @@ describe('Projects Component', () => {
 
       const originalFile = createMockFileMetadata('file-1', 'Test Project')
 
-      vi.mocked(TauriClient.file.listOpenFiles).mockResolvedValue(['file-1'])
-      vi.mocked(TauriClient.file.getFileInfo).mockResolvedValue(originalFile)
-      vi.mocked(TauriClient.file.duplicateFile).mockRejectedValue(
-        new Error('Duplication failed')
-      )
+      mockListOpenFiles.mockResolvedValue(['file-1'])
+      mockGetFileInfo.mockResolvedValue(originalFile)
+      mockDuplicateFile.mockRejectedValue(new Error('Duplication failed'))
 
       renderWithRouter(<Projects />)
 
@@ -332,7 +332,7 @@ describe('Projects Component', () => {
 
   describe('Filter and Sort', () => {
     it('should apply status filter', async () => {
-      vi.mocked(TauriClient.file.listOpenFiles).mockResolvedValue([])
+      mockListOpenFiles.mockResolvedValue([])
 
       renderWithRouter(<Projects />)
 
@@ -346,7 +346,7 @@ describe('Projects Component', () => {
     })
 
     it('should apply sort', async () => {
-      vi.mocked(TauriClient.file.listOpenFiles).mockResolvedValue([])
+      mockListOpenFiles.mockResolvedValue([])
 
       renderWithRouter(<Projects />)
 
@@ -367,11 +367,8 @@ describe('Projects Component', () => {
         createMockFileMetadata('file-2', 'Vue Application'),
       ]
 
-      vi.mocked(TauriClient.file.listOpenFiles).mockResolvedValue([
-        'file-1',
-        'file-2',
-      ])
-      vi.mocked(TauriClient.file.getFileInfo).mockImplementation((id) => {
+      mockListOpenFiles.mockResolvedValue(['file-1', 'file-2'])
+      mockGetFileInfo.mockImplementation((id) => {
         const file = mockFiles.find((f) => f.file_id === id)
         return Promise.resolve(file!)
       })

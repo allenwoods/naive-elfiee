@@ -8,7 +8,6 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { useAppStore } from '@/lib/app-store'
-import { TauriClient } from '@/lib/tauri-client'
 import { toast } from 'sonner'
 
 const DocumentEditor = () => {
@@ -44,7 +43,7 @@ const DocumentEditor = () => {
         } else {
           // File not in store, need to fetch metadata and initialize
           // This happens when user directly navigates to /editor/:fileId
-          const metadata = await TauriClient.file.getFileInfo(projectId)
+          const metadata = await store.getFileInfo(projectId)
 
           // Initialize file state in store
           const newFiles = new Map(files)
@@ -100,7 +99,8 @@ const DocumentEditor = () => {
               `[DocumentEditor] Unmounting, saving file: ${projectId}`
             )
             // Save pending changes
-            await TauriClient.file.saveFile(projectId)
+            const store = useAppStore.getState()
+            await store.saveFile(projectId)
 
             // NOTE: Temporarily disabled closeFile on unmount because in React Strict Mode (dev),
             // components mount/unmount/mount rapidly. This causes the file to be closed
@@ -109,7 +109,6 @@ const DocumentEditor = () => {
             // await TauriClient.file.closeFile(projectId)
 
             // Update store state if needed (optional, but good practice to clear current)
-            const store = useAppStore.getState()
             if (store.currentFileId === projectId) {
               store.setCurrentFile(null)
             }

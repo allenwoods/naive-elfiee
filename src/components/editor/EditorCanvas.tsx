@@ -10,13 +10,11 @@ import { mystParse } from 'myst-parser'
 import { MyST } from 'myst-to-react'
 import { Theme, ThemeProvider } from '@myst-theme/providers'
 import type { NodeRenderers } from '@myst-theme/providers'
-import type { Block } from '@/bindings'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { CodeBlockEditor } from './CodeBlockEditor'
-import { TauriClient } from '@/lib/tauri-client'
 import './myst-styles.css'
 
 // AST Node Types
@@ -51,9 +49,10 @@ const EmbeddedBlock = ({ blockId }: { blockId: string }) => {
   })
 
   const currentFileId = useAppStore((state) => state.currentFileId)
+  const checkPermission = useAppStore((state) => state.checkPermission)
 
   useEffect(() => {
-    const checkPermission = async () => {
+    const checkBlockPermission = async () => {
       if (!currentFileId) {
         setError('无法加载：未打开文件')
         setIsLoading(false)
@@ -71,18 +70,16 @@ const EmbeddedBlock = ({ blockId }: { blockId: string }) => {
         let permissionGranted = false
 
         if (block.block_type === 'markdown') {
-          permissionGranted = await TauriClient.block.checkPermission(
+          permissionGranted = await checkPermission(
             currentFileId,
             blockId,
-            'markdown.read',
-            undefined
+            'markdown.read'
           )
         } else if (block.block_type === 'code') {
-          permissionGranted = await TauriClient.block.checkPermission(
+          permissionGranted = await checkPermission(
             currentFileId,
             blockId,
-            'code.read',
-            undefined
+            'code.read'
           )
         } else {
           // For other block types, just show them
@@ -106,8 +103,8 @@ const EmbeddedBlock = ({ blockId }: { blockId: string }) => {
       }
     }
 
-    checkPermission()
-  }, [blockId, currentFileId, block])
+    checkBlockPermission()
+  }, [blockId, currentFileId, block, checkPermission])
 
   if (isLoading) {
     return (
@@ -461,21 +458,19 @@ const MySTDocument = ({
 
             // Check permission before navigating
             try {
-              const hasPermission = await TauriClient.block.checkPermission(
+              const checkPermission = useAppStore.getState().checkPermission
+              const hasPermission = await checkPermission(
                 currentFileId,
                 blockId,
-                'markdown.read',
-                undefined
+                'markdown.read'
               )
 
               if (!hasPermission) {
-                const hasCodePermission =
-                  await TauriClient.block.checkPermission(
-                    currentFileId,
-                    blockId,
-                    'code.read',
-                    undefined
-                  )
+                const hasCodePermission = await checkPermission(
+                  currentFileId,
+                  blockId,
+                  'code.read'
+                )
 
                 if (!hasCodePermission) {
                   toast.error('您没有读取此块的权限')
@@ -838,10 +833,10 @@ export const EditorCanvas = () => {
   const {
     currentFileId,
     selectedBlockId,
-    getBlock,
     updateBlock,
     saveFile,
     loadEvents,
+    checkPermission,
   } = useAppStore()
   const [isSaving, setIsSaving] = useState(false)
   const [documentContent, setDocumentContent] = useState<string>('')
@@ -852,12 +847,6 @@ export const EditorCanvas = () => {
     if (!currentFileId || !selectedBlockId) return null
     const fileState = state.files.get(currentFileId)
     return fileState?.blocks.find((b) => b.block_id === selectedBlockId) || null
-  })
-
-  // Retrieve active editor ID to check permissions against
-  const activeEditorId = useAppStore((state) => {
-    if (!currentFileId) return undefined
-    return state.files.get(currentFileId)?.activeEditorId || undefined
   })
 
   // Load block content when selectedBlock changes
@@ -919,11 +908,10 @@ export const EditorCanvas = () => {
         // Content changed: save block first (generates event)
         const capId =
           selectedBlock.block_type === 'code' ? 'code.write' : 'markdown.write'
-        const hasPermission = await TauriClient.block.checkPermission(
+        const hasPermission = await checkPermission(
           currentFileId,
           selectedBlockId,
-          capId,
-          activeEditorId
+          capId
         )
 
         if (!hasPermission) {
@@ -965,7 +953,7 @@ export const EditorCanvas = () => {
     selectedBlockId,
     selectedBlock,
     documentContent,
-    activeEditorId,
+    checkPermission,
     updateBlock,
     saveFile,
     loadEvents,

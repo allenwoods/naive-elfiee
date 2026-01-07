@@ -31,6 +31,7 @@ describe('Sidebar', () => {
   const deleteEditorMock = vi.fn()
   const getEditorsMock = vi.fn()
   const getActiveEditorMock = vi.fn()
+  const getSystemEditorIdMock = vi.fn().mockResolvedValue('system-editor-id')
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -45,6 +46,7 @@ describe('Sidebar', () => {
       getActiveEditor: getActiveEditorMock,
       setActiveEditor: setActiveEditorMock,
       deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
     })
   })
 
@@ -74,6 +76,7 @@ describe('Sidebar', () => {
       getActiveEditor: () => mockEditors[1], // Alice
       setActiveEditor: setActiveEditorMock,
       deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
     })
 
     renderSidebar()
@@ -102,6 +105,7 @@ describe('Sidebar', () => {
       getActiveEditor: () => mockEditors[1], // Alice
       setActiveEditor: setActiveEditorMock,
       deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
     })
 
     renderSidebar()
@@ -138,6 +142,7 @@ describe('Sidebar', () => {
       getActiveEditor: () => mockEditors[0], // System owner
       setActiveEditor: setActiveEditorMock,
       deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
     })
 
     renderSidebar()
@@ -180,6 +185,7 @@ describe('Sidebar', () => {
       getActiveEditor: () => mockEditors[1], // Alice (not system owner)
       setActiveEditor: setActiveEditorMock,
       deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
     })
 
     renderSidebar()
@@ -212,6 +218,7 @@ describe('Sidebar', () => {
       getActiveEditor: () => mockEditors[0], // System owner
       setActiveEditor: setActiveEditorMock,
       deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
     })
 
     renderSidebar()
