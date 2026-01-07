@@ -323,6 +323,11 @@ const MySTDocument = ({
   const [isSaving, setIsSaving] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Extract store methods at component level (React hooks pattern)
+  const currentFileId = useAppStore((state) => state.currentFileId)
+  const checkPermission = useAppStore((state) => state.checkPermission)
+  const selectBlock = useAppStore((state) => state.selectBlock)
+
   // Parse MyST content into AST
   // According to official guide: use unified processor with mystParser plugin
   const ast = useMemo(() => {
@@ -450,7 +455,6 @@ const MySTDocument = ({
           const handleClick = async (e: React.MouseEvent) => {
             e.preventDefault()
 
-            const currentFileId = useAppStore.getState().currentFileId
             if (!currentFileId) {
               toast.error('无法跳转：未打开文件')
               return
@@ -458,7 +462,6 @@ const MySTDocument = ({
 
             // Check permission before navigating
             try {
-              const checkPermission = useAppStore.getState().checkPermission
               const hasPermission = await checkPermission(
                 currentFileId,
                 blockId,
@@ -479,7 +482,7 @@ const MySTDocument = ({
               }
 
               // Navigate to block
-              useAppStore.getState().selectBlock(blockId)
+              selectBlock(blockId)
               toast.success('已跳转到引用块')
             } catch (error) {
               console.error('Failed to check permission:', error)
@@ -645,7 +648,7 @@ const MySTDocument = ({
         )
       },
     }),
-    []
+    [currentFileId, checkPermission, selectBlock]
   )
 
   const handleSave = useCallback(async () => {
