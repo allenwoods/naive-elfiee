@@ -13,9 +13,7 @@ vi.mock('@/lib/app-store', () => ({
 vi.mock('@/lib/tauri-client', () => ({
   TauriClient: {
     file: {
-      getSystemEditorIdFromConfig: vi
-        .fn()
-        .mockResolvedValue('system-editor-id'),
+      getSystemEditorId: vi.fn().mockResolvedValue('system-editor-id'),
     },
   },
 }))
