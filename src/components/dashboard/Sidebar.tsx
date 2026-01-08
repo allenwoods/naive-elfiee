@@ -39,7 +39,7 @@ export const Sidebar = () => {
   useEffect(() => {
     const loadSystemEditorId = async () => {
       try {
-        const id = await TauriClient.file.getSystemEditorIdFromConfig()
+        const id = await TauriClient.file.getSystemEditorId()
         setSystemEditorId(id)
       } catch (error) {
         console.error('Failed to get system editor ID:', error)
