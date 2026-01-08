@@ -37,6 +37,7 @@ export const FilePanel = () => {
     getBlocks,
     createEntry,
     renameEntry,
+    renameEntryWithTypeChange,
     deleteEntry,
     importDirectory,
     checkoutWorkspace,
@@ -114,16 +115,33 @@ export const FilePanel = () => {
   ) => {
     if (!currentFileId) return
 
+    const newPath = node.path.includes('/')
+      ? `${node.path.substring(0, node.path.lastIndexOf('/'))}/${newName}`
+      : newName
+
     try {
-      await renameEntry(
-        currentFileId,
-        directoryBlockId,
-        node.path,
-        node.path.includes('/')
-          ? `${node.path.substring(0, node.path.lastIndexOf('/'))}/${newName}`
-          : newName
-      )
-      // Note: toast is already shown by the renameEntry Action
+      // Check if extension changed for files
+      if (node.type === 'file' && node.blockId) {
+        const oldExt = node.name.includes('.') ? node.name.split('.').pop() : ''
+        const newExt = newName.includes('.') ? newName.split('.').pop() : ''
+
+        if (oldExt !== newExt) {
+          // Extension changed - prompt user to confirm atomic rename+type change
+          // User confirmed - use atomic operation: rename + type change
+          await renameEntryWithTypeChange(
+            currentFileId,
+            directoryBlockId,
+            node.path,
+            newPath,
+            undefined,
+            newExt
+          )
+          return
+        }
+      }
+
+      // No extension change - simple rename
+      await renameEntry(currentFileId, directoryBlockId, node.path, newPath)
     } catch (error) {
       // Error toast is already shown by the Action
     }

@@ -65,6 +65,12 @@ interface AppStore {
     blockId: string,
     newName: string
   ) => Promise<void>
+  changeBlockType: (
+    fileId: string,
+    blockId: string,
+    blockType?: string,
+    fileExtension?: string
+  ) => Promise<void>
   updateBlockMetadata: (
     fileId: string,
     blockId: string,
@@ -96,6 +102,14 @@ interface AppStore {
     blockId: string,
     oldPath: string,
     newPath: string
+  ) => Promise<void>
+  renameEntryWithTypeChange: (
+    fileId: string,
+    blockId: string,
+    oldPath: string,
+    newPath: string,
+    blockType?: string,
+    fileExtension?: string
   ) => Promise<void>
   deleteEntry: (fileId: string, blockId: string, path: string) => Promise<void>
   importDirectory: (
@@ -416,6 +430,29 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  changeBlockType: async (
+    fileId: string,
+    blockId: string,
+    blockType?: string,
+    fileExtension?: string
+  ) => {
+    try {
+      await TauriClient.block.changeBlockType(
+        fileId,
+        blockId,
+        blockType ?? null,
+        fileExtension ?? null
+      )
+      await get().loadBlocks(fileId)
+      toast.success('Block type changed successfully')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to change block type: ${errorMessage}`)
+      throw error
+    }
+  },
+
   updateBlockMetadata: async (
     fileId: string,
     blockId: string,
@@ -603,6 +640,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const errorMessage =
         error instanceof Error ? error.message : String(error)
       toast.error(`Failed to rename entry: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  renameEntryWithTypeChange: async (
+    fileId: string,
+    blockId: string,
+    oldPath: string,
+    newPath: string,
+    blockType?: string,
+    fileExtension?: string
+  ) => {
+    try {
+      await TauriClient.directory.renameEntryWithTypeChange(
+        fileId,
+        blockId,
+        oldPath,
+        newPath,
+        blockType,
+        fileExtension
+      )
+      await get().loadBlocks(fileId)
+      toast.success('Entry renamed and type changed successfully')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to rename entry with type change: ${errorMessage}`)
       throw error
     }
   },

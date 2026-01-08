@@ -45,6 +45,7 @@ pub fn run() {
                 commands::block::get_all_blocks,
                 commands::block::update_block_metadata,
                 commands::block::rename_block,
+                commands::block::change_block_type,
                 commands::block::check_permission,
                 // Editor operations
                 commands::editor::create_editor,
@@ -73,6 +74,7 @@ pub fn run() {
             .typ::<extensions::code::CodeWritePayload>()
             .typ::<extensions::code::CodeReadPayload>()
             .typ::<extensions::directory::DirectoryRenamePayload>()
+            .typ::<extensions::directory::DirectoryRenameWithTypeChangePayload>()
             .typ::<extensions::directory::DirectoryDeletePayload>()
             .typ::<extensions::directory::DirectoryCreatePayload>()
             .typ::<extensions::directory::DirectoryExportPayload>()
@@ -133,6 +135,7 @@ pub fn run() {
         commands::block::get_all_blocks,
         commands::block::update_block_metadata,
         commands::block::rename_block,
+        commands::block::change_block_type,
         commands::block::check_permission,
         // Editor operations
         commands::editor::create_editor,

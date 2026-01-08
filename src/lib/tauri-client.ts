@@ -326,6 +326,37 @@ export class BlockOperations {
   }
 
   /**
+   * Change the type of a block.
+   *
+   * Supports two modes:
+   * 1. Direct type specification: pass blockType parameter
+   * 2. Extension-based inference: pass fileExtension parameter
+   *
+   * @param fileId - Unique identifier of the file
+   * @param blockId - Unique identifier of the block
+   * @param blockType - Optional: directly specify the new block type (e.g., "markdown", "code")
+   * @param fileExtension - Optional: file extension to infer type from (e.g., "md", "rs", "txt")
+   */
+  static async changeBlockType(
+    fileId: string,
+    blockId: string,
+    blockType: string | null,
+    fileExtension: string | null
+  ): Promise<Event[]> {
+    const result = await commands.changeBlockType(
+      fileId,
+      blockId,
+      blockType,
+      fileExtension
+    )
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
    * Check if current editor has permission for a capability.
    */
   static async checkPermission(
@@ -447,6 +478,55 @@ export class DirectoryOperations {
       payload: {
         old_path: oldPath,
         new_path: newPath,
+      } as unknown as JsonValue,
+      timestamp: new Date().toISOString(),
+    })
+
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Atomically rename an entry and change its block type.
+   *
+   * This ensures both operations succeed or fail together in a single transaction.
+   * Useful when file extension changes require block type updates.
+   *
+   * @param fileId - File ID
+   * @param blockId - Directory block ID
+   * @param oldPath - Current entry path
+   * @param newPath - New entry path
+   * @param blockType - Optional: Directly specify block type
+   * @param fileExtension - Optional: Infer block type from extension
+   * @param editorId - Optional: Editor ID
+   */
+  static async renameEntryWithTypeChange(
+    fileId: string,
+    blockId: string,
+    oldPath: string,
+    newPath: string,
+    blockType?: string,
+    fileExtension?: string,
+    editorId?: string
+  ): Promise<Event[]> {
+    const activeEditorId =
+      editorId ||
+      (await EditorOperations.getActiveEditor(fileId)) ||
+      (await getSystemEditorId())
+
+    const result = await commands.executeCommand(fileId, {
+      cmd_id: crypto.randomUUID(),
+      editor_id: activeEditorId,
+      cap_id: 'directory.rename_with_type_change',
+      block_id: blockId,
+      payload: {
+        old_path: oldPath,
+        new_path: newPath,
+        block_type: blockType || null,
+        file_extension: fileExtension || null,
       } as unknown as JsonValue,
       timestamp: new Date().toISOString(),
     })
