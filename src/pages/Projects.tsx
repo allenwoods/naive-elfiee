@@ -18,7 +18,7 @@ import {
 import { ImportProjectModal } from '@/components/projects/ImportProjectModal'
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal'
 import { toast } from 'sonner'
-import { TauriClient } from '@/lib/tauri-client'
+import { useAppStore } from '@/lib/app-store'
 import type { FileMetadata } from '@/bindings'
 
 type StatusFilterOption = 'all' | 'conflicts' | 'agent-running' | 'drafts'
@@ -78,6 +78,16 @@ function fileMetadataToProject(metadata: FileMetadata): Project {
 }
 
 const Projects = () => {
+  const {
+    listOpenFiles,
+    getFileInfo,
+    openFile,
+    createFile,
+    renameFile,
+    duplicateFile,
+    closeFile,
+  } = useAppStore()
+
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<StatusFilterOption>('all')
@@ -100,12 +110,10 @@ const Projects = () => {
   const loadProjects = async () => {
     try {
       setLoading(true)
-      const fileIds = await TauriClient.file.listOpenFiles()
+      const fileIds = await listOpenFiles()
 
       // Get metadata for each file
-      const metadataPromises = fileIds.map((id) =>
-        TauriClient.file.getFileInfo(id)
-      )
+      const metadataPromises = fileIds.map((id) => getFileInfo(id))
       const metadata = await Promise.all(metadataPromises)
 
       // Convert to Project format
@@ -157,7 +165,7 @@ const Projects = () => {
 
   const handleRename = async (id: string, newName: string) => {
     try {
-      await TauriClient.file.renameFile(id, newName)
+      await renameFile(id, newName)
 
       // Update local state
       setProjects((prev) =>
@@ -173,10 +181,10 @@ const Projects = () => {
   const handleDuplicate = async (id: string) => {
     try {
       // Duplicate the file using backend
-      const newFileId = await TauriClient.file.duplicateFile(id)
+      const newFileId = await duplicateFile(id)
 
       // Get metadata for the new file
-      const metadata = await TauriClient.file.getFileInfo(newFileId)
+      const metadata = await getFileInfo(newFileId)
 
       // Convert to Project and add to list
       const newProject = fileMetadataToProject(metadata)
@@ -194,7 +202,7 @@ const Projects = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await TauriClient.file.closeFile(id)
+      await closeFile(id)
 
       // Update local state
       setProjects((prev) => prev.filter((p) => p.id !== id))
@@ -211,10 +219,10 @@ const Projects = () => {
       const filePath = data.path
 
       // Open the file using backend
-      const fileId = await TauriClient.file.openFile(filePath)
+      const fileId = await openFile(filePath)
 
       // Get file metadata
-      const metadata = await TauriClient.file.getFileInfo(fileId)
+      const metadata = await getFileInfo(fileId)
 
       // Convert to Project and add to list
       const newProject = fileMetadataToProject(metadata)
@@ -236,10 +244,10 @@ const Projects = () => {
       const filePath = data.path
 
       // Create the file using backend with absolute path
-      const fileId = await TauriClient.file.createFile(filePath)
+      const fileId = await createFile(filePath)
 
       // Get file metadata
-      const metadata = await TauriClient.file.getFileInfo(fileId)
+      const metadata = await getFileInfo(fileId)
 
       // Convert to Project and add to list
       const newProject = fileMetadataToProject(metadata)

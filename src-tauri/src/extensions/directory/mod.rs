@@ -26,6 +26,9 @@ pub use directory_delete::*;
 pub mod directory_rename;
 pub use directory_rename::*;
 
+pub mod directory_rename_with_type_change;
+pub use directory_rename_with_type_change::*;
+
 // ============================================================================
 // Payload Definitions
 // ============================================================================
@@ -72,6 +75,22 @@ pub struct DirectoryDeletePayload {
 pub struct DirectoryRenamePayload {
     pub old_path: String,
     pub new_path: String,
+}
+
+/// Payload for DirectoryRenameWithTypeChange
+///
+/// Atomically renames a file entry and changes its block type in a single transaction.
+/// This ensures consistency when file extension changes require block type updates.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct DirectoryRenameWithTypeChangePayload {
+    pub old_path: String,
+    pub new_path: String,
+    /// Optional: Directly specify the new block type (e.g., "markdown", "code")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block_type: Option<String>,
+    /// Optional: Infer block type from file extension (e.g., "md", "rs", "txt")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_extension: Option<String>,
 }
 
 // ============================================================================

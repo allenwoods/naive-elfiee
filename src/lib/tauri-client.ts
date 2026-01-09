@@ -18,6 +18,7 @@ import {
   type RevokePayload,
   type FileMetadata,
 } from '@/bindings'
+import { sortEventsByVectorClock } from '@/utils/event-utils'
 
 /**
  * Cache for system editor ID
@@ -157,22 +158,6 @@ export class FileOperations {
    */
   static async closeFile(fileId: string): Promise<void> {
     const result = await commands.closeFile(fileId)
-    if (result.status === 'ok') {
-      return
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
-  /**
-   * Delete a file from the filesystem.
-   *
-   * Warning: This operation cannot be undone.
-   *
-   * @param fileId - Unique identifier of the file to delete
-   */
-  static async deleteFile(fileId: string): Promise<void> {
-    const result = await commands.deleteFile(fileId)
     if (result.status === 'ok') {
       return
     } else {
@@ -341,14 +326,29 @@ export class BlockOperations {
   }
 
   /**
-   * Update block type.
+   * Change the type of a block.
+   *
+   * Supports two modes:
+   * 1. Direct type specification: pass blockType parameter
+   * 2. Extension-based inference: pass fileExtension parameter
+   *
+   * @param fileId - Unique identifier of the file
+   * @param blockId - Unique identifier of the block
+   * @param blockType - Optional: directly specify the new block type (e.g., "markdown", "code")
+   * @param fileExtension - Optional: file extension to infer type from (e.g., "md", "rs", "txt")
    */
-  static async updateBlockType(
+  static async changeBlockType(
     fileId: string,
     blockId: string,
-    blockType: string
+    blockType: string | null,
+    fileExtension: string | null
   ): Promise<Event[]> {
-    const result = await commands.updateBlockType(fileId, blockId, blockType)
+    const result = await commands.changeBlockType(
+      fileId,
+      blockId,
+      blockType,
+      fileExtension
+    )
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -478,6 +478,55 @@ export class DirectoryOperations {
       payload: {
         old_path: oldPath,
         new_path: newPath,
+      } as unknown as JsonValue,
+      timestamp: new Date().toISOString(),
+    })
+
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Atomically rename an entry and change its block type.
+   *
+   * This ensures both operations succeed or fail together in a single transaction.
+   * Useful when file extension changes require block type updates.
+   *
+   * @param fileId - File ID
+   * @param blockId - Directory block ID
+   * @param oldPath - Current entry path
+   * @param newPath - New entry path
+   * @param blockType - Optional: Directly specify block type
+   * @param fileExtension - Optional: Infer block type from extension
+   * @param editorId - Optional: Editor ID
+   */
+  static async renameEntryWithTypeChange(
+    fileId: string,
+    blockId: string,
+    oldPath: string,
+    newPath: string,
+    blockType?: string,
+    fileExtension?: string,
+    editorId?: string
+  ): Promise<Event[]> {
+    const activeEditorId =
+      editorId ||
+      (await EditorOperations.getActiveEditor(fileId)) ||
+      (await getSystemEditorId())
+
+    const result = await commands.executeCommand(fileId, {
+      cmd_id: crypto.randomUUID(),
+      editor_id: activeEditorId,
+      cap_id: 'directory.rename_with_type_change',
+      block_id: blockId,
+      payload: {
+        old_path: oldPath,
+        new_path: newPath,
+        block_type: blockType || null,
+        file_extension: fileExtension || null,
       } as unknown as JsonValue,
       timestamp: new Date().toISOString(),
     })
@@ -620,19 +669,7 @@ export class EditorOperations {
   }
 
   static async listGrants(fileId: string): Promise<Grant[]> {
-    const result = await commands.listGrants(fileId)
-    if (result.status === 'ok') {
-      return result.data
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
-  static async getEditorGrants(
-    fileId: string,
-    editorId: string
-  ): Promise<Grant[]> {
-    const result = await commands.getEditorGrants(fileId, editorId)
+    const result = await commands.listGrants(fileId, null)
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -715,23 +752,7 @@ export class EventOperations {
    * 获取所有事件
    */
   static async getAllEvents(fileId: string): Promise<Event[]> {
-    const result = await commands.getAllEvents(fileId)
-    if (result.status === 'ok') {
-      return result.data
-    } else {
-      throw new Error(result.error)
-    }
-  }
-
-  /**
-   * 获取指定 Event 时刻的 Block 状态（回溯）
-   */
-  static async getBlockAtEvent(
-    fileId: string,
-    blockId: string,
-    eventId: string
-  ): Promise<Block> {
-    const result = await commands.getBlockAtEvent(fileId, blockId, eventId)
+    const result = await commands.getAllEvents(fileId, null)
     if (result.status === 'ok') {
       return result.data
     } else {
@@ -758,17 +779,12 @@ export class EventOperations {
   /**
    * 按向量时钟对事件排序（降序：最新在前）
    * 如果向量时钟无法区分先后（并发），则使用 created_at 作为备选排序依据
+   *
+   * @deprecated 请直接使用 `import { sortEventsByVectorClock } from '@/utils/event-utils'`
    */
   static sortEventsByVectorClock(events: Event[]): Event[] {
-    return [...events].sort((a, b) => {
-      const vcResult = compareVectorClocks(a.timestamp, b.timestamp)
-      if (vcResult !== 0) {
-        return -vcResult // 降序
-      }
-
-      // 如果向量时钟相等或并发，按创建时间倒序
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    })
+    // 委托给独立的 utils 函数
+    return sortEventsByVectorClock(events)
   }
 
   /**
@@ -787,31 +803,6 @@ export class EventOperations {
       action: getActionDescription(capId),
     }
   }
-}
-
-/**
- * 向量时钟比较函数
- */
-function compareVectorClocks(
-  vc1: Partial<Record<string, number>>,
-  vc2: Partial<Record<string, number>>
-): number {
-  const allEditors = new Set([...Object.keys(vc1), ...Object.keys(vc2)])
-
-  let vc1Greater = false
-  let vc2Greater = false
-
-  for (const editor of allEditors) {
-    const v1 = vc1[editor] || 0
-    const v2 = vc2[editor] || 0
-
-    if (v1 > v2) vc1Greater = true
-    if (v2 > v1) vc2Greater = true
-  }
-
-  if (vc1Greater && !vc2Greater) return 1
-  if (vc2Greater && !vc1Greater) return -1
-  return 0
 }
 
 /**

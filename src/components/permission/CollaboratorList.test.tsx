@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CollaboratorList } from './CollaboratorList'
 import { useAppStore } from '@/lib/app-store'
@@ -88,6 +88,7 @@ describe('CollaboratorList Component', () => {
     store.grantCapability = mockGrantCapability
     store.revokeCapability = mockRevokeCapability
     store.deleteEditor = mockDeleteEditor
+    store.checkPermission = vi.fn().mockResolvedValue(true)
   })
 
   describe('Rendering', () => {

@@ -452,25 +452,6 @@ pub async fn rename_file(
     Ok(())
 }
 
-/// Remove a file from the open files list.
-///
-/// This closes the file and removes it from memory, but does NOT delete the physical file.
-/// The file remains on disk and can be reopened later.
-///
-/// # Arguments
-/// * `file_id` - Unique identifier of the file to remove from the list
-///
-/// # Returns
-/// * `Ok(())` - File removed from list successfully
-/// * `Err(message)` - Error description if removal fails
-#[tauri::command]
-#[specta]
-pub async fn delete_file(file_id: String, state: State<'_, AppState>) -> Result<(), String> {
-    // Close the file (shut down engine and remove from state)
-    // The physical file remains on disk
-    close_file(file_id, state).await
-}
-
 /// Duplicate (copy) an existing .elf file.
 ///
 /// This creates a copy of the file with a new name and opens it for editing.

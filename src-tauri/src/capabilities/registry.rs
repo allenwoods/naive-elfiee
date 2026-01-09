@@ -84,6 +84,7 @@ impl CapabilityRegistry {
         self.register(Arc::new(DirectoryCreateCapability));
         self.register(Arc::new(DirectoryDeleteCapability));
         self.register(Arc::new(DirectoryRenameCapability));
+        self.register(Arc::new(DirectoryRename_with_type_changeCapability));
 
         // Code extension
         self.register(Arc::new(CodeReadCapability));

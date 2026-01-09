@@ -42,6 +42,7 @@ describe('CollaboratorItem Component', () => {
       const { container } = render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={mockGrants}
           isOwner={false}
@@ -60,6 +61,7 @@ describe('CollaboratorItem Component', () => {
       const { container } = render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockBotEditor}
           grants={[]}
           isOwner={false}
@@ -79,6 +81,7 @@ describe('CollaboratorItem Component', () => {
       const { container } = render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={mockGrants}
           isOwner={true}
@@ -96,6 +99,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={mockGrants}
           isOwner={false}
@@ -113,6 +117,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={mockGrants}
           isOwner={false}
@@ -131,6 +136,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={[]} // Owner doesn't need grants
           isOwner={true}
@@ -150,6 +156,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={[]}
           isOwner={true}
@@ -181,6 +188,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={grantsWithoutWrite}
           isOwner={false}
@@ -211,6 +219,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={mockGrants}
           isOwner={false}
@@ -240,6 +249,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={[]}
           isOwner={true}
@@ -264,6 +274,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockBotEditor}
           grants={[]}
           isOwner={false}
@@ -292,6 +303,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={mockGrants}
           isOwner={false}
@@ -319,6 +331,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={[]}
           isOwner={true}
@@ -341,6 +354,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={mockGrants}
           isOwner={false}
@@ -368,6 +382,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={mockGrants}
           isOwner={false}
@@ -397,6 +412,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={mockGrants}
           isOwner={false}
@@ -435,6 +451,7 @@ describe('CollaboratorItem Component', () => {
       render(
         <CollaboratorItem
           blockId="block-1"
+          blockType="markdown"
           editor={mockHumanEditor}
           grants={wildcardGrants}
           isOwner={false}

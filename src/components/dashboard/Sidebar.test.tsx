@@ -29,6 +29,7 @@ describe('Sidebar', () => {
   const deleteEditorMock = vi.fn()
   const getEditorsMock = vi.fn()
   const getActiveEditorMock = vi.fn()
+  const getSystemEditorIdMock = vi.fn().mockResolvedValue('system-editor-id')
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -43,6 +44,7 @@ describe('Sidebar', () => {
       getActiveEditor: getActiveEditorMock,
       setActiveEditor: setActiveEditorMock,
       deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
     })
   })
 
@@ -72,6 +74,7 @@ describe('Sidebar', () => {
       getActiveEditor: () => mockEditors[1], // Alice
       setActiveEditor: setActiveEditorMock,
       deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
     })
 
     renderSidebar()
@@ -100,6 +103,7 @@ describe('Sidebar', () => {
       getActiveEditor: () => mockEditors[1], // Alice
       setActiveEditor: setActiveEditorMock,
       deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
     })
 
     renderSidebar()
@@ -120,5 +124,124 @@ describe('Sidebar', () => {
     // Should not find the Avatar
     expect(screen.queryByText('AL')).not.toBeInTheDocument()
     expect(screen.queryByText('Switch User')).not.toBeInTheDocument()
+  })
+
+  it('system owner can delete other users', async () => {
+    const user = userEvent.setup()
+
+    // Mock confirm to return true
+    vi.mocked(window.confirm).mockReturnValue(true)
+    deleteEditorMock.mockResolvedValue(undefined)
+
+    // System owner (Owner) is active
+    ;(useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      currentFileId: 'file-123',
+      getEditors: () => mockEditors,
+      getActiveEditor: () => mockEditors[0], // System owner
+      setActiveEditor: setActiveEditorMock,
+      deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
+    })
+
+    renderSidebar()
+
+    // Open dropdown
+    await user.click(screen.getByText('OW')) // Owner
+
+    // Wait for dropdown to open
+    await screen.findByText('Switch User')
+
+    // Find all buttons with title "Delete User"
+    const allElements = screen.getByRole('menu').querySelectorAll('button')
+    const deleteButtons = Array.from(allElements).filter(
+      (btn) => btn.getAttribute('title') === 'Delete User'
+    )
+
+    // Should have delete buttons for other users (Alice and Bob)
+    expect(deleteButtons.length).toBeGreaterThan(0)
+
+    // Click first delete button
+    await user.click(deleteButtons[0])
+
+    // Should show confirmation
+    expect(window.confirm).toHaveBeenCalled()
+
+    // Should call deleteEditor
+    expect(deleteEditorMock).toHaveBeenCalledWith(
+      'file-123',
+      expect.any(String)
+    )
+  })
+
+  it('non-system owner cannot delete users', async () => {
+    const user = userEvent.setup()
+
+    // Alice (non-system owner) is active
+    ;(useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      currentFileId: 'file-123',
+      getEditors: () => mockEditors,
+      getActiveEditor: () => mockEditors[1], // Alice (not system owner)
+      setActiveEditor: setActiveEditorMock,
+      deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
+    })
+
+    renderSidebar()
+
+    // Open dropdown
+    await user.click(screen.getByText('AL')) // Alice
+
+    // Wait for dropdown to open
+    await screen.findByText('Switch User')
+
+    // Should not find any delete buttons
+    const menu = screen.getByRole('menu')
+    const allButtons = menu.querySelectorAll('button')
+    const deleteButtons = Array.from(allButtons).filter(
+      (btn) => btn.getAttribute('title') === 'Delete User'
+    )
+    expect(deleteButtons).toHaveLength(0)
+  })
+
+  it('does not delete when user cancels confirmation', async () => {
+    const user = userEvent.setup()
+
+    // Mock confirm to return false (user cancels)
+    vi.mocked(window.confirm).mockReturnValue(false)
+
+    // System owner is active
+    ;(useAppStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      currentFileId: 'file-123',
+      getEditors: () => mockEditors,
+      getActiveEditor: () => mockEditors[0], // System owner
+      setActiveEditor: setActiveEditorMock,
+      deleteEditor: deleteEditorMock,
+      getSystemEditorId: getSystemEditorIdMock,
+    })
+
+    renderSidebar()
+
+    // Open dropdown
+    await user.click(screen.getByText('OW'))
+
+    // Wait for dropdown to open
+    await screen.findByText('Switch User')
+
+    // Find delete button
+    const menu = screen.getByRole('menu')
+    const allButtons = menu.querySelectorAll('button')
+    const deleteButtons = Array.from(allButtons).filter(
+      (btn) => btn.getAttribute('title') === 'Delete User'
+    )
+
+    if (deleteButtons.length > 0) {
+      await user.click(deleteButtons[0])
+
+      // Should show confirmation
+      expect(window.confirm).toHaveBeenCalled()
+
+      // Should NOT call deleteEditor
+      expect(deleteEditorMock).not.toHaveBeenCalled()
+    }
   })
 })

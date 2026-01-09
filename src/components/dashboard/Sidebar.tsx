@@ -12,9 +12,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
 import { useEffect, useState } from 'react'
-import { TauriClient } from '@/lib/tauri-client'
 
 const navItems = [
   { icon: FolderKanban, path: '/', label: 'Projects' },
@@ -28,6 +26,7 @@ export const Sidebar = () => {
     getActiveEditor,
     setActiveEditor,
     deleteEditor,
+    getSystemEditorId,
   } = useAppStore()
 
   const editors = currentFileId ? getEditors(currentFileId) : []
@@ -39,14 +38,14 @@ export const Sidebar = () => {
   useEffect(() => {
     const loadSystemEditorId = async () => {
       try {
-        const id = await TauriClient.file.getSystemEditorId()
+        const id = await getSystemEditorId()
         setSystemEditorId(id)
       } catch (error) {
         console.error('Failed to get system editor ID:', error)
       }
     }
     loadSystemEditorId()
-  }, [])
+  }, [getSystemEditorId])
 
   // Check if current user is the system owner
   const isSystemOwner = activeEditor?.editor_id === systemEditorId

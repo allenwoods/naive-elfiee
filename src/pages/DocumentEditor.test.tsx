@@ -34,7 +34,7 @@ describe('DocumentEditor', () => {
   }
 
   it('should render main layout after initialization', async () => {
-    const store = useAppStore.getState()
+    const store = useAppStore.getState() as any
     store.getFileMetadata.mockReturnValue({ name: 'Test File', path: '/path' })
 
     renderWithRouter('test-project')
@@ -47,7 +47,7 @@ describe('DocumentEditor', () => {
   })
 
   it('should initialize data on mount', async () => {
-    const store = useAppStore.getState()
+    const store = useAppStore.getState() as any
     store.getFileMetadata.mockReturnValue({ name: 'Test File', path: '/path' })
 
     renderWithRouter('test-project')

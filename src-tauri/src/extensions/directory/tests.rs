@@ -713,8 +713,9 @@ fn test_rename_basic() {
 #[test]
 fn test_rename_extension_change() {
     // This test verifies that renaming a file with a different extension
-    // correctly triggers a 'core.change_type' event to update the block type.
-    // Example: main.rs (code) -> main.md (markdown)
+    // NO LONGER triggers a 'core.change_type' event automatically.
+    // Frontend should detect extension changes and prompt the user.
+    // Example: main.rs (code) -> main.md (still code type, user needs to manually change)
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("directory.rename")
@@ -751,20 +752,38 @@ fn test_rename_extension_change() {
     assert!(result.is_ok());
 
     let events = result.unwrap();
-    // Expected events:
+    // Expected events (UPDATED):
     // 1. core.rename (name: main.md)
-    // 2. core.change_type (block_type: markdown)
-    // 3. directory.write (update entries)
-    assert_eq!(events.len(), 3);
+    // 2. directory.write (update entries)
+    // NOTE: core.change_type is NO LONGER automatically generated
+    assert_eq!(
+        events.len(),
+        2,
+        "Should only generate core.rename and directory.write events"
+    );
 
-    assert!(events
-        .iter()
-        .any(|e| e.attribute.ends_with("/core.rename") && e.value["name"] == "main.md"));
+    // Verify core.rename event exists
     assert!(
         events
             .iter()
-            .any(|e| e.attribute.ends_with("/core.change_type")
-                && e.value["block_type"] == "markdown")
+            .any(|e| e.attribute.ends_with("/core.rename") && e.value["name"] == "main.md"),
+        "Should have core.rename event with updated name"
+    );
+
+    // Verify NO core.change_type event is generated
+    assert!(
+        !events
+            .iter()
+            .any(|e| e.attribute.ends_with("/core.change_type")),
+        "Should NOT automatically generate core.change_type event"
+    );
+
+    // Verify directory.write event exists
+    assert!(
+        events
+            .iter()
+            .any(|e| e.attribute.ends_with("/directory.write")),
+        "Should have directory.write event to update entries"
     );
 }
 
@@ -1136,5 +1155,278 @@ fn test_directory_delete_reference_semantics() {
     assert!(
         !entries.contains_key("shared.md"),
         "Entry should be removed from directory entries"
+    );
+}
+
+// ============================================================================
+// Tests for directory.rename_with_type_change (Atomic Rename + Type Change)
+// ============================================================================
+
+#[test]
+fn test_rename_with_type_change_atomic() {
+    // This test verifies that rename_with_type_change generates ALL events atomically:
+    // 1. core.rename (update Block.name)
+    // 2. core.change_type (update Block.block_type)
+    // 3. directory.write (update directory entries)
+
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("directory.rename_with_type_change")
+        .expect("directory.rename_with_type_change should be registered");
+
+    // Setup: Directory with code.rs file
+    let mut dir_block = Block::new(
+        "Test Repo".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+    let dir_id = dir_block.block_id.clone();
+    dir_block.contents = serde_json::json!({
+        "entries": {
+            "code.rs": {
+                "type": "file",
+                "id": "file-1"
+            }
+        }
+    });
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.rename_with_type_change".to_string(),
+        dir_id.clone(),
+        serde_json::json!({
+            "old_path": "code.rs",
+            "new_path": "notes.md",
+            "file_extension": "md"
+        }),
+    );
+
+    // Execute
+    let result = cap.handler(&cmd, Some(&dir_block));
+
+    // Verify
+    assert!(
+        result.is_ok(),
+        "rename_with_type_change should succeed: {:?}",
+        result
+    );
+
+    let events = result.unwrap();
+
+    // Assert 1: Must generate exactly 3 events atomically
+    assert_eq!(
+        events.len(),
+        3,
+        "Should generate 3 events: core.rename + core.change_type + directory.write"
+    );
+
+    // Assert 2: Verify core.rename event
+    let rename_event = events
+        .iter()
+        .find(|e| e.attribute.ends_with("/core.rename"));
+    assert!(rename_event.is_some(), "Should have core.rename event");
+    assert_eq!(
+        rename_event.unwrap().entity,
+        "file-1",
+        "core.rename should target the file block"
+    );
+    assert_eq!(
+        rename_event.unwrap().value["name"],
+        "notes.md",
+        "Should update name to notes.md"
+    );
+
+    // Assert 3: Verify core.change_type event
+    let change_type_event = events
+        .iter()
+        .find(|e| e.attribute.ends_with("/core.change_type"));
+    assert!(
+        change_type_event.is_some(),
+        "Should have core.change_type event"
+    );
+    assert_eq!(
+        change_type_event.unwrap().entity,
+        "file-1",
+        "core.change_type should target the file block"
+    );
+    assert_eq!(
+        change_type_event.unwrap().value["block_type"],
+        "markdown",
+        "Should infer block_type=markdown from extension=md"
+    );
+
+    // Assert 4: Verify directory.write event
+    let write_event = events
+        .iter()
+        .find(|e| e.attribute.ends_with("/directory.write"));
+    assert!(write_event.is_some(), "Should have directory.write event");
+    assert_eq!(
+        write_event.unwrap().entity,
+        dir_id,
+        "directory.write should target the directory block"
+    );
+
+    let entries = write_event.unwrap().value["contents"]["entries"]
+        .as_object()
+        .unwrap();
+    assert!(
+        !entries.contains_key("code.rs"),
+        "Old path should be removed"
+    );
+    assert!(
+        entries.contains_key("notes.md"),
+        "New path should be present"
+    );
+}
+
+#[test]
+fn test_rename_with_type_change_direct_type() {
+    // Test direct block_type specification (not extension inference)
+
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("directory.rename_with_type_change").unwrap();
+
+    // Setup
+    let mut dir_block = Block::new(
+        "Test Repo".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+    let dir_id = dir_block.block_id.clone();
+    dir_block.contents = serde_json::json!({
+        "entries": {
+            "file.txt": {
+                "type": "file",
+                "id": "file-1"
+            }
+        }
+    });
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.rename_with_type_change".to_string(),
+        dir_id,
+        serde_json::json!({
+            "old_path": "file.txt",
+            "new_path": "script.py",
+            "block_type": "code"  // Direct type specification
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&dir_block));
+
+    // Verify
+    assert!(result.is_ok());
+    let events = result.unwrap();
+
+    let change_type_event = events
+        .iter()
+        .find(|e| e.attribute.ends_with("/core.change_type"));
+    assert!(change_type_event.is_some());
+    assert_eq!(
+        change_type_event.unwrap().value["block_type"],
+        "code",
+        "Should use directly specified block_type"
+    );
+}
+
+#[test]
+fn test_rename_with_type_change_no_type_change() {
+    // Test rename without type change (neither block_type nor file_extension provided)
+
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("directory.rename_with_type_change").unwrap();
+
+    // Setup
+    let mut dir_block = Block::new(
+        "Test Repo".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+    let dir_id = dir_block.block_id.clone();
+    dir_block.contents = serde_json::json!({
+        "entries": {
+            "file.md": {
+                "type": "file",
+                "id": "file-1"
+            }
+        }
+    });
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.rename_with_type_change".to_string(),
+        dir_id,
+        serde_json::json!({
+            "old_path": "file.md",
+            "new_path": "notes.md"
+            // No block_type or file_extension
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&dir_block));
+
+    // Verify
+    assert!(result.is_ok());
+    let events = result.unwrap();
+
+    // Should only generate 2 events: core.rename + directory.write (no core.change_type)
+    assert_eq!(
+        events.len(),
+        2,
+        "Should generate 2 events without type change"
+    );
+
+    let has_change_type = events
+        .iter()
+        .any(|e| e.attribute.ends_with("/core.change_type"));
+    assert!(
+        !has_change_type,
+        "Should NOT generate core.change_type event"
+    );
+}
+
+#[test]
+fn test_rename_with_type_change_only_files() {
+    // Verify that directories cannot use rename_with_type_change
+
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("directory.rename_with_type_change").unwrap();
+
+    // Setup: Directory with subdirectory
+    let mut dir_block = Block::new(
+        "Test Repo".to_string(),
+        "directory".to_string(),
+        "alice".to_string(),
+    );
+    let dir_id = dir_block.block_id.clone();
+    dir_block.contents = serde_json::json!({
+        "entries": {
+            "src": {
+                "type": "directory"
+            }
+        }
+    });
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "directory.rename_with_type_change".to_string(),
+        dir_id,
+        serde_json::json!({
+            "old_path": "src",
+            "new_path": "lib",
+            "block_type": "code"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&dir_block));
+
+    // Verify: Should fail for directories
+    assert!(result.is_err());
+    assert!(
+        result
+            .unwrap_err()
+            .contains("Only files can use rename_with_type_change"),
+        "Should reject directory renames"
     );
 }
