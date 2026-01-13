@@ -168,6 +168,45 @@ interface AppStore {
     targetBlock?: string
   ) => Promise<void>
 
+  // Terminal operations
+  createTerminalBlock: (
+    fileId: string,
+    name: string,
+    editorId: string
+  ) => Promise<string>
+  initTerminal: (
+    fileId: string,
+    blockId: string,
+    cols: number,
+    rows: number,
+    cwd?: string,
+    editorId?: string
+  ) => Promise<void>
+  writeToPty: (
+    fileId: string,
+    blockId: string,
+    data: string,
+    editorId?: string
+  ) => Promise<void>
+  resizePty: (
+    fileId: string,
+    blockId: string,
+    cols: number,
+    rows: number,
+    editorId?: string
+  ) => Promise<void>
+  saveTerminal: (
+    fileId: string,
+    blockId: string,
+    content: string,
+    editorId?: string
+  ) => Promise<void>
+  closeTerminalSession: (
+    fileId: string,
+    blockId: string,
+    editorId?: string
+  ) => Promise<void>
+
   // Computed state
   selectedBlockId: string | null
 }
@@ -1007,6 +1046,132 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const errorMessage =
         error instanceof Error ? error.message : String(error)
       toast.error(`Failed to revoke permission: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  // Terminal operations
+  createTerminalBlock: async (
+    fileId: string,
+    name: string,
+    editorId: string
+  ) => {
+    try {
+      const events = await TauriClient.block.createBlock(
+        fileId,
+        name,
+        'terminal',
+        editorId,
+        'terminal'
+      )
+      const blockId = events[0].entity
+      await get().loadBlocks(fileId)
+      return blockId
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to create terminal block: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  initTerminal: async (
+    fileId: string,
+    blockId: string,
+    cols: number,
+    rows: number,
+    cwd?: string,
+    editorId?: string
+  ) => {
+    try {
+      await TauriClient.terminal.initTerminal(
+        fileId,
+        blockId,
+        cols,
+        rows,
+        cwd,
+        editorId
+      )
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to initialize terminal: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  writeToPty: async (
+    fileId: string,
+    blockId: string,
+    data: string,
+    editorId?: string
+  ) => {
+    try {
+      await TauriClient.terminal.writeToPty(fileId, blockId, data, editorId)
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.error(`Failed to write to PTY: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  resizePty: async (
+    fileId: string,
+    blockId: string,
+    cols: number,
+    rows: number,
+    editorId?: string
+  ) => {
+    try {
+      await TauriClient.terminal.resizePty(
+        fileId,
+        blockId,
+        cols,
+        rows,
+        editorId
+      )
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.error(`Failed to resize PTY: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  saveTerminal: async (
+    fileId: string,
+    blockId: string,
+    content: string,
+    editorId?: string
+  ) => {
+    try {
+      await TauriClient.terminal.saveTerminal(
+        fileId,
+        blockId,
+        content,
+        editorId
+      )
+      await get().loadBlocks(fileId)
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.error(`Failed to save terminal: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  closeTerminalSession: async (
+    fileId: string,
+    blockId: string,
+    editorId?: string
+  ) => {
+    try {
+      await TauriClient.terminal.closeTerminalSession(fileId, blockId, editorId)
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.error(`Failed to close terminal session: ${errorMessage}`)
       throw error
     }
   },

@@ -17,6 +17,9 @@ import {
   type GrantPayload,
   type RevokePayload,
   type FileMetadata,
+  type TerminalInitPayload,
+  type TerminalWritePayload,
+  type TerminalResizePayload,
 } from '@/bindings'
 import { sortEventsByVectorClock } from '@/utils/event-utils'
 
@@ -820,6 +823,134 @@ function getActionDescription(capId: string): string {
 }
 
 /**
+ * Terminal Operations
+ */
+export class TerminalOperations {
+  /**
+   * Initialize a new PTY session for a block
+   */
+  static async initTerminal(
+    fileId: string,
+    blockId: string,
+    cols: number,
+    rows: number,
+    cwd?: string,
+    editorId?: string
+  ): Promise<void> {
+    const activeEditorId = editorId || (await getSystemEditorId())
+
+    const payload: TerminalInitPayload = {
+      cols,
+      rows,
+      block_id: blockId,
+      editor_id: activeEditorId,
+      file_id: fileId,
+      cwd: cwd || null,
+    }
+
+    const result = await commands.asyncInitTerminal(payload)
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Write data to the PTY
+   */
+  static async writeToPty(
+    fileId: string,
+    blockId: string,
+    data: string,
+    editorId?: string
+  ): Promise<void> {
+    const activeEditorId = editorId || (await getSystemEditorId())
+
+    const payload: TerminalWritePayload = {
+      data,
+      block_id: blockId,
+      file_id: fileId,
+      editor_id: activeEditorId,
+    }
+
+    const result = await commands.writeToPty(payload)
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Resize the PTY
+   */
+  static async resizePty(
+    fileId: string,
+    blockId: string,
+    cols: number,
+    rows: number,
+    editorId?: string
+  ): Promise<void> {
+    const activeEditorId = editorId || (await getSystemEditorId())
+
+    const payload: TerminalResizePayload = {
+      cols,
+      rows,
+      block_id: blockId,
+      file_id: fileId,
+      editor_id: activeEditorId,
+    }
+
+    const result = await commands.resizePty(payload)
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Close a PTY session
+   */
+  static async closeTerminalSession(
+    fileId: string,
+    blockId: string,
+    editorId?: string
+  ): Promise<void> {
+    const activeEditorId = editorId || (await getSystemEditorId())
+
+    const result = await commands.closeTerminalSession(
+      fileId,
+      blockId,
+      activeEditorId
+    )
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Save terminal content to block (using terminal.save capability)
+   */
+  static async saveTerminal(
+    fileId: string,
+    blockId: string,
+    savedContent: string,
+    editorId?: string
+  ): Promise<Event[]> {
+    const activeEditorId = editorId || (await getSystemEditorId())
+
+    const payload = {
+      saved_content: savedContent,
+      saved_at: new Date().toISOString(),
+    }
+
+    const cmd = createCommand(
+      activeEditorId,
+      'terminal.save',
+      blockId,
+      payload as unknown as JsonValue
+    )
+    return await BlockOperations.executeCommand(fileId, cmd)
+  }
+}
+
+/**
  * Main Tauri Client export
  */
 export const TauriClient = {
@@ -828,4 +959,5 @@ export const TauriClient = {
   editor: EditorOperations,
   directory: DirectoryOperations,
   event: EventOperations,
+  terminal: TerminalOperations,
 }

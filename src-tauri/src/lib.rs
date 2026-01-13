@@ -91,9 +91,9 @@ pub fn run() {
             // Extension payload types
             .typ::<extensions::markdown::MarkdownWritePayload>()
             .typ::<extensions::terminal::TerminalSavePayload>()
-            .typ::<extensions::terminal::pty::TerminalInitPayload>()
-            .typ::<extensions::terminal::pty::TerminalWritePayload>()
-            .typ::<extensions::terminal::pty::TerminalResizePayload>()
+            .typ::<extensions::terminal::TerminalInitPayload>()
+            .typ::<extensions::terminal::TerminalWritePayload>()
+            .typ::<extensions::terminal::TerminalResizePayload>()
             // File metadata types
             .typ::<commands::FileMetadata>()
             // Block metadata types

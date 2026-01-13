@@ -107,9 +107,39 @@ async fn check_terminal_permission(
     ))
 }
 
+/// Generate shell initialization script.
+/// Overrides cd command to intercept user home directory and redirect to work directory.
+fn generate_shell_init(work_dir: &std::path::Path, shell: &str) -> Result<String, String> {
+    let work_dir_str = work_dir
+        .to_str()
+        .ok_or("Failed to convert work directory path to string")?;
+
+    match shell {
+        "bash" | "zsh" => Ok(format!(
+            r#"export ELF_WORK_DIR="{}"
+cd() {{
+    # Check if path equals user's home directory (shell expands ~ to $HOME)
+    if [ "$1" = "$HOME" ] || [ "$1" = "~" ]; then
+        builtin cd "$ELF_WORK_DIR"
+    elif [ -z "$1" ]; then
+        builtin cd "$HOME"
+    else
+        builtin cd "$@"
+    fi
+}}
+clear
+"#,
+            work_dir_str
+        )),
+        "powershell" => Ok(String::new()), // PowerShell uses profile script
+        _ => Err(format!("Unsupported shell: {}", shell)),
+    }
+}
+
 // --- Commands ---
 
 /// Initialize a new PTY session for a block.
+/// Command interception for "cd ~" is handled in write_to_pty.
 #[tauri::command]
 #[specta]
 pub async fn async_init_terminal(
@@ -130,6 +160,13 @@ pub async fn async_init_terminal(
     )
     .await?;
 
+    // Get the .elf file's temporary directory
+    let file_info = app_state
+        .files
+        .get(&payload.file_id)
+        .ok_or_else(|| format!("File '{}' not found", payload.file_id))?;
+    let temp_dir = file_info.archive.temp_path();
+
     let pty_system = native_pty_system();
 
     let pair = pty_system
@@ -141,8 +178,68 @@ pub async fn async_init_terminal(
         })
         .map_err(|e| format!("Failed to open PTY: {}", e))?;
 
+    // Determine shell type
+    let shell = if cfg!(target_os = "windows") {
+        "powershell"
+    } else {
+        "bash"
+    };
+
+    // For PowerShell, create initialization script with cd override
+    // The function intercepts when user's home directory path is passed (after ~ expansion)
+    let profile_script_path = if cfg!(target_os = "windows") {
+        let profile_path = std::path::Path::new(temp_dir).join("elfiee_terminal_init.ps1");
+        let temp_dir_str = temp_dir
+            .to_str()
+            .ok_or("Failed to convert temp directory path to string")?;
+        let profile_script = format!(
+            r#"# Set UTF-8 encoding for proper Chinese character display
+chcp 65001 > $null
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$env:ELF_WORK_DIR = "{}"
+# Remove built-in 'cd' alias first - aliases take precedence over functions!
+Remove-Item alias:cd -Force -ErrorAction SilentlyContinue
+function global:cd {{
+    param([string]$Path = $null)
+    # Check if path equals user's home directory (PowerShell expands ~ to $HOME)
+    if ($Path -eq $HOME -or $Path -eq "~") {{
+        Set-Location $env:ELF_WORK_DIR
+    }} elseif ($null -eq $Path -or $Path -eq "") {{
+        Set-Location $HOME
+    }} else {{
+        Set-Location $Path
+    }}
+}}
+Clear-Host
+"#,
+            temp_dir_str
+        );
+        std::fs::write(&profile_path, profile_script)
+            .map_err(|e| format!("Failed to write PowerShell profile: {}", e))?;
+        Some(profile_path)
+    } else {
+        None
+    };
+
     let mut cmd_builder = if cfg!(target_os = "windows") {
-        CommandBuilder::new("powershell")
+        if let Some(profile_path) = profile_script_path {
+            let mut builder = CommandBuilder::new("powershell");
+            // Use dot-sourcing (-Command ". 'path'") instead of -File
+            // -File runs script in isolated scope, functions don't persist to interactive session
+            // Dot-sourcing (.) runs script in current scope, so cd function remains available
+            let dot_source_cmd = format!(". '{}'", profile_path.to_str().unwrap());
+            builder.args(&[
+                "-NoLogo",
+                "-NoExit",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &dot_source_cmd,
+            ]);
+            builder
+        } else {
+            CommandBuilder::new("powershell")
+        }
     } else {
         CommandBuilder::new("bash")
     };
@@ -150,9 +247,11 @@ pub async fn async_init_terminal(
     // Set TERM environment variable for proper terminal emulation
     cmd_builder.env("TERM", "xterm-256color");
 
-    // Set working directory if provided
-    if let Some(cwd) = payload.cwd.as_ref() {
+    // Set working directory to .elf temporary directory (or use provided cwd)
+    if let Some(cwd) = &payload.cwd {
         cmd_builder.cwd(cwd);
+    } else {
+        cmd_builder.cwd(temp_dir);
     }
 
     let _child = pair
@@ -167,10 +266,23 @@ pub async fn async_init_terminal(
         .master
         .try_clone_reader()
         .map_err(|e| format!("Failed to clone reader: {}", e))?;
-    let writer = pair
+    let mut writer = pair
         .master
         .take_writer()
         .map_err(|e| format!("Failed to take writer: {}", e))?;
+
+    // Generate and inject shell initialization script (only for bash/zsh)
+    // PowerShell initialization is already handled via profile script
+    let init_script = generate_shell_init(temp_dir, shell)?;
+
+    if !init_script.is_empty() {
+        // Wait for shell to start (give it a moment to initialize)
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Write initialization script to shell
+        write!(writer, "{}\n", init_script)
+            .map_err(|e| format!("Failed to write init script: {}", e))?;
+    }
 
     // Create shutdown channel for thread cleanup
     let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();

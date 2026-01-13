@@ -15,6 +15,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { CodeBlockEditor } from './CodeBlockEditor'
+import { TerminalPanel } from './TerminalPanel'
 import './myst-styles.css'
 
 // AST Node Types
@@ -843,6 +844,7 @@ export const EditorCanvas = () => {
   } = useAppStore()
   const [isSaving, setIsSaving] = useState(false)
   const [documentContent, setDocumentContent] = useState<string>('')
+  const [showTerminal, setShowTerminal] = useState(false)
 
   // Subscribe directly to block changes from Zustand store
   // This ensures UI refreshes when restoreToEvent updates blocks
@@ -1022,30 +1024,59 @@ export const EditorCanvas = () => {
   }
 
   return (
-    <ScrollArea className="h-full w-full">
-      <main className="w-full min-w-0 bg-background p-4 md:p-6 lg:p-8">
-        <div className="mx-auto w-full min-w-0 max-w-4xl pb-32">
-          {/* Save Button */}
-          <div className="mb-6 flex items-center justify-end">
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button
-                size="sm"
-                className="bg-foreground px-4 text-sm font-medium text-background shadow-sm hover:bg-foreground/90"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleSave()
-                }}
-                disabled={isSaving}
+    <div className="flex h-full flex-col">
+      <ScrollArea className="flex-1">
+        <main className="w-full min-w-0 bg-background p-4 md:p-6 lg:p-8">
+          <div className="mx-auto w-full min-w-0 max-w-4xl pb-32">
+            {/* Save Button */}
+            <div className="mb-6 flex items-center justify-end">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                <Save className="mr-2 h-3.5 w-3.5" />
-                {isSaving ? 'Saving...' : 'Save (Ctrl+S)'}
-              </Button>
-            </motion.div>
-          </div>
+                <Button
+                  size="sm"
+                  className="bg-foreground px-4 text-sm font-medium text-background shadow-sm hover:bg-foreground/90"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSave()
+                  }}
+                  disabled={isSaving}
+                >
+                  <Save className="mr-2 h-3.5 w-3.5" />
+                  {isSaving ? 'Saving...' : 'Save (Ctrl+S)'}
+                </Button>
+              </motion.div>
+            </div>
 
-          <div className="w-full min-w-0 space-y-6">{renderEditor()}</div>
+            <div className="w-full min-w-0 space-y-6">{renderEditor()}</div>
+          </div>
+        </main>
+      </ScrollArea>
+
+      {/* Terminal Toggle Button */}
+      {!showTerminal && (
+        <div className="flex justify-center border-t border-zinc-800/50 bg-zinc-950/50 p-1.5 backdrop-blur-sm">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowTerminal(true)}
+            disabled={!currentFileId}
+            className="h-7 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-cyan-400 disabled:opacity-50"
+          >
+            <Terminal className="mr-1.5 h-3.5 w-3.5" />
+            Open Terminal
+          </Button>
         </div>
-      </main>
-    </ScrollArea>
+      )}
+
+      {/* Terminal Panel */}
+      {showTerminal && currentFileId && (
+        <TerminalPanel
+          fileId={currentFileId}
+          onClose={() => setShowTerminal(false)}
+        />
+      )}
+    </div>
   )
 }
