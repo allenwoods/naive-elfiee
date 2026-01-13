@@ -544,6 +544,64 @@ const TimelineTab = ({
   )
 }
 
+const ActiveTerminalsList = ({ documentId }: { documentId: string }) => {
+  const blocks = useAppStore((state) => {
+    const fileState = state.files.get(documentId)
+    return fileState?.blocks || []
+  })
+  const selectBlock = useAppStore((state) => state.selectBlock)
+
+  // Filter ONLY 'terminal' type blocks
+  // Reverse to show newest first (assuming append order)
+  const terminalBlocks = blocks
+    .filter((b) => b.block_type === 'terminal')
+    .reverse()
+
+  // Show nothing if no terminal blocks exist
+  if (terminalBlocks.length === 0) return null
+
+  const handleCopyId = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(id)
+    toast.success('Terminal ID copied')
+  }
+
+  return (
+    <div className="flex shrink-0 flex-col border-t border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border/50 bg-muted/10 px-4 py-2">
+        <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          Terminals ({terminalBlocks.length})
+        </h3>
+      </div>
+      <ScrollArea className="h-auto max-h-[180px] w-full">
+        <div className="flex flex-col gap-1 p-2">
+          {terminalBlocks.map((block) => (
+            <div
+              key={block.block_id}
+              className="group flex cursor-pointer items-center justify-between rounded px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+              onClick={() => selectBlock(block.block_id)}
+            >
+              <div className="flex items-center gap-2 overflow-hidden">
+                <div className="flex h-1.5 w-1.5 shrink-0 rounded-full bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.4)]" />
+                <span className="truncate font-medium text-foreground/80 group-hover:text-accent-foreground">
+                  {block.name}
+                </span>
+              </div>
+              <span
+                className="shrink-0 cursor-copy font-mono text-[10px] text-muted-foreground/60 transition-colors hover:text-foreground group-hover:text-accent-foreground/70"
+                onClick={(e) => handleCopyId(e, block.block_id)}
+                title="Click to copy ID"
+              >
+                {block.block_id.slice(0, 6)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    </div>
+  )
+}
+
 const ContextPanel = () => {
   // CRITICAL: Use selector properly - all dependencies from 'state' parameter
   const block: Block | null = useAppStore((state) => {
@@ -660,6 +718,9 @@ const ContextPanel = () => {
           </div>
         </ScrollArea>
       </Tabs>
+
+      {/* Active Terminals List - Always visible at the bottom */}
+      <ActiveTerminalsList documentId={currentFileId} />
     </aside>
   )
 }
