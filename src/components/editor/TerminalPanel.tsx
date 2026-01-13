@@ -37,8 +37,60 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
   )
   const getActiveEditor = useAppStore((state) => state.getActiveEditor)
   const getBlocks = useAppStore((state) => state.getBlocks)
+  const selectedBlockId = useAppStore((state) => state.selectedBlockId)
+  const getBlock = useAppStore((state) => state.getBlock)
 
-  // Create Terminal Block on mount
+  // Handle switching active terminal when selectedBlockId changes
+  useEffect(() => {
+    if (!selectedBlockId) return
+
+    const block = getBlock(fileId, selectedBlockId)
+    // Only switch if it's a DIFFERENT terminal block
+    if (
+      block &&
+      block.block_type === 'terminal' &&
+      block.block_id !== blockId
+    ) {
+      const switchTerminalSession = async () => {
+        // 1. Save current session content before switching
+        if (xtermRef.current && blockId) {
+          try {
+            const buffer = xtermRef.current.buffer.active
+            const lines: string[] = []
+            for (let i = 0; i < buffer.length; i++) {
+              const line = buffer.getLine(i)
+              if (line) {
+                lines.push(line.translateToString(true))
+              }
+            }
+            const content = lines.join('\n')
+            // Await save to ensure store is updated before we potentially switch back
+            await saveTerminal(fileId, blockId, content, editorId || undefined)
+          } catch (err) {
+            console.error('Failed to save terminal before switch:', err)
+          }
+        }
+
+        // 2. Force state reset to trigger unmount of old terminal
+        setIsInitializing(true)
+        isPtyInitialized.current = false
+
+        // 3. Update to new block context
+        setEditorId(block.owner)
+        setBlockId(block.block_id)
+        isBlockCreated.current = true
+
+        // 4. Trigger re-initialization in next tick to ensure DOM clean
+        setTimeout(() => {
+          setIsInitializing(false)
+        }, 10)
+      }
+
+      switchTerminalSession()
+    }
+  }, [selectedBlockId, fileId, blockId, getBlock, saveTerminal, editorId])
+
+  // Create or Load Terminal Block on mount
   useEffect(() => {
     // Prevent duplicate block creation
     if (isBlockCreated.current) {
@@ -49,6 +101,21 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
 
     const initTerminalBlock = async () => {
       try {
+        // 1. Check if we should open an existing terminal (from selection)
+        if (selectedBlockId) {
+          const block = getBlock(fileId, selectedBlockId)
+          if (block && block.block_type === 'terminal') {
+            if (isMounted) {
+              setEditorId(block.owner)
+              setBlockId(block.block_id)
+              setIsInitializing(false)
+              isBlockCreated.current = true
+              return
+            }
+          }
+        }
+
+        // 2. Otherwise create a new terminal session
         // Get current active editor - use for both Block creation and PTY init
         const activeEditor = getActiveEditor(fileId)
         if (!activeEditor) {
@@ -86,7 +153,7 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
       isMounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileId])
+  }, [fileId]) // Run once on mount (dependency fileId)
 
   // Initialize terminal after block is created
   useEffect(() => {
@@ -344,6 +411,9 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
         <div className="flex items-center gap-2">
           <TerminalIcon className="h-3.5 w-3.5 text-cyan-400" />
           <span className="text-xs font-medium text-zinc-400">Terminal</span>
+          <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">
+            {blockId ? blockId.slice(0, 8) : 'No Session'}
+          </span>
         </div>
         <div className="flex gap-0.5">
           <Button

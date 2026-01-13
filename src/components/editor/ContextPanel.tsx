@@ -550,6 +550,7 @@ const ActiveTerminalsList = ({ documentId }: { documentId: string }) => {
     return fileState?.blocks || []
   })
   const selectBlock = useAppStore((state) => state.selectBlock)
+  const selectedBlockId = useAppStore((state) => state.selectedBlockId)
 
   // Filter ONLY 'terminal' type blocks
   // Reverse to show newest first (assuming append order)
@@ -575,27 +576,50 @@ const ActiveTerminalsList = ({ documentId }: { documentId: string }) => {
       </div>
       <ScrollArea className="h-auto max-h-[180px] w-full">
         <div className="flex flex-col gap-1 p-2">
-          {terminalBlocks.map((block) => (
-            <div
-              key={block.block_id}
-              className="group flex cursor-pointer items-center justify-between rounded px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-              onClick={() => selectBlock(block.block_id)}
-            >
-              <div className="flex items-center gap-2 overflow-hidden">
-                <div className="flex h-1.5 w-1.5 shrink-0 rounded-full bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.4)]" />
-                <span className="truncate font-medium text-foreground/80 group-hover:text-accent-foreground">
-                  {block.name}
+          {terminalBlocks.map((block) => {
+            const isSelected = block.block_id === selectedBlockId
+            return (
+              <div
+                key={block.block_id}
+                className={`group flex cursor-pointer items-center justify-between rounded px-2 py-1.5 text-sm transition-all ${
+                  isSelected
+                    ? 'bg-accent text-accent-foreground ring-1 ring-inset ring-primary/20'
+                    : 'hover:bg-accent/50 hover:text-accent-foreground'
+                }`}
+                onClick={() => selectBlock(block.block_id)}
+              >
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <div
+                    className={`flex h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_4px_rgba(34,197,94,0.4)] ${
+                      isSelected
+                        ? 'bg-green-500 ring-2 ring-green-500/20'
+                        : 'bg-green-500/70'
+                    }`}
+                  />
+                  <span
+                    className={`truncate font-medium ${
+                      isSelected
+                        ? 'text-accent-foreground'
+                        : 'text-foreground/80 group-hover:text-accent-foreground'
+                    }`}
+                  >
+                    {block.name}
+                  </span>
+                </div>
+                <span
+                  className={`shrink-0 cursor-copy font-mono text-[10px] transition-colors ${
+                    isSelected
+                      ? 'text-accent-foreground/70'
+                      : 'text-muted-foreground/60 hover:text-foreground group-hover:text-accent-foreground/70'
+                  }`}
+                  onClick={(e) => handleCopyId(e, block.block_id)}
+                  title="Click to copy ID"
+                >
+                  {block.block_id.slice(0, 6)}
                 </span>
               </div>
-              <span
-                className="shrink-0 cursor-copy font-mono text-[10px] text-muted-foreground/60 transition-colors hover:text-foreground group-hover:text-accent-foreground/70"
-                onClick={(e) => handleCopyId(e, block.block_id)}
-                title="Click to copy ID"
-              >
-                {block.block_id.slice(0, 6)}
-              </span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </ScrollArea>
     </div>

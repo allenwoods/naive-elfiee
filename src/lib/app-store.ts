@@ -1152,12 +1152,32 @@ export const useAppStore = create<AppStore>((set, get) => ({
         content,
         editorId
       )
-      await get().loadBlocks(fileId)
+
+      // Update local state so that if we switch back, we have the content
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState) {
+        const blocks = [...fileState.blocks]
+        const blockIndex = blocks.findIndex((b) => b.block_id === blockId)
+        if (blockIndex !== -1) {
+          // Deep clone the block to avoid mutation issues
+          const updatedBlock = { ...blocks[blockIndex] }
+          // Ensure contents object exists and update saved_content
+          updatedBlock.contents = {
+            ...(updatedBlock.contents as object),
+            saved_content: content,
+          }
+          blocks[blockIndex] = updatedBlock
+
+          files.set(fileId, { ...fileState, blocks })
+          set({ files })
+        }
+      }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
       console.error(`Failed to save terminal: ${errorMessage}`)
-      throw error
+      // Don't throw here to avoid disrupting the UI for background saves
     }
   },
 
