@@ -212,6 +212,19 @@ export class BlockOperations {
     }
   }
 
+  static async getBlock(
+    fileId: string,
+    blockId: string,
+    editorId?: string
+  ): Promise<Block> {
+    const result = await commands.getBlock(fileId, blockId, editorId || null)
+    if (result.status === 'ok') {
+      return result.data
+    } else {
+      throw new Error(result.error)
+    }
+  }
+
   static async executeCommand(fileId: string, cmd: Command): Promise<Event[]> {
     const result = await commands.executeCommand(fileId, cmd)
     if (result.status === 'ok') {

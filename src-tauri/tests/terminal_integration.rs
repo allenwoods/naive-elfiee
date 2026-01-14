@@ -55,8 +55,7 @@ async fn test_terminal_full_lifecycle() {
 
     let updated_block = updated_block.unwrap();
     assert_eq!(
-        updated_block.contents["saved_content"],
-        terminal_output,
+        updated_block.contents["saved_content"], terminal_output,
         "Saved content should match"
     );
     assert_eq!(
@@ -235,10 +234,7 @@ async fn test_terminal_multiple_saves() {
         block2.contents["saved_content"], content2,
         "Content should be overwritten"
     );
-    assert_ne!(
-        timestamp2, timestamp1,
-        "Timestamps should be different"
-    );
+    assert_ne!(timestamp2, timestamp1, "Timestamps should be different");
     assert_eq!(
         block2.contents["saved_at"], timestamp2,
         "Timestamp should be updated"
@@ -324,10 +320,7 @@ async fn setup_terminal_test_env() -> (Arc<AppState>, ElfArchive, String, String
         }),
         timestamp: Utc::now(),
     };
-    let events = handle
-        .process_command(create_terminal_cmd)
-        .await
-        .unwrap();
+    let events = handle.process_command(create_terminal_cmd).await.unwrap();
     let terminal_block_id = events[0].entity.clone();
 
     // 设置 active editor

@@ -4,8 +4,15 @@ import { FitAddon } from '@xterm/addon-fit'
 import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '@/lib/app-store'
 import { Button } from '@/components/ui/button'
-import { X, Minimize2, Maximize2, Terminal as TerminalIcon } from 'lucide-react'
+import {
+  X,
+  Minimize2,
+  Maximize2,
+  Terminal as TerminalIcon,
+  Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
+import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import '@xterm/xterm/css/xterm.css'
 import './terminal-panel.css'
 
@@ -19,6 +26,7 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
   const xtermRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const [isMaximized, setIsMaximized] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [blockId, setBlockId] = useState<string | null>(null)
   const [isInitializing, setIsInitializing] = useState(true)
   const [editorId, setEditorId] = useState<string | null>(null)
@@ -36,9 +44,10 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
     (state) => state.closeTerminalSession
   )
   const getActiveEditor = useAppStore((state) => state.getActiveEditor)
-  const getBlocks = useAppStore((state) => state.getBlocks)
   const selectedBlockId = useAppStore((state) => state.selectedBlockId)
   const getBlock = useAppStore((state) => state.getBlock)
+  const fetchBlock = useAppStore((state) => state.fetchBlock)
+  const deleteBlock = useAppStore((state) => state.deleteBlock)
 
   // Handle switching active terminal when selectedBlockId changes
   useEffect(() => {
@@ -51,8 +60,10 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
       block.block_type === 'terminal' &&
       block.block_id !== blockId
     ) {
+      console.log(`[Terminal] Switching from ${blockId} to ${block.block_id}`)
+
       const switchTerminalSession = async () => {
-        // 1. Save current session content before switching
+        // 1. Save current session content BEFORE switching context
         if (xtermRef.current && blockId) {
           try {
             const buffer = xtermRef.current.buffer.active
@@ -64,26 +75,31 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
               }
             }
             const content = lines.join('\n')
-            // Await save to ensure store is updated before we potentially switch back
-            await saveTerminal(fileId, blockId, content, editorId || undefined)
+            const trimmedContent = content.replace(/\s+$/, '')
+
+            console.log(
+              `[Terminal] Saving ${blockId} before switch, content length: ${trimmedContent.length}`
+            )
+            await saveTerminal(
+              fileId,
+              blockId,
+              trimmedContent,
+              editorId || undefined
+            )
           } catch (err) {
             console.error('Failed to save terminal before switch:', err)
           }
         }
 
-        // 2. Force state reset to trigger unmount of old terminal
-        setIsInitializing(true)
+        // 2. Prepare for new context
+        // We DON'T set isInitializing(true) here to avoid the major UI flash/flicker.
+        // Changing blockId will trigger the main terminal init effect which handles cleanup/re-init.
         isPtyInitialized.current = false
 
         // 3. Update to new block context
         setEditorId(block.owner)
         setBlockId(block.block_id)
         isBlockCreated.current = true
-
-        // 4. Trigger re-initialization in next tick to ensure DOM clean
-        setTimeout(() => {
-          setIsInitializing(false)
-        }, 10)
       }
 
       switchTerminalSession()
@@ -204,33 +220,47 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
 
     // Use requestAnimationFrame to ensure DOM is fully rendered before fitting
     requestAnimationFrame(() => {
+      if (!term.element) return // Guard against early disposal
       fitAddon.fit()
 
       // Small delay to ensure xterm.js has calculated correct dimensions
-      setTimeout(() => {
+      setTimeout(async () => {
+        if (!isMounted || !term.element) return
         fitAddon.fit()
         xtermRef.current = term
         fitAddonRef.current = fitAddon
 
-        // Initialize PTY with correct dimensions
-        initTerminalSession(term)
-          .then(() => {
-            if (!isMounted) return
+        // Initialize session (restore history + spawn PTY)
+        try {
+          // 1. Restore saved content (HISTORY FIRST)
+          await restoreTerminalContent(term)
+
+          // 2. Short pause to ensure history is rendered and buffered in xterm
+          await new Promise((resolve) => setTimeout(resolve, 300))
+
+          // 3. Initialize PTY session
+          if (isMounted) {
+            await initTerminalSession(term)
             // Mark PTY as initialized
             isPtyInitialized.current = true
-            // After PTY init, send resize command to ensure backend has correct size
-            return resizePty(
+
+            // After PTY init, send resize command
+            await resizePty(
               fileId,
               blockId,
               term.cols,
               term.rows,
               editorId || undefined
             )
-          })
-          .catch((error) => {
-            if (!isMounted) return
-            console.error('Failed to initialize or resize PTY:', error)
-          })
+          }
+        } catch (error) {
+          if (!isMounted) return
+          console.error(
+            'Failed to initialize or restore Terminal session:',
+            error
+          )
+          // Don't show toast for all errors to avoid noise
+        }
       }, 50)
     })
 
@@ -291,7 +321,14 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
           }
         }
         const content = lines.join('\n')
-        await saveTerminal(fileId, blockId, content, editorId || undefined)
+        // Trim trailing empty lines to avoid excessive scrolling on restore
+        const trimmedContent = content.replace(/\s+$/, '')
+        await saveTerminal(
+          fileId,
+          blockId,
+          trimmedContent,
+          editorId || undefined
+        )
       } catch (error) {
         console.error('Failed to save terminal content:', error)
       }
@@ -329,8 +366,8 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
     if (!blockId || !editorId) return
 
     try {
-      // Restore saved content if exists
-      await restoreTerminalContent(term)
+      // NOTE: restoreTerminalContent is now called EXPLICITLY before this in useEffect
+      // This function now ONLY handles backend PTY initialization
 
       // Initialize PTY session with the same editor that created the block
       await initTerminal(
@@ -351,21 +388,48 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
     if (!blockId) return
 
     try {
-      // Get block data
-      const blocks = getBlocks(fileId)
-      const terminalBlock = blocks.find((b) => b.block_id === blockId)
+      console.log(`[Terminal] Restoring block ${blockId}...`)
 
-      if (terminalBlock && terminalBlock.contents) {
-        const savedContent = (terminalBlock.contents as any).saved_content
-        if (savedContent && typeof savedContent === 'string') {
-          // Write saved content to terminal
-          term.write(savedContent.replace(/\n/g, '\r\n'))
-          term.write('\r\n') // Add newline after restored content
+      // 1. Fetch fresh block data from backend to ensure we have contents + permission
+      const block = await fetchBlock(fileId, blockId)
+
+      if (block && block.contents) {
+        const contents = block.contents as any
+        const savedContent = contents.saved_content
+
+        console.log(`[Terminal] Fetched contents:`, contents)
+
+        if (
+          savedContent &&
+          typeof savedContent === 'string' &&
+          savedContent.trim()
+        ) {
+          console.log(
+            `[Terminal] Writing ${savedContent.length} chars of history to xterm`
+          )
+
+          // Clear current terminal buffer just in case (though it should be fresh)
+          term.clear()
+
+          // Write saved content to terminal, replacing newlines with \r\n for xterm
+          // We use a small delay between writes if history is huge? No, xterm handles it.
+          term.write(savedContent.replace(/\r?\n/g, '\r\n'))
+
+          // If the last line doesn't end with a newline, add one to separate history from prompt
+          if (!savedContent.endsWith('\n')) {
+            term.write('\r\n')
+          }
+
+          // Ensure we are scrolled to the bottom
+          setTimeout(() => term.scrollToBottom(), 10)
+        } else {
+          console.log(`[Terminal] No history found or content is empty`)
         }
+      } else {
+        console.log(`[Terminal] Block not found or has no contents in store`)
       }
     } catch (error) {
       console.error('Failed to restore terminal content:', error)
-      // Don't show error to user - it's OK if there's no saved content
     }
   }
 
@@ -388,7 +452,14 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
             }
           }
           const content = lines.join('\n')
-          await saveTerminal(fileId, blockId, content, editorId || undefined)
+          // Trim trailing empty lines to avoid excessive scrolling on restore
+          const trimmedContent = content.replace(/\s+$/, '')
+          await saveTerminal(
+            fileId,
+            blockId,
+            trimmedContent,
+            editorId || undefined
+          )
         }
 
         // Close PTY session
@@ -398,6 +469,28 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
       }
     }
     onClose()
+  }
+
+  const confirmDelete = async () => {
+    if (!blockId) return
+
+    try {
+      // 1. Physical Cleanup: Close PTY
+      await closeTerminalSession(fileId, blockId, editorId || undefined).catch(
+        () => {}
+      )
+
+      // 2. Data Deletion: Remove Block (also clears selection in app-store)
+      await deleteBlock(fileId, blockId)
+
+      // 3. UI Cleanup: Close Panel
+      onClose()
+    } catch (error) {
+      console.error('Failed to delete terminal block:', error)
+      toast.error('Failed to delete terminal')
+    } finally {
+      setIsDeleteDialogOpen(false)
+    }
   }
 
   return (
@@ -416,6 +509,15 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
           </span>
         </div>
         <div className="flex gap-0.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setIsDeleteDialogOpen(true)}
+            className="h-6 w-6 p-0 text-zinc-500 hover:bg-destructive/10 hover:text-destructive"
+            title="Delete Terminal Session"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
           <Button
             size="sm"
             variant="ghost"
@@ -449,10 +551,29 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
         </div>
       ) : (
         <div
+          key={blockId}
           ref={terminalRef}
           className="terminal-container flex-1 overflow-hidden p-2"
         />
       )}
+
+      <ConfirmDeleteDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Terminal Session?"
+        description="Are you sure you want to permanently delete this terminal? This action cannot be undone."
+        details={
+          <>
+            <span className="text-sm font-semibold text-foreground">
+              {blockId ? getBlock(fileId, blockId)?.name : 'Terminal Session'}
+            </span>
+            <span className="truncate font-mono text-[10px] text-muted-foreground">
+              ID: {blockId}
+            </span>
+          </>
+        }
+      />
     </div>
   )
 }

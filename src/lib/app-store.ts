@@ -44,6 +44,7 @@ interface AppStore {
 
   // Block operations
   loadBlocks: (fileId: string) => Promise<void>
+  fetchBlock: (fileId: string, blockId: string) => Promise<Block | null>
   getBlocks: (fileId: string) => Block[]
   getBlock: (fileId: string, blockId: string) => Block | undefined
   selectBlock: (blockId: string) => void
@@ -376,6 +377,32 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  fetchBlock: async (fileId: string, blockId: string) => {
+    try {
+      const block = await TauriClient.block.getBlock(fileId, blockId)
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState) {
+        // Update or add block to the list
+        const updatedBlocks = [
+          ...fileState.blocks.filter((b) => b.block_id !== blockId),
+          block,
+        ]
+        files.set(fileId, { ...fileState, blocks: updatedBlocks })
+        set({ files })
+      }
+      return block
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      // Only show toast if it's not a "not found" error which might be expected in some flows
+      if (!errorMessage.includes('not found')) {
+        toast.error(`Failed to fetch block: ${errorMessage}`)
+      }
+      return null
+    }
+  },
+
   getBlocks: (fileId: string) => {
     const fileState = get().files.get(fileId)
     return fileState?.blocks || []
@@ -447,6 +474,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await TauriClient.block.deleteBlock(fileId, blockId)
       // Reload blocks to reflect the deletion
       await get().loadBlocks(fileId)
+
+      // If the deleted block was selected, clear selection
+      if (get().selectedBlockId === blockId) {
+        get().selectBlock('')
+      }
+
       toast.success('Block deleted successfully')
     } catch (error) {
       const errorMessage =

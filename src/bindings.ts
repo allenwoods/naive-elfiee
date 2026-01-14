@@ -760,7 +760,24 @@ export const commands = {
   },
   /**
    * Initialize a new PTY session for a block.
-   * Command interception for "cd ~" is handled in write_to_pty.
+   *
+   * This command:
+   * 1. Verifies the editor has permission for terminal.init
+   * 2. Creates a PTY with the specified dimensions
+   * 3. Spawns a shell process (bash/zsh on Unix, PowerShell on Windows)
+   * 4. Sets up the working directory to the .elf temp directory
+   * 5. Injects shell initialization for `cd ~` override
+   * 6. Starts a reader thread to emit PTY output as Tauri events
+   *
+   * # Arguments
+   * * `app_handle` - Tauri app handle for emitting events
+   * * `state` - Terminal state for session management
+   * * `app_state` - Application state for file/engine access
+   * * `payload` - Initialization parameters (cols, rows, block_id, etc.)
+   *
+   * # Returns
+   * * `Ok(())` - PTY session created successfully
+   * * `Err(String)` - Error message if initialization fails
    */
   async asyncInitTerminal(
     payload: TerminalInitPayload
@@ -777,6 +794,18 @@ export const commands = {
   },
   /**
    * Write data to the PTY.
+   *
+   * This command forwards user input from the frontend terminal (xterm.js)
+   * to the backend PTY process.
+   *
+   * # Arguments
+   * * `state` - Terminal state containing active sessions
+   * * `app_state` - Application state for permission checking
+   * * `payload` - Write parameters (data, block_id, file_id, editor_id)
+   *
+   * # Returns
+   * * `Ok(())` - Data written successfully
+   * * `Err(String)` - Error if session not found or write fails
    */
   async writeToPty(
     payload: TerminalWritePayload
@@ -793,6 +822,18 @@ export const commands = {
   },
   /**
    * Resize the PTY.
+   *
+   * This command updates the PTY window dimensions when the frontend
+   * terminal viewport changes size.
+   *
+   * # Arguments
+   * * `state` - Terminal state containing active sessions
+   * * `app_state` - Application state for permission checking
+   * * `payload` - Resize parameters (cols, rows, block_id, file_id, editor_id)
+   *
+   * # Returns
+   * * `Ok(())` - PTY resized successfully
+   * * `Err(String)` - Error if session not found or resize fails
    */
   async resizePty(
     payload: TerminalResizePayload
@@ -809,6 +850,27 @@ export const commands = {
   },
   /**
    * Close a PTY session.
+   *
+   * This command:
+   * 1. Verifies the editor has permission for terminal.close
+   * 2. Signals the reader thread to stop
+   * 3. Removes the session from state
+   * 4. Drops the PTY resources (which terminates the child process)
+   *
+   * Note: Content saving should be handled by the frontend before calling this.
+   * The frontend has access to the xterm.js buffer and should call terminal.save
+   * capability before closing the session.
+   *
+   * # Arguments
+   * * `state` - Terminal state containing active sessions
+   * * `app_state` - Application state for permission checking
+   * * `file_id` - The file containing the terminal block
+   * * `block_id` - The terminal block being closed
+   * * `editor_id` - The editor closing the session
+   *
+   * # Returns
+   * * `Ok(())` - Session closed successfully (or was already closed)
+   * * `Err(String)` - Error if permission check fails
    */
   async closeTerminalSession(
     fileId: string,
@@ -1165,33 +1227,36 @@ export type StateSnapshot = {
    */
   grants: Grant[]
 }
-export type TerminalInitPayload = {
-  cols: number
-  rows: number
-  block_id: string
-  editor_id: string
-  file_id: string
-  cwd: string | null
-}
 /**
  * Payload for terminal.init Tauri command
  *
  * This payload is used to initialize a PTY session for a terminal block.
  */
 export type TerminalInitPayload = {
+  /**
+   * Number of columns in the terminal
+   */
   cols: number
+  /**
+   * Number of rows in the terminal
+   */
   rows: number
+  /**
+   * The terminal block ID
+   */
   block_id: string
+  /**
+   * The editor initiating the session
+   */
   editor_id: string
+  /**
+   * The file containing the terminal block (required for permission checking)
+   */
   file_id: string
+  /**
+   * Optional initial working directory
+   */
   cwd: string | null
-}
-export type TerminalResizePayload = {
-  cols: number
-  rows: number
-  block_id: string
-  file_id: string
-  editor_id: string
 }
 /**
  * Payload for terminal.resize Tauri command
@@ -1199,10 +1264,25 @@ export type TerminalResizePayload = {
  * This payload is used to resize the PTY window.
  */
 export type TerminalResizePayload = {
+  /**
+   * New number of columns
+   */
   cols: number
+  /**
+   * New number of rows
+   */
   rows: number
+  /**
+   * The terminal block ID
+   */
   block_id: string
+  /**
+   * The file containing the terminal block (required for permission checking)
+   */
   file_id: string
+  /**
+   * The editor resizing (required for permission checking)
+   */
   editor_id: string
 }
 /**
@@ -1216,15 +1296,9 @@ export type TerminalSavePayload = {
    */
   saved_content: string
   /**
-   * Timestamp when the content was saved
+   * Timestamp when the content was saved (ISO 8601 format)
    */
   saved_at: string
-}
-export type TerminalWritePayload = {
-  data: string
-  block_id: string
-  file_id: string
-  editor_id: string
 }
 /**
  * Payload for terminal.write Tauri command
@@ -1232,9 +1306,21 @@ export type TerminalWritePayload = {
  * This payload is used to write user input data to the PTY.
  */
 export type TerminalWritePayload = {
+  /**
+   * The data to write (user input)
+   */
   data: string
+  /**
+   * The terminal block ID
+   */
   block_id: string
+  /**
+   * The file containing the terminal block (required for permission checking)
+   */
   file_id: string
+  /**
+   * The editor writing data (required for permission checking)
+   */
   editor_id: string
 }
 /**

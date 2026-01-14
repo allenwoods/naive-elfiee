@@ -1,10 +1,20 @@
-//! Tests for Terminal extension - terminal.save capability
+//! Tests for Terminal extension
+//!
+//! This module contains tests for:
+//! - terminal.save capability
+//! - Payload deserialization for all terminal operations
+//!
+//! Note: Shell initialization tests are in shell.rs as unit tests.
 
 use super::*;
 use crate::capabilities::registry::CapabilityRegistry;
 use crate::models::{Block, Command};
 use chrono::Utc;
 use serde_json::json;
+
+// ============================================================================
+// terminal.save Capability Tests
+// ============================================================================
 
 /// Test 1: Basic save functionality
 ///
@@ -45,13 +55,11 @@ fn test_terminal_save_basic() {
 
     let event = &events[0];
     assert_eq!(
-        event.value["contents"]["saved_content"],
-        test_content,
+        event.value["contents"]["saved_content"], test_content,
         "Saved content should match"
     );
     assert_eq!(
-        event.value["contents"]["saved_at"],
-        timestamp,
+        event.value["contents"]["saved_at"], timestamp,
         "Timestamp should match"
     );
 }
@@ -149,7 +157,7 @@ fn test_terminal_save_timestamp_format() {
     );
 }
 
-/// Test 4: Payload deserialization
+/// Test 4: TerminalSavePayload deserialization
 ///
 /// Verifies:
 /// - TerminalSavePayload deserializes correctly
@@ -203,8 +211,7 @@ fn test_terminal_save_empty_content() {
     let events = result.unwrap();
     assert_eq!(events.len(), 1);
     assert_eq!(
-        events[0].value["contents"]["saved_content"],
-        "",
+        events[0].value["contents"]["saved_content"], "",
         "Empty content should be saved"
     );
 }
@@ -268,4 +275,102 @@ fn test_terminal_save_large_content() {
         large_content.len(),
         "Large content should be saved completely"
     );
+}
+
+// ============================================================================
+// Payload Deserialization Tests
+// ============================================================================
+
+/// Test 7: TerminalInitPayload deserialization
+///
+/// Verifies:
+/// - Payload deserializes correctly with all fields
+#[test]
+fn test_terminal_init_payload_deserialization() {
+    let json = json!({
+        "cols": 80,
+        "rows": 24,
+        "block_id": "block-123",
+        "editor_id": "alice",
+        "file_id": "file-456",
+        "cwd": "/home/user/project"
+    });
+
+    let payload: Result<TerminalInitPayload, _> = serde_json::from_value(json);
+    assert!(payload.is_ok(), "Payload should deserialize successfully");
+
+    let payload = payload.unwrap();
+    assert_eq!(payload.cols, 80);
+    assert_eq!(payload.rows, 24);
+    assert_eq!(payload.block_id, "block-123");
+    assert_eq!(payload.editor_id, "alice");
+    assert_eq!(payload.file_id, "file-456");
+    assert_eq!(payload.cwd, Some("/home/user/project".to_string()));
+}
+
+/// Test 8: TerminalInitPayload with optional cwd
+///
+/// Verifies:
+/// - cwd field can be null/omitted
+#[test]
+fn test_terminal_init_payload_optional_cwd() {
+    let json = json!({
+        "cols": 80,
+        "rows": 24,
+        "block_id": "block-123",
+        "editor_id": "alice",
+        "file_id": "file-456"
+    });
+
+    let payload: Result<TerminalInitPayload, _> = serde_json::from_value(json);
+    assert!(payload.is_ok(), "Should deserialize without cwd");
+
+    let payload = payload.unwrap();
+    assert_eq!(payload.cwd, None, "cwd should be None");
+}
+
+/// Test 9: TerminalWritePayload deserialization
+///
+/// Verifies:
+/// - Write payload deserializes correctly
+#[test]
+fn test_terminal_write_payload_deserialization() {
+    let json = json!({
+        "data": "ls -la\n",
+        "block_id": "block-123",
+        "file_id": "file-456",
+        "editor_id": "alice"
+    });
+
+    let payload: Result<TerminalWritePayload, _> = serde_json::from_value(json);
+    assert!(payload.is_ok(), "Payload should deserialize successfully");
+
+    let payload = payload.unwrap();
+    assert_eq!(payload.data, "ls -la\n");
+    assert_eq!(payload.block_id, "block-123");
+    assert_eq!(payload.file_id, "file-456");
+    assert_eq!(payload.editor_id, "alice");
+}
+
+/// Test 10: TerminalResizePayload deserialization
+///
+/// Verifies:
+/// - Resize payload deserializes correctly
+#[test]
+fn test_terminal_resize_payload_deserialization() {
+    let json = json!({
+        "cols": 120,
+        "rows": 40,
+        "block_id": "block-123",
+        "file_id": "file-456",
+        "editor_id": "alice"
+    });
+
+    let payload: Result<TerminalResizePayload, _> = serde_json::from_value(json);
+    assert!(payload.is_ok(), "Payload should deserialize successfully");
+
+    let payload = payload.unwrap();
+    assert_eq!(payload.cols, 120);
+    assert_eq!(payload.rows, 40);
+    assert_eq!(payload.block_id, "block-123");
 }
