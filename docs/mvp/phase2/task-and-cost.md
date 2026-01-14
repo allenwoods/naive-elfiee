@@ -1,12 +1,5 @@
 # Phase 2 任务规划与预算
 
-**文档状态**: Draft
-**创建日期**: 2026-01-13
-**最后更新**: 2026-01-13
-**基于文档**: `target-and-story.md`
-
----
-
 ## 一、总体预算概览
 
 ### 1.1 预算分配
@@ -16,13 +9,6 @@
 | **研发团队** | 183 人时 | 68% | 后端 + 前端 + 测试 |
 | **产品团队** | 85 人时 | 32% | 需求 + 设计 + 研究 + Dogfooding |
 | **总计** | 268 人时 | 100% | 约 3 周（每周 90 人时） |
-
-### 1.2 时间安排
-
-- **总工期**: 3 周
-- **团队配置**: 5 人（2 后端 + 1.5 前端 + 0.5 测试 + 1 产品）
-- **每周投入**: 85-90 人时
-- **风险预留**: 见第五章（包含 Terminal 文件同步的额外风险）
 
 ### 1.3 功能范围
 
@@ -38,12 +24,6 @@
 ---
 
 ## 二、研发任务规划（183 人时）
-
-**说明**:
-- 任务按 **Extension Capability** 组织，每个任务明确需要修改的文件
-- Agent 无独立聊天界面，在 Markdown Block 中统一交互
-- F2 (Terminal-Block 交互能力) 涉及文件监听和自动同步，技术复杂度高
-- **新增**: M6/M8 里程碑相关任务（Event 逻辑整理 + 上下文优化），增加 11 人时
 
 ### 2.1 后端开发（107 人时）
 
@@ -160,12 +140,6 @@
 
 **研发总计**: 183 人时（后端 107 + 前端 56 + 测试 20）
 
-**增量说明**: 相比初始预算增加 11 人时，主要用于：
-- **B-REL-05**: Event 逻辑整理 API（6 人时）- 支持 M6 里程碑
-- **B-AGENT-12**: 基于 Event 逻辑的上下文优化（6 人时）- 支持 M8 里程碑
-- **F-REL-04**: Event 逻辑链展示（4 人时）- 前端可视化
-- **优化调整**: B-AGENT-11 从 4 人时优化为 3 人时（-1 人时）
-
 ---
 
 ## 三、产品任务规划（85 人时）
@@ -212,7 +186,7 @@
 
 | 里程碑 | 时间节点 | 开发内容 | 验收标准 | 对应任务 |
 | :--- | :--- | :--- | :--- | :--- |
-| **M1: 基础功能就绪** | Week 1 前 3 天 | 1. Terminal 基本功能（cwd 到目录跑命令）<br>2. Agent 基本配置和调用回显<br>3. Relation 数据结构 | ✓ Terminal 支持 `linked_directory_id`，可以 cd 到目录执行命令<br>✓ Agent Block 可创建，配置 API Key<br>✓ `agent.invoke` 返回 LLM 回显<br>✓ RelationGraph 结构完成，支持双向索引 | B-TERM-01～03<br>B-AGENT-01～04<br>B-REL-01～02 |
+| **M1: 基础功能就绪** | Week 1 前 3 天 | 1. Terminal 基本功能（cwd 到目录跑命令）<br>2. Agent 基本配置和调用回显<br>3. Relation 数据结构 | ✓ Terminal可以 cd 到目录执行命令<br>✓ Agent Block 可创建，配置 API Key<br>✓ `agent.invoke` 返回 LLM 回显<br>✓ RelationGraph 结构完成，支持双向索引 | B-TERM-01～03<br>B-AGENT-01～04<br>B-REL-01～02 |
 | **M2: Agent-Terminal 交互验证** | Week 1 第 4-5 天 | 产品 + 研发联合验证 Agent 和 Terminal 基础交互 | ✓ 在 Markdown 中 @agent 调用成功<br>✓ Terminal 可执行简单命令并显示输出<br>✓ 验证交互流程合理性 | F-AGENT-01～02<br>F-TERM-01 |
 | **M3: 完整 Agent 功能** | Week 2 前 3 天 | 4. Agent 复杂上下文（带关联）<br>5. Terminal 配置 Workspace<br>6. Agent 命令解析和执行<br>7. Terminal 使用 Agent 模式 | ✓ Agent 可读取 `Block.children` 中的 reference 关系<br>✓ Terminal workspace_mount 可导出物理文件<br>✓ `agent.approve` 可解析 Proposal 并执行 Commands<br>✓ Terminal 可配置 Agent 调用方式（API/Terminal） | B-AGENT-08～11<br>B-TERM-04～06<br>B-REL-03 |
 | **M4: Relation 可视化** | Week 2 第 4-5 天 | 8. Relation 前端显示 | ✓ RelationGraph 组件渲染 DAG<br>✓ 节点点击跳转 Block<br>✓ 支持 reference/implement 关系展示 | F-REL-01～03<br>B-REL-04～05 |
