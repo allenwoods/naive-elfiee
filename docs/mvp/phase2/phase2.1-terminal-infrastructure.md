@@ -715,17 +715,31 @@ export const EditorCanvas = () => {
 - 可以在此基础上添加 `workspace/` 子目录
 - PTY 已支持任意目录访问，workspace 同步不影响现有逻辑
 
-### 5.3 为什么不持久化 Terminal？
+### 5.3 Terminal Block 持久化设计
 
-Phase 2.1 的 Terminal 是临时会话：
-- 不创建 Terminal Block（不生成 Event）
-- 关闭后会话结束，不保留历史
-- 类似 VSCode 的 Integrated Terminal 行为
+Terminal 是一个完整的 Block（block_type = "terminal"）：
+- ✅ 创建 Terminal 时生成 Terminal Block（通过 `core.create` 事件）
+- ✅ Terminal 内容（buffer 历史）保存到 `block.contents.saved_content`
+- ✅ 关闭 Terminal 时自动调用 `terminal.save` 保存当前内容
+- ✅ 支持恢复上次的 Terminal 会话（读取 `saved_content`）
 
-**未来可以考虑**：
-- 将 Terminal Block 作为新的 block_type
-- 持久化命令历史到 Event Log
-- 支持恢复上次的 Terminal 会话
+**持久化时机**：
+1. **手动保存**：用户主动触发 `terminal.save`
+2. **自动保存**：关闭 Terminal 会话时自动保存
+3. **定期保存**（可选）：每隔一段时间自动保存
+
+**保存内容**：
+```json
+{
+  "saved_content": "完整的 terminal buffer 内容",
+  "saved_at": "2026-01-14T10:30:00Z",
+  "cwd": "/path/to/last/directory"
+}
+```
+
+**恢复会话**（未来增强）：
+- 打开已有 Terminal Block 时，可显示上次保存的内容
+- 可选择从上次的 cwd 继续工作
 
 ---
 

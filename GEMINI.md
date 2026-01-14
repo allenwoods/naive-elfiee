@@ -1,3 +1,29 @@
+# ⚡ CRITICAL DEVELOPMENT RULES (AI MUST READ)
+
+## 🚨 AI Context & Documentation
+*   **[AI_INDEX.md](docs/mvp/guidelines/AI_INDEX.md)**: Master index for AI rules and patterns. **Refer to this for detailed code patterns.**
+*   **[CRITICAL_RULES.md](docs/mvp/guidelines/ai-specs/CRITICAL_RULES.md)**: Hard constraints that must never be violated.
+
+## 🔴 Frontend Hard Rules (React/Zustand)
+1.  **NO Direct API Calls in Components**: Components MUST use `useAppStore` Actions. NEVER import `TauriClient` in UI components.
+    *   ❌ Bad: `TauriClient.block.create(...)` inside `MyComponent`.
+    *   ✅ Good: `const create = useAppStore(s => s.createBlock); create(...)`.
+2.  **`bindings.ts` is Read-Only**: NEVER edit this file. It is auto-generated. To fix types, edit Rust structs and add `#[derive(Type)]`.
+3.  **State Immutability**: NEVER mutate state objects directly (e.g., `block.content = "..."`). Always use Store Actions which invoke Backend Commands.
+
+## 🔴 Backend Hard Rules (Rust/Tauri)
+1.  **Mandatory Tooling**: Use `elfiee-ext-gen create` to scaffold ALL new extensions or capabilities. Follow the TDD workflow it generates.
+2.  **Command Registration**: New commands MUST be registered in `src-tauri/src/lib.rs` in **BOTH** `debug_assertions` AND `not(debug_assertions)` blocks.
+3.  **Entity ID Rule**:
+    *   **Write Capability**: `Event.entity` = `block_id` (The target block being modified).
+    *   **Read Capability**: `Event.entity` = `editor_id` (The actor performing the read).
+4.  **Payloads**: All capabilities must have a specific struct with `#[derive(Type, Serialize, Deserialize)]`. Do not use `serde_json::Value` manually in handlers.
+
+## 🔄 Workflow
+*   **Adding Features**: 1. Define Rust Command/Payload -> 2. Register in `lib.rs` -> 3. Run `pnpm tauri dev` (gens types) -> 4. Create Zustand Action -> 5. Update UI.
+
+---
+
 # Elfiee Project Context
 
 ## Project Overview
