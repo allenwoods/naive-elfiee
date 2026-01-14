@@ -67,3 +67,9 @@ pub mod terminal_save;
 
 pub use pty::*;
 pub use terminal_save::*;
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+mod pty_tests;

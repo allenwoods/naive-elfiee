@@ -109,8 +109,8 @@ impl StateProjector {
                 }
             }
 
-            // Block updates (write, link, unlink)
-            _ if cap_id.ends_with(".write") || cap_id.ends_with(".link") => {
+            // Block updates (write, link, save)
+            _ if cap_id.ends_with(".write") || cap_id.ends_with(".link") || cap_id.ends_with(".save") => {
                 if let Some(block) = self.blocks.get_mut(&event.entity) {
                     // Update contents if present
                     if let Some(contents) = event.value.get("contents") {

@@ -109,7 +109,7 @@ async fn check_terminal_permission(
 
 /// Generate shell initialization script.
 /// Overrides cd command to intercept user home directory and redirect to work directory.
-fn generate_shell_init(work_dir: &std::path::Path, shell: &str) -> Result<String, String> {
+pub(crate) fn generate_shell_init(work_dir: &std::path::Path, shell: &str) -> Result<String, String> {
     let work_dir_str = work_dir
         .to_str()
         .ok_or("Failed to convert work directory path to string")?;
