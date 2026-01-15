@@ -8,7 +8,6 @@
 //!
 //! - `state` - Session state management (TerminalState, TerminalSession)
 //! - `shell` - Cross-platform shell initialization scripts
-//! - `permission` - Authorization checks for terminal operations
 //! - `terminal_init` - PTY session initialization command
 //! - `terminal_write` - PTY input command
 //! - `terminal_resize` - PTY resize command
@@ -40,7 +39,6 @@ use specta::Type;
 
 // --- Module exports ---
 
-pub mod permission;
 pub mod shell;
 pub mod state;
 pub mod terminal_close;

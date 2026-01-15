@@ -8,7 +8,6 @@ use std::io::Write;
 use std::thread;
 use tauri::{AppHandle, Emitter, State};
 
-use super::permission::check_terminal_permission;
 use super::shell::generate_shell_init;
 use super::state::{TerminalSession, TerminalState};
 use super::TerminalInitPayload;
@@ -43,15 +42,26 @@ pub async fn async_init_terminal(
 ) -> Result<(), String> {
     let block_id = payload.block_id.clone();
 
-    // Verify permissions using capability system
-    check_terminal_permission(
-        &app_state,
-        &payload.file_id,
-        &payload.editor_id,
-        &block_id,
-        "terminal.init",
-    )
-    .await?;
+    // Verify permissions using capability system via EngineHandle
+    let engine = app_state
+        .engine_manager
+        .get_engine(&payload.file_id)
+        .ok_or_else(|| format!("File '{}' is not open", payload.file_id))?;
+
+    let authorized = engine
+        .check_grant(
+            payload.editor_id.clone(),
+            "terminal.init".to_string(),
+            block_id.clone(),
+        )
+        .await;
+
+    if !authorized {
+        return Err(format!(
+            "Authorization failed: {} does not have permission for terminal.init on block {}",
+            payload.editor_id, block_id
+        ));
+    }
 
     // Get the .elf file's temporary directory
     let file_info = app_state

@@ -5,7 +5,6 @@
 use specta::specta;
 use tauri::State;
 
-use super::permission::check_terminal_permission;
 use super::state::TerminalState;
 use crate::state::AppState;
 
@@ -40,15 +39,26 @@ pub async fn close_terminal_session(
     block_id: String,
     editor_id: String,
 ) -> Result<(), String> {
-    // Verify permissions using capability system
-    check_terminal_permission(
-        &app_state,
-        &file_id,
-        &editor_id,
-        &block_id,
-        "terminal.close",
-    )
-    .await?;
+    // Verify permissions using capability system via EngineHandle
+    let engine = app_state
+        .engine_manager
+        .get_engine(&file_id)
+        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
+
+    let authorized = engine
+        .check_grant(
+            editor_id.clone(),
+            "terminal.close".to_string(),
+            block_id.clone(),
+        )
+        .await;
+
+    if !authorized {
+        return Err(format!(
+            "Authorization failed: {} does not have permission for terminal.close on block {}",
+            editor_id, block_id
+        ));
+    }
 
     let mut sessions = state.sessions.lock().unwrap();
     if let Some(session) = sessions.remove(&block_id) {

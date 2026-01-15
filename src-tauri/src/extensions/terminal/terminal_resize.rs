@@ -6,7 +6,6 @@ use portable_pty::PtySize;
 use specta::specta;
 use tauri::State;
 
-use super::permission::check_terminal_permission;
 use super::state::TerminalState;
 use super::TerminalResizePayload;
 use crate::state::AppState;
@@ -31,15 +30,26 @@ pub async fn resize_pty(
     app_state: State<'_, AppState>,
     payload: TerminalResizePayload,
 ) -> Result<(), String> {
-    // Verify permissions using capability system
-    check_terminal_permission(
-        &app_state,
-        &payload.file_id,
-        &payload.editor_id,
-        &payload.block_id,
-        "terminal.resize",
-    )
-    .await?;
+    // Verify permissions using capability system via EngineHandle
+    let engine = app_state
+        .engine_manager
+        .get_engine(&payload.file_id)
+        .ok_or_else(|| format!("File '{}' is not open", payload.file_id))?;
+
+    let authorized = engine
+        .check_grant(
+            payload.editor_id.clone(),
+            "terminal.resize".to_string(),
+            payload.block_id.clone(),
+        )
+        .await;
+
+    if !authorized {
+        return Err(format!(
+            "Authorization failed: {} does not have permission for terminal.resize on block {}",
+            payload.editor_id, payload.block_id
+        ));
+    }
 
     let mut sessions = state.sessions.lock().unwrap();
     if let Some(session) = sessions.get_mut(&payload.block_id) {
