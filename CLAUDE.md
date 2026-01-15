@@ -1,3 +1,29 @@
+# ⚡ CRITICAL DEVELOPMENT RULES (AI MUST READ)
+
+## 🚨 Guidelines & Rules
+*   **[Front-End Rules](docs/mvp/guidelines/前端开发规范.md)**: Hard rules for React/Zustand and code patterns.
+*   **[Back-End Rules](docs/mvp/guidelines/后端开发规范.md)**: Hard rules for Rust/Tauri, tooling usage, and patterns.
+*   **[Workflow](docs/mvp/guidelines/开发流程规范.md)**: Steps for setup, TDD workflow, and committing.
+
+## 🔴 Frontend Hard Rules (React/Zustand)
+1.  **NO Direct API Calls in Components**: Components MUST use `useAppStore` Actions. NEVER import `TauriClient` in UI components.
+    *   ❌ Bad: `TauriClient.block.create(...)` inside `MyComponent`.
+    *   ✅ Good: `const create = useAppStore(s => s.createBlock); create(...)`.
+2.  **`bindings.ts` is Read-Only**: NEVER edit this file. It is auto-generated. To fix types, edit Rust structs and add `#[derive(Type)]`.
+3.  **State Immutability**: NEVER mutate state objects directly (e.g., `block.content = "..."`). Always use Store Actions which invoke Backend Commands.
+
+## 🔴 Backend Hard Rules (Rust/Tauri)
+1.  **Command Registration**: New commands MUST be registered in `src-tauri/src/lib.rs` in **BOTH** `debug_assertions` AND `not(debug_assertions)` blocks.
+2.  **Entity ID Rule**:
+    *   **Write Capability**: `Event.entity` = `block_id` (The object being modified).
+    *   **Read Capability**: `Event.entity` = `editor_id` (The actor reading the data).
+3.  **Payloads**: All capabilities must have a specific struct with `#[derive(Type, Serialize, Deserialize)]`. Do not use `serde_json::Value` manually.
+
+## 🔄 Workflow
+*   **Adding Features**: 1. Define Rust Command/Payload -> 2. Register in `lib.rs` -> 3. Run `pnpm tauri dev` (gens types) -> 4. Create Zustand Action -> 5. Update UI.
+
+---
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -429,4 +455,4 @@ Project status and implementation roadmap:
 
 **For contributors**: 
 - Start with `docs/README.md` for complete documentation map and recommended reading order.
-- Do not make modifications directly on main/dev branches, always create a new branch and open a PR to merge to dev
+- Do not make modifications directly on main/dev branches, always create a new branch and open a PR to merge to dev.
