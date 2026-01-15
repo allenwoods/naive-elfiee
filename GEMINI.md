@@ -1,8 +1,9 @@
 # ⚡ CRITICAL DEVELOPMENT RULES (AI MUST READ)
 
-## 🚨 AI Context & Documentation
-*   **[AI_INDEX.md](docs/mvp/guidelines/AI_INDEX.md)**: Master index for AI rules and patterns. **Refer to this for detailed code patterns.**
-*   **[CRITICAL_RULES.md](docs/mvp/guidelines/ai-specs/CRITICAL_RULES.md)**: Hard constraints that must never be violated.
+## 🚨 Guidelines & Rules
+*   **[Front-End Rules](docs/mvp/guidelines/前端开发规范.md)**: Hard rules for React/Zustand and code patterns.
+*   **[Back-End Rules](docs/mvp/guidelines/后端开发规范.md)**: Hard rules for Rust/Tauri, tooling usage, and patterns.
+*   **[Workflow](docs/mvp/guidelines/开发流程规范.md)**: Steps for setup, TDD workflow, and committing.
 
 ## 🔴 Frontend Hard Rules (React/Zustand)
 1.  **NO Direct API Calls in Components**: Components MUST use `useAppStore` Actions. NEVER import `TauriClient` in UI components.
