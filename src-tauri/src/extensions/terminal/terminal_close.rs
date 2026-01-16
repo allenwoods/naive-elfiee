@@ -1,72 +1,42 @@
-//! Terminal close command
+//! terminal.close Capability
 //!
-//! Closes an active PTY session and cleans up resources.
+//! Authorization capability for terminal close operations.
+//! The actual PTY cleanup is handled by the Tauri command in `commands/terminal.rs`.
 
-use specta::specta;
-use tauri::State;
+use crate::capabilities::core::CapResult;
+use crate::models::{Block, Command, Event};
+use capability_macros::capability;
 
-use super::state::TerminalState;
-use crate::state::AppState;
-
-/// Close a PTY session.
+/// Handler for terminal.close capability.
 ///
-/// This command:
-/// 1. Verifies the editor has permission for terminal.close
-/// 2. Signals the reader thread to stop
-/// 3. Removes the session from state
-/// 4. Drops the PTY resources (which terminates the child process)
+/// This capability performs authorization check for closing a terminal session.
+/// It acts as a permission gate - if this handler succeeds, the caller is
+/// authorized to close the PTY session.
 ///
-/// Note: Content saving should be handled by the frontend before calling this.
-/// The frontend has access to the xterm.js buffer and should call terminal.save
-/// capability before closing the session.
+/// # Architecture Note
+/// In Elfiee's split architecture:
+/// 1. **Capability Handler** (this file): Performs authorization check
+/// 2. **Tauri Command** (`commands/terminal.rs`): Performs actual PTY cleanup
 ///
 /// # Arguments
-/// * `state` - Terminal state containing active sessions
-/// * `app_state` - Application state for permission checking
-/// * `file_id` - The file containing the terminal block
-/// * `block_id` - The terminal block being closed
-/// * `editor_id` - The editor closing the session
+/// * `cmd` - The command containing close parameters
+/// * `block` - The terminal block (must exist and be of type "terminal")
 ///
 /// # Returns
-/// * `Ok(())` - Session closed successfully (or was already closed)
-/// * `Err(String)` - Error if permission check fails
-#[tauri::command]
-#[specta]
-pub async fn close_terminal_session(
-    state: State<'_, TerminalState>,
-    app_state: State<'_, AppState>,
-    file_id: String,
-    block_id: String,
-    editor_id: String,
-) -> Result<(), String> {
-    // Verify permissions using capability system via EngineHandle
-    let engine = app_state
-        .engine_manager
-        .get_engine(&file_id)
-        .ok_or_else(|| format!("File '{}' is not open", file_id))?;
+/// * `Ok(Vec<Event>)` - Empty vector (authorization passed, no events generated)
+/// * `Err(String)` - Error if block is missing or invalid
+#[capability(id = "terminal.close", target = "terminal")]
+fn handle_terminal_close(_cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    let block = block.ok_or("Block required for terminal.close")?;
 
-    let authorized = engine
-        .check_grant(
-            editor_id.clone(),
-            "terminal.close".to_string(),
-            block_id.clone(),
-        )
-        .await;
-
-    if !authorized {
+    if block.block_type != "terminal" {
         return Err(format!(
-            "Authorization failed: {} does not have permission for terminal.close on block {}",
-            editor_id, block_id
+            "Expected block_type 'terminal', got '{}'",
+            block.block_type
         ));
     }
 
-    let mut sessions = state.sessions.lock().unwrap();
-    if let Some(session) = sessions.remove(&block_id) {
-        // Signal the reader thread to stop
-        let _ = session.shutdown_tx.send(());
-
-        // Dropping the session will drop the master PTY, which should terminate the child process
-        drop(session);
-    }
-    Ok(())
+    // Authorization is handled by the engine before calling this handler.
+    // Return empty events - no state change for close permission check.
+    Ok(vec![])
 }

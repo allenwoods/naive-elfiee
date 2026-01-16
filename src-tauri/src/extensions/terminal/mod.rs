@@ -4,28 +4,26 @@
 //!
 //! ## Architecture
 //!
-//! The terminal extension is organized into focused modules:
+//! The terminal extension follows Elfiee's split architecture:
 //!
-//! - `state` - Session state management (TerminalState, TerminalSession)
-//! - `shell` - Cross-platform shell initialization scripts
-//! - `terminal_init` - PTY session initialization command
-//! - `terminal_write` - PTY input command
-//! - `terminal_resize` - PTY resize command
-//! - `terminal_close` - PTY session cleanup command
-//! - `terminal_save` - Save capability for persisting terminal content
+//! ### Capabilities (extensions/terminal/)
+//! Authorization handlers that act as permission gates:
+//! - `terminal.init` - Authorization for PTY initialization
+//! - `terminal.write` - Authorization for PTY write
+//! - `terminal.resize` - Authorization for PTY resize
+//! - `terminal.close` - Authorization for PTY close
+//! - `terminal.save` - Save terminal content to block (event-sourced)
 //!
-//! ## Tauri Commands vs Capabilities
-//!
-//! Terminal operations are split into two categories:
-//!
-//! **Tauri Commands** (real-time PTY I/O):
+//! ### Tauri Commands (commands/terminal.rs)
+//! Actual PTY operations that call Capabilities for authorization:
 //! - `async_init_terminal` - Initialize PTY session
 //! - `write_to_pty` - Write user input to PTY
 //! - `resize_pty` - Resize PTY window
 //! - `close_terminal_session` - Close PTY session
 //!
-//! **Capabilities** (event-sourced state changes):
-//! - `terminal.save` - Save terminal content to block
+//! ### Support Modules
+//! - `state` - Session state management (TerminalState, TerminalSession)
+//! - `shell` - Cross-platform shell initialization scripts
 //!
 //! ## Payload Types
 //!
@@ -37,29 +35,36 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-// --- Module exports ---
+// ============================================================================
+// Support Module Exports
+// ============================================================================
 
 pub mod shell;
 pub mod state;
+
+// Re-export state types (used by commands/terminal.rs)
+pub use state::{TerminalSession, TerminalState};
+
+// ============================================================================
+// Capability Module Exports
+// ============================================================================
+
 pub mod terminal_close;
 pub mod terminal_init;
 pub mod terminal_resize;
 pub mod terminal_save;
 pub mod terminal_write;
 
-// Re-export state types
-pub use state::{TerminalSession, TerminalState};
-
-// Re-export Tauri commands
-pub use terminal_close::close_terminal_session;
-pub use terminal_init::async_init_terminal;
-pub use terminal_resize::resize_pty;
-pub use terminal_write::write_to_pty;
-
-// Re-export capability
+// Re-export capability handlers (for CapabilityRegistry registration)
+pub use terminal_close::*;
+pub use terminal_init::*;
+pub use terminal_resize::*;
 pub use terminal_save::*;
+pub use terminal_write::*;
 
-// --- Payload Types ---
+// ============================================================================
+// Payload Definitions
+// ============================================================================
 
 /// Payload for terminal.init Tauri command
 ///
@@ -123,7 +128,9 @@ pub struct TerminalSavePayload {
     pub saved_at: String,
 }
 
-// --- Tests ---
+// ============================================================================
+// Tests
+// ============================================================================
 
 #[cfg(test)]
 mod tests;

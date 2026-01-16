@@ -762,7 +762,7 @@ export const commands = {
    * Initialize a new PTY session for a block.
    *
    * This command:
-   * 1. Verifies the editor has permission for terminal.init
+   * 1. Executes terminal.init Capability for authorization
    * 2. Creates a PTY with the specified dimensions
    * 3. Spawns a shell process (bash/zsh on Unix, PowerShell on Windows)
    * 4. Sets up the working directory to the .elf temp directory
@@ -852,7 +852,7 @@ export const commands = {
    * Close a PTY session.
    *
    * This command:
-   * 1. Verifies the editor has permission for terminal.close
+   * 1. Executes terminal.close Capability for authorization
    * 2. Signals the reader thread to stop
    * 3. Removes the session from state
    * 4. Drops the PTY resources (which terminates the child process)

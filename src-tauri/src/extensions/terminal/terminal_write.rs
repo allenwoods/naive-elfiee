@@ -1,63 +1,42 @@
-//! Terminal write command
+//! terminal.write Capability
 //!
-//! Writes user input data to an active PTY session.
+//! Authorization capability for terminal write operations.
+//! The actual PTY write is handled by the Tauri command in `commands/terminal.rs`.
 
-use specta::specta;
-use std::io::Write;
-use tauri::State;
+use crate::capabilities::core::CapResult;
+use crate::models::{Block, Command, Event};
+use capability_macros::capability;
 
-use super::state::TerminalState;
-use super::TerminalWritePayload;
-use crate::state::AppState;
-
-/// Write data to the PTY.
+/// Handler for terminal.write capability.
 ///
-/// This command forwards user input from the frontend terminal (xterm.js)
-/// to the backend PTY process.
+/// This capability performs authorization check for writing to a terminal.
+/// It acts as a permission gate - if this handler succeeds, the caller is
+/// authorized to write to the PTY session.
+///
+/// # Architecture Note
+/// In Elfiee's split architecture:
+/// 1. **Capability Handler** (this file): Performs authorization check
+/// 2. **Tauri Command** (`commands/terminal.rs`): Performs actual PTY write
 ///
 /// # Arguments
-/// * `state` - Terminal state containing active sessions
-/// * `app_state` - Application state for permission checking
-/// * `payload` - Write parameters (data, block_id, file_id, editor_id)
+/// * `cmd` - The command containing write parameters
+/// * `block` - The terminal block (must exist and be of type "terminal")
 ///
 /// # Returns
-/// * `Ok(())` - Data written successfully
-/// * `Err(String)` - Error if session not found or write fails
-#[tauri::command]
-#[specta]
-pub async fn write_to_pty(
-    state: State<'_, TerminalState>,
-    app_state: State<'_, AppState>,
-    payload: TerminalWritePayload,
-) -> Result<(), String> {
-    // Verify permissions using capability system via EngineHandle
-    let engine = app_state
-        .engine_manager
-        .get_engine(&payload.file_id)
-        .ok_or_else(|| format!("File '{}' is not open", payload.file_id))?;
+/// * `Ok(Vec<Event>)` - Empty vector (authorization passed, no events generated)
+/// * `Err(String)` - Error if block is missing or invalid
+#[capability(id = "terminal.write", target = "terminal")]
+fn handle_terminal_write(_cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+    let block = block.ok_or("Block required for terminal.write")?;
 
-    let authorized = engine
-        .check_grant(
-            payload.editor_id.clone(),
-            "terminal.write".to_string(),
-            payload.block_id.clone(),
-        )
-        .await;
-
-    if !authorized {
+    if block.block_type != "terminal" {
         return Err(format!(
-            "Authorization failed: {} does not have permission for terminal.write on block {}",
-            payload.editor_id, payload.block_id
+            "Expected block_type 'terminal', got '{}'",
+            block.block_type
         ));
     }
 
-    let mut sessions = state.sessions.lock().unwrap();
-    if let Some(session) = sessions.get_mut(&payload.block_id) {
-        write!(session.writer, "{}", payload.data)
-            .map_err(|e| format!("Failed to write to PTY: {}", e))?;
-    } else {
-        return Err("Terminal session not found".to_string());
-    }
-
-    Ok(())
+    // Authorization is handled by the engine before calling this handler.
+    // Return empty events - no state change for write permission check.
+    Ok(vec![])
 }

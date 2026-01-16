@@ -2,7 +2,7 @@
 //!
 //! Test categories included:
 //! - Payload deserialization tests
-//! - Basic capability functionality tests
+//! - Capability functionality tests
 //! - Authorization/CBAC tests
 
 use super::*;
@@ -24,7 +24,10 @@ fn test_save_payload_deserialize() {
     });
 
     let result: Result<TerminalSavePayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "TerminalSavePayload should deserialize successfully");
+    assert!(
+        result.is_ok(),
+        "TerminalSavePayload should deserialize successfully"
+    );
 
     let payload = result.unwrap();
     assert_eq!(payload.saved_content, "terminal output here");
@@ -43,7 +46,10 @@ fn test_init_payload_deserialize() {
     });
 
     let result: Result<TerminalInitPayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "TerminalInitPayload should deserialize successfully");
+    assert!(
+        result.is_ok(),
+        "TerminalInitPayload should deserialize successfully"
+    );
 
     let payload = result.unwrap();
     assert_eq!(payload.cols, 80);
@@ -61,7 +67,10 @@ fn test_write_payload_deserialize() {
     });
 
     let result: Result<TerminalWritePayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "TerminalWritePayload should deserialize successfully");
+    assert!(
+        result.is_ok(),
+        "TerminalWritePayload should deserialize successfully"
+    );
 
     let payload = result.unwrap();
     assert_eq!(payload.data, "ls -la\n");
@@ -79,11 +88,148 @@ fn test_resize_payload_deserialize() {
     });
 
     let result: Result<TerminalResizePayload, _> = serde_json::from_value(json);
-    assert!(result.is_ok(), "TerminalResizePayload should deserialize successfully");
+    assert!(
+        result.is_ok(),
+        "TerminalResizePayload should deserialize successfully"
+    );
 
     let payload = result.unwrap();
     assert_eq!(payload.cols, 120);
     assert_eq!(payload.rows, 40);
+}
+
+// ============================================
+// Terminal Capabilities - Functionality Tests
+// ============================================
+
+#[test]
+fn test_terminal_init_capability() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.init")
+        .expect("terminal.init should be registered");
+
+    let block = Block::new(
+        "Terminal 1".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.init".to_string(),
+        block.block_id.clone(),
+        json!({
+            "cols": 80,
+            "rows": 24
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "terminal.init should succeed");
+
+    let events = result.unwrap();
+    assert_eq!(
+        events.len(),
+        0,
+        "terminal.init returns no events (authorization only)"
+    );
+}
+
+#[test]
+fn test_terminal_write_capability() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.write")
+        .expect("terminal.write should be registered");
+
+    let block = Block::new(
+        "Terminal 1".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.write".to_string(),
+        block.block_id.clone(),
+        json!({ "data": "ls -la\n" }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "terminal.write should succeed");
+
+    let events = result.unwrap();
+    assert_eq!(
+        events.len(),
+        0,
+        "terminal.write returns no events (authorization only)"
+    );
+}
+
+#[test]
+fn test_terminal_resize_capability() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.resize")
+        .expect("terminal.resize should be registered");
+
+    let block = Block::new(
+        "Terminal 1".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.resize".to_string(),
+        block.block_id.clone(),
+        json!({
+            "cols": 120,
+            "rows": 40
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "terminal.resize should succeed");
+
+    let events = result.unwrap();
+    assert_eq!(
+        events.len(),
+        0,
+        "terminal.resize returns no events (authorization only)"
+    );
+}
+
+#[test]
+fn test_terminal_close_capability() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.close")
+        .expect("terminal.close should be registered");
+
+    let block = Block::new(
+        "Terminal 1".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.close".to_string(),
+        block.block_id.clone(),
+        json!({}),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "terminal.close should succeed");
+
+    let events = result.unwrap();
+    assert_eq!(
+        events.len(),
+        0,
+        "terminal.close returns no events (authorization only)"
+    );
 }
 
 // ============================================
@@ -93,7 +239,9 @@ fn test_resize_payload_deserialize() {
 #[test]
 fn test_save_basic() {
     let registry = CapabilityRegistry::new();
-    let cap = registry.get("terminal.save").expect("terminal.save should be registered");
+    let cap = registry
+        .get("terminal.save")
+        .expect("terminal.save should be registered");
 
     let block = Block::new(
         "Terminal 1".to_string(),
@@ -200,6 +348,70 @@ fn test_save_large_content_performance() {
 }
 
 // ============================================
+// Terminal - Block Type Validation Tests
+// ============================================
+
+#[test]
+fn test_terminal_init_wrong_block_type() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("terminal.init").unwrap();
+
+    // Create a markdown block instead of terminal
+    let block = Block::new(
+        "Document".to_string(),
+        "markdown".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.init".to_string(),
+        block.block_id.clone(),
+        json!({}),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_err(), "Should fail for non-terminal block");
+    assert!(
+        result
+            .unwrap_err()
+            .contains("Expected block_type 'terminal'"),
+        "Error should mention expected block type"
+    );
+}
+
+#[test]
+fn test_terminal_capabilities_require_block() {
+    let registry = CapabilityRegistry::new();
+
+    let capabilities = [
+        "terminal.init",
+        "terminal.write",
+        "terminal.resize",
+        "terminal.close",
+    ];
+
+    for cap_id in capabilities {
+        let cap = registry.get(cap_id).unwrap();
+
+        let cmd = Command::new(
+            "alice".to_string(),
+            cap_id.to_string(),
+            "nonexistent-block".to_string(),
+            json!({}),
+        );
+
+        let result = cap.handler(&cmd, None);
+        assert!(result.is_err(), "{} should fail without block", cap_id);
+        assert!(
+            result.unwrap_err().contains("Block required"),
+            "{} error should mention block required",
+            cap_id
+        );
+    }
+}
+
+// ============================================
 // TerminalSave - Authorization (CBAC) Tests
 // ============================================
 
@@ -214,8 +426,8 @@ fn test_save_authorization_owner() {
     );
 
     // Owner should always be authorized
-    let is_authorized = block.owner == "alice"
-        || grants_table.has_grant("alice", "terminal.save", &block.block_id);
+    let is_authorized =
+        block.owner == "alice" || grants_table.has_grant("alice", "terminal.save", &block.block_id);
 
     assert!(is_authorized, "Block owner should be authorized");
 }

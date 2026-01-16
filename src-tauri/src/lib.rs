@@ -60,10 +60,10 @@ pub fn run() {
                 // Workspace/Checkout operations
                 commands::checkout::checkout_workspace,
                 // Terminal operations
-                extensions::terminal::terminal_init::async_init_terminal,
-                extensions::terminal::terminal_write::write_to_pty,
-                extensions::terminal::terminal_resize::resize_pty,
-                extensions::terminal::terminal_close::close_terminal_session,
+                commands::terminal::async_init_terminal,
+                commands::terminal::write_to_pty,
+                commands::terminal::resize_pty,
+                commands::terminal::close_terminal_session,
             ])
             // Explicitly export payload types for frontend type generation
             // These types are used inside Command.payload but not in Tauri command signatures,
@@ -150,10 +150,10 @@ pub fn run() {
         // Workspace/Checkout operations
         commands::checkout::checkout_workspace,
         // Terminal operations
-        extensions::terminal::terminal_init::async_init_terminal,
-        extensions::terminal::terminal_write::write_to_pty,
-        extensions::terminal::terminal_resize::resize_pty,
-        extensions::terminal::terminal_close::close_terminal_session,
+        commands::terminal::async_init_terminal,
+        commands::terminal::write_to_pty,
+        commands::terminal::resize_pty,
+        commands::terminal::close_terminal_session,
     ]);
 
     builder
