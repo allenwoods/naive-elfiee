@@ -19,7 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
-        .manage(extensions::terminal::pty::TerminalState::new());
+        .manage(extensions::terminal::TerminalState::new());
 
     // Generate TypeScript bindings in debug mode
     #[cfg(debug_assertions)]
@@ -60,10 +60,10 @@ pub fn run() {
                 // Workspace/Checkout operations
                 commands::checkout::checkout_workspace,
                 // Terminal operations
-                extensions::terminal::pty::async_init_terminal,
-                extensions::terminal::pty::write_to_pty,
-                extensions::terminal::pty::resize_pty,
-                extensions::terminal::pty::close_terminal_session,
+                commands::terminal::async_init_terminal,
+                commands::terminal::write_to_pty,
+                commands::terminal::resize_pty,
+                commands::terminal::close_terminal_session,
             ])
             // Explicitly export payload types for frontend type generation
             // These types are used inside Command.payload but not in Tauri command signatures,
@@ -91,9 +91,9 @@ pub fn run() {
             // Extension payload types
             .typ::<extensions::markdown::MarkdownWritePayload>()
             .typ::<extensions::terminal::TerminalSavePayload>()
-            .typ::<extensions::terminal::pty::TerminalInitPayload>()
-            .typ::<extensions::terminal::pty::TerminalWritePayload>()
-            .typ::<extensions::terminal::pty::TerminalResizePayload>()
+            .typ::<extensions::terminal::TerminalInitPayload>()
+            .typ::<extensions::terminal::TerminalWritePayload>()
+            .typ::<extensions::terminal::TerminalResizePayload>()
             // File metadata types
             .typ::<commands::FileMetadata>()
             // Block metadata types
@@ -150,10 +150,10 @@ pub fn run() {
         // Workspace/Checkout operations
         commands::checkout::checkout_workspace,
         // Terminal operations
-        extensions::terminal::pty::async_init_terminal,
-        extensions::terminal::pty::write_to_pty,
-        extensions::terminal::pty::resize_pty,
-        extensions::terminal::pty::close_terminal_session,
+        commands::terminal::async_init_terminal,
+        commands::terminal::write_to_pty,
+        commands::terminal::resize_pty,
+        commands::terminal::close_terminal_session,
     ]);
 
     builder

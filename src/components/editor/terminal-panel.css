@@ -1,0 +1,88 @@
+/* Terminal Panel Custom Styles */
+
+/* Hide scrollbar for terminal container while keeping scroll functionality */
+.terminal-container ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.terminal-container ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terminal-container ::-webkit-scrollbar-thumb {
+  background: rgba(82, 82, 91, 0.3);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.terminal-container ::-webkit-scrollbar-thumb:hover {
+  background: rgba(82, 82, 91, 0.5);
+}
+
+/* Firefox scrollbar styling */
+.terminal-container * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(82, 82, 91, 0.3) transparent;
+}
+
+/* xterm.js specific adjustments */
+.terminal-container .xterm {
+  padding: 4px 8px;
+  height: 100%;
+}
+
+.terminal-container .xterm-viewport {
+  background-color: transparent !important;
+  /* Remove overflow override - let xterm.js handle it */
+}
+
+.terminal-container .xterm-screen {
+  background-color: transparent !important;
+}
+
+/* Removed smooth scrolling - it causes issues with rapid content updates */
+
+/* Selection styling */
+.terminal-container .xterm-selection div {
+  background-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+/* Cursor animation */
+.terminal-container .xterm-cursor {
+  animation: cursor-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes cursor-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Better text rendering */
+.terminal-container .xterm-rows {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Focus ring */
+.terminal-container .xterm:focus {
+  outline: none;
+}
+
+/* Custom focus indicator */
+.terminal-container:focus-within::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  border-radius: 2px;
+}

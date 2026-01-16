@@ -26,6 +26,7 @@ import { useAppStore } from '@/lib/app-store'
 import { sortEventsByVectorClock } from '@/utils/event-utils'
 import { CollaboratorList } from '@/components/permission/CollaboratorList'
 import { toast } from 'sonner'
+import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import type { Block, Event } from '@/bindings'
 
 const InfoTab = ({
@@ -544,6 +545,154 @@ const TimelineTab = ({
   )
 }
 
+const ActiveTerminalsList = ({ documentId }: { documentId: string }) => {
+  const blocks = useAppStore((state) => {
+    const fileState = state.files.get(documentId)
+    return fileState?.blocks || []
+  })
+  const selectBlock = useAppStore((state) => state.selectBlock)
+  const selectedBlockId = useAppStore((state) => state.selectedBlockId)
+  const deleteBlock = useAppStore((state) => state.deleteBlock)
+  const closeTerminalSession = useAppStore(
+    (state) => state.closeTerminalSession
+  )
+  const activeEditorId = useAppStore((state) => {
+    const fileState = state.files.get(documentId)
+    return fileState?.activeEditorId
+  })
+
+  // Filter ONLY 'terminal' type blocks
+  // Reverse to show newest first (assuming append order)
+  const terminalBlocks = blocks
+    .filter((b) => b.block_type === 'terminal')
+    .reverse()
+
+  // Show nothing if no terminal blocks exist
+  if (terminalBlocks.length === 0) return null
+
+  const [blockToDelete, setBlockToDelete] = useState<Block | null>(null)
+
+  const handleCopyId = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(id)
+    toast.success('Terminal ID copied')
+  }
+
+  const handleDeleteClick = (e: React.MouseEvent, block: Block) => {
+    e.stopPropagation()
+    setBlockToDelete(block)
+  }
+
+  const confirmDelete = async () => {
+    if (!blockToDelete) return
+
+    try {
+      // 1. Try to close the PTY session first (if it's active)
+      if (activeEditorId) {
+        closeTerminalSession(
+          documentId,
+          blockToDelete.block_id,
+          activeEditorId
+        ).catch(() => {})
+      }
+
+      // 2. Delete the block from the file (handles selection clear in store)
+      await deleteBlock(documentId, blockToDelete.block_id)
+    } catch (error) {
+      console.error('Failed to delete terminal block:', error)
+    } finally {
+      setBlockToDelete(null)
+    }
+  }
+
+  return (
+    <div className="flex shrink-0 flex-col border-t border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border/50 bg-muted/10 px-4 py-2">
+        <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          Terminals ({terminalBlocks.length})
+        </h3>
+      </div>
+      <ScrollArea className="h-auto max-h-[180px] w-full">
+        <div className="flex flex-col gap-1 p-2">
+          {terminalBlocks.map((block) => {
+            const isSelected = block.block_id === selectedBlockId
+            return (
+              <div
+                key={block.block_id}
+                className={`group flex cursor-pointer items-center justify-between rounded px-2 py-1.5 text-sm transition-all ${
+                  isSelected
+                    ? 'bg-accent text-accent-foreground ring-1 ring-inset ring-primary/20'
+                    : 'hover:bg-accent/50 hover:text-accent-foreground'
+                }`}
+                onClick={() => selectBlock(block.block_id)}
+              >
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <div
+                    className={`flex h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_4px_rgba(34,197,94,0.4)] ${
+                      isSelected
+                        ? 'bg-green-500 ring-2 ring-green-500/20'
+                        : 'bg-green-500/70'
+                    }`}
+                  />
+                  <span
+                    className={`truncate font-medium ${
+                      isSelected
+                        ? 'text-accent-foreground'
+                        : 'text-foreground/80 group-hover:text-accent-foreground'
+                    }`}
+                  >
+                    {block.name}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                  <span
+                    className={`cursor-copy font-mono text-[10px] transition-colors ${
+                      isSelected
+                        ? 'text-accent-foreground/70'
+                        : 'text-muted-foreground/60 hover:text-foreground'
+                    }`}
+                    onClick={(e) => handleCopyId(e, block.block_id)}
+                    title="Click to copy ID"
+                  >
+                    {block.block_id.slice(0, 6)}
+                  </span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    onClick={(e) => handleDeleteClick(e, block)}
+                    title="Delete Terminal"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </ScrollArea>
+
+      <ConfirmDeleteDialog
+        isOpen={!!blockToDelete}
+        onClose={() => setBlockToDelete(null)}
+        onConfirm={confirmDelete}
+        title={`Delete Terminal Session?`}
+        description="Are you sure you want to permanently delete this terminal? This action cannot be undone."
+        details={
+          <>
+            <span className="text-sm font-semibold text-foreground">
+              {blockToDelete?.name}
+            </span>
+            <span className="truncate font-mono text-[10px] text-muted-foreground">
+              ID: {blockToDelete?.block_id}
+            </span>
+          </>
+        }
+      />
+    </div>
+  )
+}
+
 const ContextPanel = () => {
   // CRITICAL: Use selector properly - all dependencies from 'state' parameter
   const block: Block | null = useAppStore((state) => {
@@ -660,6 +809,9 @@ const ContextPanel = () => {
           </div>
         </ScrollArea>
       </Tabs>
+
+      {/* Active Terminals List - Always visible at the bottom */}
+      <ActiveTerminalsList documentId={currentFileId} />
     </aside>
   )
 }

@@ -15,6 +15,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { CodeBlockEditor } from './CodeBlockEditor'
+import { TerminalPanel } from './TerminalPanel'
 import './myst-styles.css'
 
 // AST Node Types
@@ -840,10 +841,28 @@ export const EditorCanvas = () => {
     saveFile,
     loadEvents,
     checkPermission,
+    fetchBlock,
+    getBlock,
   } = useAppStore()
   const [isSaving, setIsSaving] = useState(false)
   const [documentContent, setDocumentContent] = useState<string>('')
+  const [showTerminal, setShowTerminal] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [isFetching, setIsFetching] = useState(false)
+  const [lastDocBlockId, setLastDocBlockId] = useState<string | null>(null)
 
+  // Update lastDocBlockId when a real document is selected
+  useEffect(() => {
+    const block = selectedBlockId
+      ? getBlock(currentFileId || '', selectedBlockId)
+      : null
+    if (
+      block &&
+      (block.block_type === 'markdown' || block.block_type === 'code')
+    ) {
+      setLastDocBlockId(block.block_id)
+    }
+  }, [selectedBlockId, currentFileId, getBlock])
   // Subscribe directly to block changes from Zustand store
   // This ensures UI refreshes when restoreToEvent updates blocks
   const selectedBlock = useAppStore((state) => {
@@ -852,14 +871,33 @@ export const EditorCanvas = () => {
     return fileState?.blocks.find((b) => b.block_id === selectedBlockId) || null
   })
 
+  // Attempt to fetch block if selected but not loaded (e.g. permission issues or deep link)
+  useEffect(() => {
+    setFetchError(null)
+
+    if (currentFileId && selectedBlockId && !selectedBlock) {
+      setIsFetching(true)
+      fetchBlock(currentFileId, selectedBlockId)
+        .then((block) => {
+          if (!block) {
+            setFetchError('Block not found or access denied.')
+          }
+        })
+        .finally(() => {
+          setIsFetching(false)
+        })
+    }
+  }, [currentFileId, selectedBlockId, selectedBlock, fetchBlock])
+
   // Load block content when selectedBlock changes
   useEffect(() => {
-    if (selectedBlock) {
-      // Extract content based on type
-      // Strategy:
-      // 1. 'code' blocks strictly use the 'text' field.
-      // 2. 'markdown' blocks prefer 'markdown' field but fall back to 'text'
-      //    to maintain backward compatibility with older blocks or importers.
+    // ONLY update document content for non-terminal blocks
+    // This allows the editor to 'stick' to its doc content when switching to terminals
+    if (selectedBlock && selectedBlock.block_type !== 'terminal') {
+      // Clear error if block is successfully loaded
+      setFetchError(null)
+      setIsFetching(false)
+
       const contents = selectedBlock.contents as {
         markdown?: string
         text?: string
@@ -869,10 +907,12 @@ export const EditorCanvas = () => {
       } else {
         setDocumentContent(contents?.markdown || contents?.text || '')
       }
-    } else {
+    } else if (!selectedBlockId) {
       setDocumentContent('')
     }
-  }, [selectedBlock])
+    // If it's a terminal block, we DO NOT update documentContent,
+    // preserving the content of the previous document.
+  }, [selectedBlock, selectedBlockId])
 
   // Handle save block only (called from editor)
   const handleBlockSave = useCallback(async () => {
@@ -981,7 +1021,38 @@ export const EditorCanvas = () => {
   }, [handleSave])
 
   const renderEditor = () => {
-    if (!selectedBlock)
+    // Effective block for rendering in the canvas
+    let blockToRender = selectedBlock
+
+    // If terminal is selected, try to show the previous document instead
+    if (
+      selectedBlock?.block_type === 'terminal' &&
+      lastDocBlockId &&
+      currentFileId
+    ) {
+      const lastDoc = getBlock(currentFileId, lastDocBlockId)
+      if (lastDoc) {
+        blockToRender = lastDoc
+      }
+    }
+
+    if (!blockToRender) {
+      if (fetchError) {
+        return (
+          <div className="py-16 text-center text-muted-foreground">
+            <p className="mb-2 text-destructive">Error loading block</p>
+            <p className="text-sm">{fetchError}</p>
+          </div>
+        )
+      }
+      if (selectedBlockId || isFetching) {
+        return (
+          <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <Loader2 className="mb-2 h-8 w-8 animate-spin opacity-50" />
+            <p>Loading block...</p>
+          </div>
+        )
+      }
       return (
         <div className="py-16 text-center text-muted-foreground">
           <p>No block selected</p>
@@ -990,9 +1061,10 @@ export const EditorCanvas = () => {
           </p>
         </div>
       )
+    }
 
-    if (selectedBlock.block_type === 'code') {
-      const language = selectedBlock.name.split('.').pop() || 'text'
+    if (blockToRender.block_type === 'code') {
+      const language = blockToRender.name.split('.').pop() || 'text'
       return (
         <CodeBlockEditor
           content={documentContent}
@@ -1003,7 +1075,7 @@ export const EditorCanvas = () => {
       )
     }
 
-    if (selectedBlock.block_type === 'markdown') {
+    if (blockToRender.block_type === 'markdown') {
       return (
         <MySTDocument
           content={documentContent}
@@ -1013,39 +1085,82 @@ export const EditorCanvas = () => {
       )
     }
 
+    if (blockToRender.block_type === 'terminal') {
+      // If we got here, it means there was no 'lastDocBlockId' to fall back to.
+      // Just show a cleaner message than the generic unsupported one.
+      return (
+        <div className="py-16 text-center text-muted-foreground">
+          <Terminal className="mx-auto mb-4 h-12 w-12 opacity-20" />
+          <p>Terminal session active</p>
+          <p className="mt-2 text-sm italic">
+            Select a document in the panel to enable editing here.
+          </p>
+        </div>
+      )
+    }
+
     return (
       <div className="py-16 text-center text-muted-foreground">
-        <p>Unsupported Block Type: {selectedBlock.block_type}</p>
+        <p>Unsupported Block Type: {blockToRender.block_type}</p>
         <p className="mt-2 text-sm">This block cannot be rendered yet.</p>
       </div>
     )
   }
 
   return (
-    <ScrollArea className="h-full w-full">
-      <main className="w-full min-w-0 bg-background p-4 md:p-6 lg:p-8">
-        <div className="mx-auto w-full min-w-0 max-w-4xl pb-32">
-          {/* Save Button */}
-          <div className="mb-6 flex items-center justify-end">
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Button
-                size="sm"
-                className="bg-foreground px-4 text-sm font-medium text-background shadow-sm hover:bg-foreground/90"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleSave()
-                }}
-                disabled={isSaving}
+    <div className="flex h-full flex-col">
+      <ScrollArea className="flex-1">
+        <main className="w-full min-w-0 bg-background p-4 md:p-6 lg:p-8">
+          <div className="mx-auto w-full min-w-0 max-w-4xl pb-32">
+            {/* Save Button */}
+            <div className="mb-6 flex items-center justify-end">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                <Save className="mr-2 h-3.5 w-3.5" />
-                {isSaving ? 'Saving...' : 'Save (Ctrl+S)'}
-              </Button>
-            </motion.div>
-          </div>
+                <Button
+                  size="sm"
+                  className="bg-foreground px-4 text-sm font-medium text-background shadow-sm hover:bg-foreground/90"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSave()
+                  }}
+                  disabled={isSaving}
+                >
+                  <Save className="mr-2 h-3.5 w-3.5" />
+                  {isSaving ? 'Saving...' : 'Save (Ctrl+S)'}
+                </Button>
+              </motion.div>
+            </div>
 
-          <div className="w-full min-w-0 space-y-6">{renderEditor()}</div>
+            <div className="w-full min-w-0 space-y-6">{renderEditor()}</div>
+          </div>
+        </main>
+      </ScrollArea>
+
+      {/* Terminal Toggle Button */}
+      {!showTerminal && (
+        <div className="flex justify-center border-t border-zinc-800/50 bg-zinc-950/50 p-1.5 backdrop-blur-sm">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowTerminal(true)}
+            disabled={!currentFileId}
+            className="h-7 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800/50 hover:text-cyan-400 disabled:opacity-50"
+          >
+            <Terminal className="mr-1.5 h-3.5 w-3.5" />
+            Open Terminal
+          </Button>
         </div>
-      </main>
-    </ScrollArea>
+      )}
+
+      {/* Terminal Panel */}
+      {showTerminal && currentFileId && (
+        <TerminalPanel
+          fileId={currentFileId}
+          onClose={() => setShowTerminal(false)}
+        />
+      )}
+    </div>
   )
 }

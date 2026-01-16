@@ -636,6 +636,46 @@ export const EditorCanvas = () => {
 
 ---
 
+### Phase 2.1.4: 前端增强 - Terminal 列表
+
+**估时**: 0.5 天
+
+**需求背景**：
+每次打开 Terminal 都会创建一个新的 Terminal Block。用户可能会打开多个 Terminal Session，需要在界面上直观地区分和查找这些 Session。
+
+**任务内容**：
+修改 `src/components/editor/EditorSidebar.tsx`，在 "Info" 标签页中添加 Terminal Block 列表。
+
+**功能点**：
+1. **获取 Terminal Block**：
+   - 使用 `useAppStore` 获取当前文件的所有 Block
+   - 过滤出 `block_type === 'terminal'` 的项
+
+2. **UI 展示**：
+   - 在 `DocumentDetailsView` 的 `TabsContent value="info"` 中
+   - 新增 "Active Terminals" 区域
+   - 列表展示 Terminal Block 的信息（Block ID, Name, Owner 等）
+
+3. **数据展示示例**：
+   ```tsx
+   <div className="space-y-2">
+     <h3 className="text-sm font-medium">Active Terminals</h3>
+     {terminalBlocks.map(block => (
+       <div key={block.block_id} className="rounded border p-2 text-sm">
+         <div className="font-semibold">{block.name}</div>
+         <div className="text-xs text-muted-foreground">{block.block_id}</div>
+       </div>
+     ))}
+   </div>
+   ```
+
+**验收标准**：
+- [ ] 侧边栏 Info 面板正确显示所有 Terminal Block
+- [ ] 创建新 Terminal 后列表自动更新
+- [ ] 显示 Block ID 和名称
+
+---
+
 ## 四、实现顺序建议（3 天）
 
 **Day 1**：后端实现

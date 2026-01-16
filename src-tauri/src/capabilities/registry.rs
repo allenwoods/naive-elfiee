@@ -75,6 +75,10 @@ impl CapabilityRegistry {
         self.register(Arc::new(MarkdownReadCapability));
 
         // Terminal extension
+        self.register(Arc::new(TerminalInitCapability));
+        self.register(Arc::new(TerminalWriteCapability));
+        self.register(Arc::new(TerminalResizeCapability));
+        self.register(Arc::new(TerminalCloseCapability));
         self.register(Arc::new(TerminalSaveCapability));
 
         // Directory extension

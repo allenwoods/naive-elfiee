@@ -44,6 +44,7 @@ interface AppStore {
 
   // Block operations
   loadBlocks: (fileId: string) => Promise<void>
+  fetchBlock: (fileId: string, blockId: string) => Promise<Block | null>
   getBlocks: (fileId: string) => Block[]
   getBlock: (fileId: string, blockId: string) => Block | undefined
   selectBlock: (blockId: string) => void
@@ -166,6 +167,45 @@ interface AppStore {
     targetEditor: string,
     capability: string,
     targetBlock?: string
+  ) => Promise<void>
+
+  // Terminal operations
+  createTerminalBlock: (
+    fileId: string,
+    name: string,
+    editorId: string
+  ) => Promise<string>
+  initTerminal: (
+    fileId: string,
+    blockId: string,
+    cols: number,
+    rows: number,
+    cwd?: string,
+    editorId?: string
+  ) => Promise<void>
+  writeToPty: (
+    fileId: string,
+    blockId: string,
+    data: string,
+    editorId?: string
+  ) => Promise<void>
+  resizePty: (
+    fileId: string,
+    blockId: string,
+    cols: number,
+    rows: number,
+    editorId?: string
+  ) => Promise<void>
+  saveTerminal: (
+    fileId: string,
+    blockId: string,
+    content: string,
+    editorId?: string
+  ) => Promise<void>
+  closeTerminalSession: (
+    fileId: string,
+    blockId: string,
+    editorId?: string
   ) => Promise<void>
 
   // Computed state
@@ -337,6 +377,32 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  fetchBlock: async (fileId: string, blockId: string) => {
+    try {
+      const block = await TauriClient.block.getBlock(fileId, blockId)
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState) {
+        // Update or add block to the list
+        const updatedBlocks = [
+          ...fileState.blocks.filter((b) => b.block_id !== blockId),
+          block,
+        ]
+        files.set(fileId, { ...fileState, blocks: updatedBlocks })
+        set({ files })
+      }
+      return block
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      // Only show toast if it's not a "not found" error which might be expected in some flows
+      if (!errorMessage.includes('not found')) {
+        toast.error(`Failed to fetch block: ${errorMessage}`)
+      }
+      return null
+    }
+  },
+
   getBlocks: (fileId: string) => {
     const fileState = get().files.get(fileId)
     return fileState?.blocks || []
@@ -408,6 +474,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await TauriClient.block.deleteBlock(fileId, blockId)
       // Reload blocks to reflect the deletion
       await get().loadBlocks(fileId)
+
+      // If the deleted block was selected, clear selection
+      if (get().selectedBlockId === blockId) {
+        get().selectBlock('')
+      }
+
       toast.success('Block deleted successfully')
     } catch (error) {
       const errorMessage =
@@ -1007,6 +1079,152 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const errorMessage =
         error instanceof Error ? error.message : String(error)
       toast.error(`Failed to revoke permission: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  // Terminal operations
+  createTerminalBlock: async (
+    fileId: string,
+    name: string,
+    editorId: string
+  ) => {
+    try {
+      const events = await TauriClient.block.createBlock(
+        fileId,
+        name,
+        'terminal',
+        editorId,
+        'terminal'
+      )
+      const blockId = events[0].entity
+      await get().loadBlocks(fileId)
+      return blockId
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to create terminal block: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  initTerminal: async (
+    fileId: string,
+    blockId: string,
+    cols: number,
+    rows: number,
+    cwd?: string,
+    editorId?: string
+  ) => {
+    try {
+      await TauriClient.terminal.initTerminal(
+        fileId,
+        blockId,
+        cols,
+        rows,
+        cwd,
+        editorId
+      )
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      toast.error(`Failed to initialize terminal: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  writeToPty: async (
+    fileId: string,
+    blockId: string,
+    data: string,
+    editorId?: string
+  ) => {
+    try {
+      await TauriClient.terminal.writeToPty(fileId, blockId, data, editorId)
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.error(`Failed to write to PTY: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  resizePty: async (
+    fileId: string,
+    blockId: string,
+    cols: number,
+    rows: number,
+    editorId?: string
+  ) => {
+    try {
+      await TauriClient.terminal.resizePty(
+        fileId,
+        blockId,
+        cols,
+        rows,
+        editorId
+      )
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.error(`Failed to resize PTY: ${errorMessage}`)
+      throw error
+    }
+  },
+
+  saveTerminal: async (
+    fileId: string,
+    blockId: string,
+    content: string,
+    editorId?: string
+  ) => {
+    try {
+      await TauriClient.terminal.saveTerminal(
+        fileId,
+        blockId,
+        content,
+        editorId
+      )
+
+      // Update local state so that if we switch back, we have the content
+      const files = new Map(get().files)
+      const fileState = files.get(fileId)
+      if (fileState) {
+        const blocks = [...fileState.blocks]
+        const blockIndex = blocks.findIndex((b) => b.block_id === blockId)
+        if (blockIndex !== -1) {
+          // Deep clone the block to avoid mutation issues
+          const updatedBlock = { ...blocks[blockIndex] }
+          // Ensure contents object exists and update saved_content
+          updatedBlock.contents = {
+            ...(updatedBlock.contents as object),
+            saved_content: content,
+          }
+          blocks[blockIndex] = updatedBlock
+
+          files.set(fileId, { ...fileState, blocks })
+          set({ files })
+        }
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.error(`Failed to save terminal: ${errorMessage}`)
+      // Don't throw here to avoid disrupting the UI for background saves
+    }
+  },
+
+  closeTerminalSession: async (
+    fileId: string,
+    blockId: string,
+    editorId?: string
+  ) => {
+    try {
+      await TauriClient.terminal.closeTerminalSession(fileId, blockId, editorId)
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      console.error(`Failed to close terminal session: ${errorMessage}`)
       throw error
     }
   },
