@@ -103,7 +103,7 @@ fn test_resize_payload_deserialize() {
 // ============================================
 
 #[test]
-fn test_terminal_init_capability() {
+fn test_terminal_init_basic() {
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("terminal.init")
@@ -137,7 +137,7 @@ fn test_terminal_init_capability() {
 }
 
 #[test]
-fn test_terminal_write_capability() {
+fn test_terminal_write_basic() {
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("terminal.write")
@@ -168,7 +168,7 @@ fn test_terminal_write_capability() {
 }
 
 #[test]
-fn test_terminal_resize_capability() {
+fn test_terminal_resize_basic() {
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("terminal.resize")
@@ -202,7 +202,7 @@ fn test_terminal_resize_capability() {
 }
 
 #[test]
-fn test_terminal_close_capability() {
+fn test_terminal_close_basic() {
     let registry = CapabilityRegistry::new();
     let cap = registry
         .get("terminal.close")
@@ -280,7 +280,7 @@ fn test_save_basic() {
 }
 
 #[test]
-fn test_save_empty_content() {
+fn test_save_empty_content_edge_case() {
     let registry = CapabilityRegistry::new();
     let cap = registry.get("terminal.save").unwrap();
 
@@ -352,7 +352,7 @@ fn test_save_large_content_performance() {
 // ============================================
 
 #[test]
-fn test_terminal_init_wrong_block_type() {
+fn test_terminal_init_wrong_type_error() {
     let registry = CapabilityRegistry::new();
     let cap = registry.get("terminal.init").unwrap();
 
@@ -381,7 +381,7 @@ fn test_terminal_init_wrong_block_type() {
 }
 
 #[test]
-fn test_terminal_capabilities_require_block() {
+fn test_terminal_missing_block_error() {
     let registry = CapabilityRegistry::new();
 
     let capabilities = [

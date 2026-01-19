@@ -13,10 +13,9 @@ use std::io::Write;
 use std::thread;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::extensions::terminal::shell::generate_shell_init;
-use crate::extensions::terminal::state::{TerminalSession, TerminalState};
 use crate::extensions::terminal::{
-    TerminalInitPayload, TerminalResizePayload, TerminalWritePayload,
+    generate_shell_init, TerminalInitPayload, TerminalResizePayload, TerminalSession,
+    TerminalState, TerminalWritePayload,
 };
 use crate::models::Command;
 use crate::state::AppState;

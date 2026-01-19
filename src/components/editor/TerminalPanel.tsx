@@ -175,6 +175,11 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
   useEffect(() => {
     if (!terminalRef.current || !blockId || !editorId || isInitializing) return
 
+    // Capture current values at effect execution time to avoid stale closure issues
+    // This ensures cleanup saves to the correct block, not the new one after state update
+    const currentBlockId = blockId
+    const currentEditorId = editorId
+
     let isMounted = true
 
     // Create xterm instance with improved theme
@@ -247,10 +252,10 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
             // After PTY init, send resize command
             await resizePty(
               fileId,
-              blockId,
+              currentBlockId,
               term.cols,
               term.rows,
-              editorId || undefined
+              currentEditorId || undefined
             )
           }
         } catch (error) {
@@ -268,7 +273,7 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
     const unlistenPromise = listen<{ data: string; block_id: string }>(
       'pty-out',
       (event) => {
-        if (event.payload.block_id === blockId) {
+        if (event.payload.block_id === currentBlockId) {
           // Decode base64 to UTF-8 properly (atob only handles Latin-1, corrupting UTF-8)
           const binaryString = atob(event.payload.data)
           const bytes = new Uint8Array(binaryString.length)
@@ -283,33 +288,18 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
 
     // Listen for user input
     const disposable = term.onData((data) => {
-      writeToPty(fileId, blockId, data, editorId || undefined).catch(
-        (error) => {
-          console.error('Failed to write to PTY:', error)
-        }
-      )
+      writeToPty(
+        fileId,
+        currentBlockId,
+        data,
+        currentEditorId || undefined
+      ).catch((error) => {
+        console.error('Failed to write to PTY:', error)
+      })
     })
 
-    // Listen for xterm.js resize events (more reliable than window resize)
-    const resizeDisposable = term.onResize(({ cols, rows }) => {
-      // Only resize PTY if it has been initialized
-      if (!isPtyInitialized.current) {
-        return
-      }
-      resizePty(fileId, blockId, cols, rows, editorId || undefined).catch(
-        (error) => {
-          console.error('Failed to resize PTY:', error)
-        }
-      )
-    })
-
-    // Window resize handler
-    const handleResize = () => {
-      fitAddon.fit()
-    }
-    window.addEventListener('resize', handleResize)
-
-    // Auto-save terminal content periodically
+    // Auto-save terminal content function
+    // Uses captured currentBlockId/currentEditorId to ensure correct block is saved during cleanup
     const saveTerminalContent = async () => {
       try {
         const buffer = term.buffer.active
@@ -325,14 +315,45 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
         const trimmedContent = content.replace(/\s+$/, '')
         await saveTerminal(
           fileId,
-          blockId,
+          currentBlockId,
           trimmedContent,
-          editorId || undefined
+          currentEditorId || undefined
         )
       } catch (error) {
         console.error('Failed to save terminal content:', error)
       }
     }
+
+    // Listen for Enter key to trigger auto-save (without Shift for multi-line input in PowerShell)
+    const keyDisposable = term.onKey(({ domEvent }) => {
+      if (domEvent.key === 'Enter' && !domEvent.shiftKey) {
+        // Delay save to allow command output to arrive
+        setTimeout(() => saveTerminalContent(), 500)
+      }
+    })
+
+    // Listen for xterm.js resize events (more reliable than window resize)
+    const resizeDisposable = term.onResize(({ cols, rows }) => {
+      // Only resize PTY if it has been initialized
+      if (!isPtyInitialized.current) {
+        return
+      }
+      resizePty(
+        fileId,
+        currentBlockId,
+        cols,
+        rows,
+        currentEditorId || undefined
+      ).catch((error) => {
+        console.error('Failed to resize PTY:', error)
+      })
+    })
+
+    // Window resize handler
+    const handleResize = () => {
+      fitAddon.fit()
+    }
+    window.addEventListener('resize', handleResize)
 
     // Save every 10 seconds
     saveIntervalRef.current = setInterval(saveTerminalContent, 10000)
@@ -354,6 +375,7 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
       isPtyInitialized.current = false
 
       disposable.dispose()
+      keyDisposable.dispose()
       resizeDisposable.dispose()
       unlistenPromise.then((fn) => fn())
       window.removeEventListener('resize', handleResize)

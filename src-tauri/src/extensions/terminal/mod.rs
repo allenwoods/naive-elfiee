@@ -6,13 +6,13 @@
 //!
 //! The terminal extension follows Elfiee's split architecture:
 //!
-//! ### Capabilities (extensions/terminal/)
-//! Authorization handlers that act as permission gates:
-//! - `terminal.init` - Authorization for PTY initialization
-//! - `terminal.write` - Authorization for PTY write
-//! - `terminal.resize` - Authorization for PTY resize
-//! - `terminal.close` - Authorization for PTY close
-//! - `terminal.save` - Save terminal content to block (event-sourced)
+//! ### PTY Infrastructure (pty.rs)
+//! - Session state management (TerminalState, TerminalSession)
+//! - Shell initialization scripts
+//! - Permission capabilities (terminal.init, terminal.write, terminal.resize, terminal.close)
+//!
+//! ### Business Capability (terminal_save.rs)
+//! - `terminal.save` - Save terminal content to block (event-sourced, frontend callable)
 //!
 //! ### Tauri Commands (commands/terminal.rs)
 //! Actual PTY operations that call Capabilities for authorization:
@@ -20,10 +20,6 @@
 //! - `write_to_pty` - Write user input to PTY
 //! - `resize_pty` - Resize PTY window
 //! - `close_terminal_session` - Close PTY session
-//!
-//! ### Support Modules
-//! - `state` - Session state management (TerminalState, TerminalSession)
-//! - `shell` - Cross-platform shell initialization scripts
 //!
 //! ## Payload Types
 //!
@@ -36,31 +32,23 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 // ============================================================================
-// Support Module Exports
+// Module Exports
 // ============================================================================
 
-pub mod shell;
-pub mod state;
-
-// Re-export state types (used by commands/terminal.rs)
-pub use state::{TerminalSession, TerminalState};
-
-// ============================================================================
-// Capability Module Exports
-// ============================================================================
-
-pub mod terminal_close;
-pub mod terminal_init;
-pub mod terminal_resize;
+pub mod pty;
 pub mod terminal_save;
-pub mod terminal_write;
 
-// Re-export capability handlers (for CapabilityRegistry registration)
-pub use terminal_close::*;
-pub use terminal_init::*;
-pub use terminal_resize::*;
+// Re-export PTY infrastructure
+pub use pty::{generate_shell_init, TerminalSession, TerminalState};
+
+// Re-export PTY permission capabilities
+pub use pty::{
+    TerminalCloseCapability, TerminalInitCapability, TerminalResizeCapability,
+    TerminalWriteCapability,
+};
+
+// Re-export terminal.save capability
 pub use terminal_save::*;
-pub use terminal_write::*;
 
 // ============================================================================
 // Payload Definitions
