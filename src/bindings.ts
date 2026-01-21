@@ -874,10 +874,8 @@ export const commands = {
   /**
    * Close a PTY session.
    *
-   * This command:
-   * 1. Signals the reader thread to stop
-   * 2. Removes the session from state
-   * 3. Drops the PTY resources (which terminates the child process)
+   * This command removes the session from state and drops the PTY resources.
+   * When the session is dropped, the reader thread receives EOF and exits naturally.
    *
    * Note: The terminal.close capability should be called separately via
    * execute_command to record the session_closed event.

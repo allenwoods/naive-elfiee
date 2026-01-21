@@ -14,17 +14,6 @@ const ActiveTerminalsList = ({ documentId }: { documentId: string }) => {
 
   const terminalBlocks = blocks.filter((b) => b.block_type === 'terminal')
 
-  /* DEBUG LOGS */
-  console.log('ActiveTerminalsList Debug:', {
-    documentId,
-    totalBlocks: blocks.length,
-    terminalBlocksCount: terminalBlocks.length,
-    terminalBlocks,
-  })
-
-  // Removed return null for debugging - show placeholder instead
-  // if (terminalBlocks.length === 0) return null
-
   return (
     <div className="border-t border-border bg-card p-4">
       <h3 className="mb-2 text-sm font-medium text-muted-foreground">

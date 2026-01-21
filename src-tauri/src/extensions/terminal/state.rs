@@ -12,13 +12,14 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 /// Represents an active terminal session with its PTY resources.
+///
+/// When this struct is dropped, the PTY resources are released,
+/// causing the reader thread to receive EOF and exit naturally.
 pub struct TerminalSession {
     /// Writer for sending data to the PTY
     pub writer: Box<dyn Write + Send>,
     /// Master PTY handle for resize operations
     pub master: Box<dyn MasterPty + Send>,
-    /// Channel to signal the reader thread to stop
-    pub shutdown_tx: std::sync::mpsc::Sender<()>,
 }
 
 /// Global state for managing all terminal sessions.

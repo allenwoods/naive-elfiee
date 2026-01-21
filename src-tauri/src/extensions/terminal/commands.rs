@@ -198,14 +198,11 @@ pub async fn init_pty_session(
 
     let handle = pty_spawn(config)?;
 
-    // Create shutdown channel for the reader thread
-    let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel::<()>();
-
     // Create the session (take writer and master, reader goes to thread)
+    // When the session is dropped, PTY resources are released and reader gets EOF
     let session = TerminalSession {
         writer: handle.writer,
         master: handle.master,
-        shutdown_tx,
     };
 
     // Store session in state
@@ -229,20 +226,16 @@ pub async fn init_pty_session(
     }
 
     // Spawn reader thread to forward PTY output to frontend
+    // Thread exits naturally when PTY is closed (reader returns EOF)
     let block_id_clone = block_id.clone();
     let mut reader = handle.reader;
 
     thread::spawn(move || {
         let mut buf = [0u8; 4096];
         loop {
-            // Check for shutdown signal (non-blocking)
-            if shutdown_rx.try_recv().is_ok() {
-                break;
-            }
-
             match reader.read(&mut buf) {
                 Ok(0) => {
-                    // EOF - PTY closed
+                    // EOF - PTY closed (session dropped)
                     break;
                 }
                 Ok(n) => {
@@ -340,10 +333,8 @@ pub async fn resize_pty(
 
 /// Close a PTY session.
 ///
-/// This command:
-/// 1. Signals the reader thread to stop
-/// 2. Removes the session from state
-/// 3. Drops the PTY resources (which terminates the child process)
+/// This command removes the session from state and drops the PTY resources.
+/// When the session is dropped, the reader thread receives EOF and exits naturally.
 ///
 /// Note: The terminal.close capability should be called separately via
 /// execute_command to record the session_closed event.
@@ -362,13 +353,9 @@ pub async fn close_pty_session(
     block_id: String,
 ) -> Result<(), String> {
     let mut sessions = state.sessions.lock().unwrap();
-    if let Some(session) = sessions.remove(&block_id) {
-        // Signal the reader thread to stop
-        let _ = session.shutdown_tx.send(());
-
-        // Dropping the session releases all PTY resources
-        drop(session);
-    }
+    // Removing and dropping the session releases PTY resources,
+    // causing the reader thread to receive EOF and exit
+    sessions.remove(&block_id);
     Ok(())
 }
 
