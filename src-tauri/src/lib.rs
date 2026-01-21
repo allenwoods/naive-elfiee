@@ -59,11 +59,13 @@ pub fn run() {
                 commands::editor::get_block_grants,
                 // Workspace/Checkout operations
                 commands::checkout::checkout_workspace,
-                // Terminal operations
-                commands::terminal::async_init_terminal,
-                commands::terminal::write_to_pty,
-                commands::terminal::resize_pty,
-                commands::terminal::close_terminal_session,
+                // Terminal operations (from extensions/terminal/commands.rs)
+                // Note: These are high-frequency "patch" operations that don't record Events.
+                // Event-producing operations use capabilities via execute_command.
+                extensions::terminal::commands::init_pty_session,
+                extensions::terminal::commands::write_to_pty,
+                extensions::terminal::commands::resize_pty,
+                extensions::terminal::commands::close_pty_session,
             ])
             // Explicitly export payload types for frontend type generation
             // These types are used inside Command.payload but not in Tauri command signatures,
@@ -91,9 +93,8 @@ pub fn run() {
             // Extension payload types
             .typ::<extensions::markdown::MarkdownWritePayload>()
             .typ::<extensions::terminal::TerminalSavePayload>()
+            .typ::<extensions::terminal::TerminalExecutePayload>()
             .typ::<extensions::terminal::TerminalInitPayload>()
-            .typ::<extensions::terminal::TerminalWritePayload>()
-            .typ::<extensions::terminal::TerminalResizePayload>()
             // File metadata types
             .typ::<commands::FileMetadata>()
             // Block metadata types
@@ -149,11 +150,11 @@ pub fn run() {
         commands::editor::get_block_grants,
         // Workspace/Checkout operations
         commands::checkout::checkout_workspace,
-        // Terminal operations
-        commands::terminal::async_init_terminal,
-        commands::terminal::write_to_pty,
-        commands::terminal::resize_pty,
-        commands::terminal::close_terminal_session,
+        // Terminal operations (from extensions/terminal/commands.rs)
+        extensions::terminal::commands::init_pty_session,
+        extensions::terminal::commands::write_to_pty,
+        extensions::terminal::commands::resize_pty,
+        extensions::terminal::commands::close_pty_session,
     ]);
 
     builder

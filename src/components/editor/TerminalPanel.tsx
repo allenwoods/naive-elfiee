@@ -391,13 +391,18 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
       // NOTE: restoreTerminalContent is now called EXPLICITLY before this in useEffect
       // This function now ONLY handles backend PTY initialization
 
+      // Get block's _block_dir for working directory
+      // This makes terminal start in the block's tmp directory and `cd ~` redirects there
+      const block = await fetchBlock(fileId, blockId)
+      const cwd = (block?.contents as any)?._block_dir as string | undefined
+
       // Initialize PTY session with the same editor that created the block
       await initTerminal(
         fileId,
         blockId,
         term.cols,
         term.rows,
-        undefined, // cwd
+        cwd, // Pass the block's _block_dir as cwd
         editorId // Use the same editor ID that created the block
       )
     } catch (error) {

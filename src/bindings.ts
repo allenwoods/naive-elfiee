@@ -759,33 +759,44 @@ export const commands = {
     }
   },
   /**
-   * Initialize a new PTY session for a block.
+   * Initialize and create a new PTY session.
    *
    * This command:
-   * 1. Executes terminal.init Capability for authorization
-   * 2. Creates a PTY with the specified dimensions
-   * 3. Spawns a shell process (bash/zsh on Unix, PowerShell on Windows)
-   * 4. Sets up the working directory to the .elf temp directory
-   * 5. Injects shell initialization for `cd ~` override
-   * 6. Starts a reader thread to emit PTY output as Tauri events
+   * 1. Creates a PTY using pure functions from utils/pty.rs
+   * 2. Spawns a shell process
+   * 3. Starts a reader thread to forward PTY output to the frontend
+   * 4. Stores the session in TerminalState
+   *
+   * Note: The terminal.init capability should be called separately via
+   * execute_command to record the session_started event.
    *
    * # Arguments
-   * * `app_handle` - Tauri app handle for emitting events
-   * * `state` - Terminal state for session management
-   * * `app_state` - Application state for file/engine access
-   * * `payload` - Initialization parameters (cols, rows, block_id, etc.)
+   * * `app` - Tauri app handle for emitting events
+   * * `state` - Terminal state containing active sessions
+   * * `block_id` - The terminal block ID
+   * * `cols` - Number of columns
+   * * `rows` - Number of rows
+   * * `cwd` - Optional working directory
    *
    * # Returns
-   * * `Ok(())` - PTY session created successfully
-   * * `Err(String)` - Error message if initialization fails
+   * * `Ok(())` - Session created successfully
+   * * `Err(String)` - Error if creation fails
    */
-  async asyncInitTerminal(
-    payload: TerminalInitPayload
+  async initPtySession(
+    blockId: string,
+    cols: number,
+    rows: number,
+    cwd: string | null
   ): Promise<Result<null, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('async_init_terminal', { payload }),
+        data: await TAURI_INVOKE('init_pty_session', {
+          blockId,
+          cols,
+          rows,
+          cwd,
+        }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -798,22 +809,27 @@ export const commands = {
    * This command forwards user input from the frontend terminal (xterm.js)
    * to the backend PTY process.
    *
+   * **Note**: This is a high-frequency operation (called on every keystroke).
+   * No capability check is performed for performance reasons.
+   * Authorization was already checked during session initialization.
+   *
    * # Arguments
    * * `state` - Terminal state containing active sessions
-   * * `app_state` - Application state for permission checking
-   * * `payload` - Write parameters (data, block_id, file_id, editor_id)
+   * * `block_id` - The terminal block ID
+   * * `data` - The data to write (user input)
    *
    * # Returns
    * * `Ok(())` - Data written successfully
    * * `Err(String)` - Error if session not found or write fails
    */
   async writeToPty(
-    payload: TerminalWritePayload
+    blockId: string,
+    data: string
   ): Promise<Result<null, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('write_to_pty', { payload }),
+        data: await TAURI_INVOKE('write_to_pty', { blockId, data }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -826,22 +842,29 @@ export const commands = {
    * This command updates the PTY window dimensions when the frontend
    * terminal viewport changes size.
    *
+   * **Note**: This is a high-frequency operation (called on window resize).
+   * No capability check is performed for performance reasons.
+   * Authorization was already checked during session initialization.
+   *
    * # Arguments
    * * `state` - Terminal state containing active sessions
-   * * `app_state` - Application state for permission checking
-   * * `payload` - Resize parameters (cols, rows, block_id, file_id, editor_id)
+   * * `block_id` - The terminal block ID
+   * * `cols` - New number of columns
+   * * `rows` - New number of rows
    *
    * # Returns
    * * `Ok(())` - PTY resized successfully
    * * `Err(String)` - Error if session not found or resize fails
    */
   async resizePty(
-    payload: TerminalResizePayload
+    blockId: string,
+    cols: number,
+    rows: number
   ): Promise<Result<null, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('resize_pty', { payload }),
+        data: await TAURI_INVOKE('resize_pty', { blockId, cols, rows }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -852,39 +875,26 @@ export const commands = {
    * Close a PTY session.
    *
    * This command:
-   * 1. Executes terminal.close Capability for authorization
-   * 2. Signals the reader thread to stop
-   * 3. Removes the session from state
-   * 4. Drops the PTY resources (which terminates the child process)
+   * 1. Signals the reader thread to stop
+   * 2. Removes the session from state
+   * 3. Drops the PTY resources (which terminates the child process)
    *
-   * Note: Content saving should be handled by the frontend before calling this.
-   * The frontend has access to the xterm.js buffer and should call terminal.save
-   * capability before closing the session.
+   * Note: The terminal.close capability should be called separately via
+   * execute_command to record the session_closed event.
    *
    * # Arguments
    * * `state` - Terminal state containing active sessions
-   * * `app_state` - Application state for permission checking
-   * * `file_id` - The file containing the terminal block
-   * * `block_id` - The terminal block being closed
-   * * `editor_id` - The editor closing the session
+   * * `block_id` - The terminal block ID
    *
    * # Returns
    * * `Ok(())` - Session closed successfully (or was already closed)
-   * * `Err(String)` - Error if permission check fails
+   * * `Err(String)` - Error if operation fails
    */
-  async closeTerminalSession(
-    fileId: string,
-    blockId: string,
-    editorId: string
-  ): Promise<Result<null, string>> {
+  async closePtySession(blockId: string): Promise<Result<null, string>> {
     try {
       return {
         status: 'ok',
-        data: await TAURI_INVOKE('close_terminal_session', {
-          fileId,
-          blockId,
-          editorId,
-        }),
+        data: await TAURI_INVOKE('close_pty_session', { blockId }),
       }
     } catch (e) {
       if (e instanceof Error) throw e
@@ -1228,7 +1238,22 @@ export type StateSnapshot = {
   grants: Grant[]
 }
 /**
- * Payload for terminal.init Tauri command
+ * Payload for terminal.execute capability
+ *
+ * This payload records a command execution in the terminal for audit/history.
+ */
+export type TerminalExecutePayload = {
+  /**
+   * The command string that was executed
+   */
+  command: string
+  /**
+   * Exit code of the command (if available)
+   */
+  exit_code: number | null
+}
+/**
+ * Payload for terminal.init capability
  *
  * This payload is used to initialize a PTY session for a terminal block.
  */
@@ -1259,33 +1284,6 @@ export type TerminalInitPayload = {
   cwd: string | null
 }
 /**
- * Payload for terminal.resize Tauri command
- *
- * This payload is used to resize the PTY window.
- */
-export type TerminalResizePayload = {
-  /**
-   * New number of columns
-   */
-  cols: number
-  /**
-   * New number of rows
-   */
-  rows: number
-  /**
-   * The terminal block ID
-   */
-  block_id: string
-  /**
-   * The file containing the terminal block (required for permission checking)
-   */
-  file_id: string
-  /**
-   * The editor resizing (required for permission checking)
-   */
-  editor_id: string
-}
-/**
  * Payload for terminal.save capability
  *
  * This payload is used to save terminal content (buffer snapshot) to a terminal block.
@@ -1299,29 +1297,6 @@ export type TerminalSavePayload = {
    * Timestamp when the content was saved (ISO 8601 format)
    */
   saved_at: string
-}
-/**
- * Payload for terminal.write Tauri command
- *
- * This payload is used to write user input data to the PTY.
- */
-export type TerminalWritePayload = {
-  /**
-   * The data to write (user input)
-   */
-  data: string
-  /**
-   * The terminal block ID
-   */
-  block_id: string
-  /**
-   * The file containing the terminal block (required for permission checking)
-   */
-  file_id: string
-  /**
-   * The editor writing data (required for permission checking)
-   */
-  editor_id: string
 }
 /**
  * Payload for core.unlink capability

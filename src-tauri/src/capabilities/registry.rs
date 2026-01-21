@@ -76,10 +76,9 @@ impl CapabilityRegistry {
 
         // Terminal extension
         self.register(Arc::new(TerminalInitCapability));
-        self.register(Arc::new(TerminalWriteCapability));
-        self.register(Arc::new(TerminalResizeCapability));
-        self.register(Arc::new(TerminalCloseCapability));
+        self.register(Arc::new(TerminalExecuteCapability));
         self.register(Arc::new(TerminalSaveCapability));
+        self.register(Arc::new(TerminalCloseCapability));
 
         // Directory extension
         self.register(Arc::new(DirectoryImportCapability));

@@ -6,26 +6,32 @@
 //!
 //! The terminal extension follows Elfiee's split architecture:
 //!
-//! ### PTY Infrastructure (pty.rs)
-//! - Session state management (TerminalState, TerminalSession)
-//! - Shell initialization scripts
-//! - Permission capabilities (terminal.init, terminal.write, terminal.resize, terminal.close)
+//! ### State Management (state.rs)
+//! - `TerminalState` - Global state for managing all terminal sessions
+//! - `TerminalSession` - Individual PTY session with writer and master handles
 //!
-//! ### Business Capability (terminal_save.rs)
-//! - `terminal.save` - Save terminal content to block (event-sourced, frontend callable)
+//! ### Pure PTY Utilities (utils/pty.rs)
+//! - `spawn()` - Create PTY and spawn shell
+//! - `write()` - Write data to PTY
+//! - `resize()` - Resize PTY window
+//! - `close()` - Close PTY session
 //!
-//! ### Tauri Commands (commands/terminal.rs)
-//! Actual PTY operations that call Capabilities for authorization:
-//! - `async_init_terminal` - Initialize PTY session
+//! ### Capabilities (produce Events)
+//! - `terminal_init.rs` - terminal.init capability (session started event)
+//! - `terminal_execute.rs` - terminal.execute capability (command executed event)
+//! - `terminal_save.rs` - terminal.save capability (content saved event)
+//! - `terminal_close.rs` - terminal.close capability (session closed event)
+//!
+//! ### Tauri Commands (commands.rs)
+//! Real-time PTY operations (patches, don't record Events):
 //! - `write_to_pty` - Write user input to PTY
 //! - `resize_pty` - Resize PTY window
-//! - `close_terminal_session` - Close PTY session
+//! - `close_pty_session` - Close PTY session
 //!
 //! ## Payload Types
 //!
 //! - `TerminalInitPayload` - Parameters for PTY initialization
-//! - `TerminalWritePayload` - Parameters for PTY write
-//! - `TerminalResizePayload` - Parameters for PTY resize
+//! - `TerminalExecutePayload` - Parameters for command execution
 //! - `TerminalSavePayload` - Parameters for content save
 
 use serde::{Deserialize, Serialize};
@@ -35,26 +41,30 @@ use specta::Type;
 // Module Exports
 // ============================================================================
 
-pub mod pty;
+pub mod commands;
+pub mod state;
+pub mod terminal_close;
+pub mod terminal_execute;
+pub mod terminal_init;
 pub mod terminal_save;
 
-// Re-export PTY infrastructure
-pub use pty::{generate_shell_init, TerminalSession, TerminalState};
+// Re-export state management
+pub use state::{TerminalSession, TerminalState};
 
-// Re-export PTY permission capabilities
-pub use pty::{
-    TerminalCloseCapability, TerminalInitCapability, TerminalResizeCapability,
-    TerminalWriteCapability,
-};
+// Re-export capabilities
+pub use terminal_close::TerminalCloseCapability;
+pub use terminal_execute::TerminalExecuteCapability;
+pub use terminal_init::TerminalInitCapability;
+pub use terminal_save::TerminalSaveCapability;
 
-// Re-export terminal.save capability
-pub use terminal_save::*;
+// Re-export Tauri commands
+pub use commands::{close_pty_session, init_pty_session, resize_pty, write_to_pty};
 
 // ============================================================================
 // Payload Definitions
 // ============================================================================
 
-/// Payload for terminal.init Tauri command
+/// Payload for terminal.init capability
 ///
 /// This payload is used to initialize a PTY session for a terminal block.
 #[derive(Debug, Clone, Deserialize, Serialize, Type)]
@@ -73,36 +83,15 @@ pub struct TerminalInitPayload {
     pub cwd: Option<String>,
 }
 
-/// Payload for terminal.write Tauri command
+/// Payload for terminal.execute capability
 ///
-/// This payload is used to write user input data to the PTY.
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-pub struct TerminalWritePayload {
-    /// The data to write (user input)
-    pub data: String,
-    /// The terminal block ID
-    pub block_id: String,
-    /// The file containing the terminal block (required for permission checking)
-    pub file_id: String,
-    /// The editor writing data (required for permission checking)
-    pub editor_id: String,
-}
-
-/// Payload for terminal.resize Tauri command
-///
-/// This payload is used to resize the PTY window.
-#[derive(Debug, Clone, Deserialize, Serialize, Type)]
-pub struct TerminalResizePayload {
-    /// New number of columns
-    pub cols: u16,
-    /// New number of rows
-    pub rows: u16,
-    /// The terminal block ID
-    pub block_id: String,
-    /// The file containing the terminal block (required for permission checking)
-    pub file_id: String,
-    /// The editor resizing (required for permission checking)
-    pub editor_id: String,
+/// This payload records a command execution in the terminal for audit/history.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+pub struct TerminalExecutePayload {
+    /// The command string that was executed
+    pub command: String,
+    /// Exit code of the command (if available)
+    pub exit_code: Option<i32>,
 }
 
 /// Payload for terminal.save capability

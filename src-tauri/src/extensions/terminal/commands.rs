@@ -80,15 +80,16 @@ cd() {{
             work_dir_str
         )),
         // PowerShell script to be run via -File
-        // Must use global: scope modifier to persist functions after script execution
+        // Must remove the built-in cd alias first, then define global function
         "powershell" => Ok(format!(
             r#"$env:ELF_WORK_DIR = "{}"
+Remove-Item alias:cd -Force -ErrorAction SilentlyContinue
 function global:cd {{
     param([string]$Path)
-    if ($Path -eq "~" -or $Path -eq "$HOME") {{
+    if ($Path -eq "~" -or $Path -eq $env:USERPROFILE) {{
         Set-Location $env:ELF_WORK_DIR
     }} elseif ([string]::IsNullOrEmpty($Path)) {{
-        Set-Location $HOME
+        Set-Location $env:USERPROFILE
     }} else {{
         Set-Location $Path
     }}
@@ -168,11 +169,12 @@ pub async fn init_pty_session(
                 // For PowerShell, write to temp file and pass as argument
                 // This ensures clean execution and no visual noise
                 let temp_dir = std::env::temp_dir();
-                let profile_path = temp_dir.join(format!("elfiee_init_{}.ps1", uuid::Uuid::new_v4()));
-                
+                let profile_path =
+                    temp_dir.join(format!("elfiee_init_{}.ps1", uuid::Uuid::new_v4()));
+
                 std::fs::write(&profile_path, content)
                     .map_err(|e| format!("Failed to write init script: {}", e))?;
-                
+
                 args.push("-NoExit".to_string());
                 args.push("-ExecutionPolicy".to_string());
                 args.push("Bypass".to_string());
@@ -265,7 +267,6 @@ pub async fn init_pty_session(
 
     Ok(())
 }
-
 
 /// Write data to the PTY.
 ///
@@ -423,11 +424,15 @@ mod tests {
         let work_dir = PathBuf::from("C:\\Users\\test\\.elf-workspace");
         let script = generate_shell_init(&work_dir, "powershell");
         assert!(script.is_ok(), "Should handle PowerShell");
-        
+
         let script = script.unwrap();
         assert!(
             script.contains("$env:ELF_WORK_DIR ="),
             "PowerShell script should set environment variable"
+        );
+        assert!(
+            script.contains("Remove-Item alias:cd"),
+            "PowerShell script should remove built-in cd alias"
         );
         assert!(
             script.contains("function global:cd"),

@@ -17,6 +17,13 @@ use super::TerminalSavePayload;
 fn handle_terminal_save(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let block = block.ok_or("Block required for terminal.save")?;
 
+    if block.block_type != "terminal" {
+        return Err(format!(
+            "Expected block_type 'terminal', got '{}'",
+            block.block_type
+        ));
+    }
+
     // Deserialize strongly-typed payload
     let payload: TerminalSavePayload = serde_json::from_value(cmd.payload.clone())
         .map_err(|e| format!("Invalid payload for terminal.save: {}", e))?;

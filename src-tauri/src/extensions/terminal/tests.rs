@@ -58,44 +58,39 @@ fn test_init_payload_deserialize() {
 }
 
 #[test]
-fn test_write_payload_deserialize() {
+fn test_execute_payload_deserialize() {
     let json = json!({
-        "data": "ls -la\n",
-        "block_id": "block-123",
-        "file_id": "file-456",
-        "editor_id": "alice"
+        "command": "ls -la",
+        "exit_code": 0
     });
 
-    let result: Result<TerminalWritePayload, _> = serde_json::from_value(json);
+    let result: Result<TerminalExecutePayload, _> = serde_json::from_value(json);
     assert!(
         result.is_ok(),
-        "TerminalWritePayload should deserialize successfully"
+        "TerminalExecutePayload should deserialize successfully"
     );
 
     let payload = result.unwrap();
-    assert_eq!(payload.data, "ls -la\n");
-    assert_eq!(payload.block_id, "block-123");
+    assert_eq!(payload.command, "ls -la");
+    assert_eq!(payload.exit_code, Some(0));
 }
 
 #[test]
-fn test_resize_payload_deserialize() {
+fn test_execute_payload_deserialize_no_exit_code() {
     let json = json!({
-        "cols": 120,
-        "rows": 40,
-        "block_id": "block-123",
-        "file_id": "file-456",
-        "editor_id": "alice"
+        "command": "sleep 10",
+        "exit_code": null
     });
 
-    let result: Result<TerminalResizePayload, _> = serde_json::from_value(json);
+    let result: Result<TerminalExecutePayload, _> = serde_json::from_value(json);
     assert!(
         result.is_ok(),
-        "TerminalResizePayload should deserialize successfully"
+        "TerminalExecutePayload should deserialize with null exit_code"
     );
 
     let payload = result.unwrap();
-    assert_eq!(payload.cols, 120);
-    assert_eq!(payload.rows, 40);
+    assert_eq!(payload.command, "sleep 10");
+    assert_eq!(payload.exit_code, None);
 }
 
 // ============================================
@@ -131,74 +126,16 @@ fn test_terminal_init_basic() {
     let events = result.unwrap();
     assert_eq!(
         events.len(),
-        0,
-        "terminal.init returns no events (authorization only)"
-    );
-}
-
-#[test]
-fn test_terminal_write_basic() {
-    let registry = CapabilityRegistry::new();
-    let cap = registry
-        .get("terminal.write")
-        .expect("terminal.write should be registered");
-
-    let block = Block::new(
-        "Terminal 1".to_string(),
-        "terminal".to_string(),
-        "alice".to_string(),
+        1,
+        "terminal.init should return 1 event (session_started)"
     );
 
-    let cmd = Command::new(
-        "alice".to_string(),
-        "terminal.write".to_string(),
-        block.block_id.clone(),
-        json!({ "data": "ls -la\n" }),
-    );
-
-    let result = cap.handler(&cmd, Some(&block));
-    assert!(result.is_ok(), "terminal.write should succeed");
-
-    let events = result.unwrap();
-    assert_eq!(
-        events.len(),
-        0,
-        "terminal.write returns no events (authorization only)"
-    );
-}
-
-#[test]
-fn test_terminal_resize_basic() {
-    let registry = CapabilityRegistry::new();
-    let cap = registry
-        .get("terminal.resize")
-        .expect("terminal.resize should be registered");
-
-    let block = Block::new(
-        "Terminal 1".to_string(),
-        "terminal".to_string(),
-        "alice".to_string(),
-    );
-
-    let cmd = Command::new(
-        "alice".to_string(),
-        "terminal.resize".to_string(),
-        block.block_id.clone(),
-        json!({
-            "cols": 120,
-            "rows": 40
-        }),
-    );
-
-    let result = cap.handler(&cmd, Some(&block));
-    assert!(result.is_ok(), "terminal.resize should succeed");
-
-    let events = result.unwrap();
-    assert_eq!(
-        events.len(),
-        0,
-        "terminal.resize returns no events (authorization only)"
-    );
+    // Verify event content
+    let event = &events[0];
+    assert_eq!(event.entity, block.block_id);
+    assert!(event.attribute.contains("terminal.init"));
+    assert_eq!(event.value["session_started"], true);
+    assert!(event.value["started_at"].is_string());
 }
 
 #[test]
@@ -227,9 +164,58 @@ fn test_terminal_close_basic() {
     let events = result.unwrap();
     assert_eq!(
         events.len(),
-        0,
-        "terminal.close returns no events (authorization only)"
+        1,
+        "terminal.close should return 1 event (session_closed)"
     );
+
+    // Verify event content
+    let event = &events[0];
+    assert_eq!(event.entity, block.block_id);
+    assert!(event.attribute.contains("terminal.close"));
+    assert_eq!(event.value["session_closed"], true);
+    assert!(event.value["closed_at"].is_string());
+}
+
+#[test]
+fn test_terminal_execute_basic() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry
+        .get("terminal.execute")
+        .expect("terminal.execute should be registered");
+
+    let block = Block::new(
+        "Terminal 1".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        json!({
+            "command": "ls -la",
+            "exit_code": 0
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_ok(), "terminal.execute should succeed");
+
+    let events = result.unwrap();
+    assert_eq!(
+        events.len(),
+        1,
+        "terminal.execute should return 1 event (command_executed)"
+    );
+
+    // Verify event content
+    let event = &events[0];
+    assert_eq!(event.entity, block.block_id);
+    assert!(event.attribute.contains("terminal.execute"));
+    assert_eq!(event.value["command"], "ls -la");
+    assert_eq!(event.value["exit_code"], 0);
+    assert!(event.value["executed_at"].is_string());
 }
 
 // ============================================
@@ -381,13 +367,108 @@ fn test_terminal_init_wrong_type_error() {
 }
 
 #[test]
+fn test_terminal_close_wrong_type_error() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("terminal.close").unwrap();
+
+    // Create a markdown block instead of terminal
+    let block = Block::new(
+        "Document".to_string(),
+        "markdown".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.close".to_string(),
+        block.block_id.clone(),
+        json!({}),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_err(), "Should fail for non-terminal block");
+    assert!(
+        result
+            .unwrap_err()
+            .contains("Expected block_type 'terminal'"),
+        "Error should mention expected block type"
+    );
+}
+
+#[test]
+fn test_terminal_save_wrong_type_error() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("terminal.save").unwrap();
+
+    // Create a markdown block instead of terminal
+    let block = Block::new(
+        "Document".to_string(),
+        "markdown".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.save".to_string(),
+        block.block_id.clone(),
+        json!({
+            "saved_content": "test",
+            "saved_at": "2026-01-20T10:30:00Z"
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_err(), "Should fail for non-terminal block");
+    assert!(
+        result
+            .unwrap_err()
+            .contains("Expected block_type 'terminal'"),
+        "Error should mention expected block type"
+    );
+}
+
+#[test]
+fn test_terminal_execute_wrong_type_error() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("terminal.execute").unwrap();
+
+    // Create a markdown block instead of terminal
+    let block = Block::new(
+        "Document".to_string(),
+        "markdown".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        json!({
+            "command": "ls",
+            "exit_code": 0
+        }),
+    );
+
+    let result = cap.handler(&cmd, Some(&block));
+    assert!(result.is_err(), "Should fail for non-terminal block");
+    assert!(
+        result
+            .unwrap_err()
+            .contains("Expected block_type 'terminal'"),
+        "Error should mention expected block type"
+    );
+}
+
+#[test]
 fn test_terminal_missing_block_error() {
     let registry = CapabilityRegistry::new();
 
+    // Note: terminal.write and terminal.resize are direct PTY operations
+    // without capability checks. Test all event-producing capabilities.
     let capabilities = [
         "terminal.init",
-        "terminal.write",
-        "terminal.resize",
+        "terminal.execute",
+        "terminal.save",
         "terminal.close",
     ];
 
@@ -398,7 +479,10 @@ fn test_terminal_missing_block_error() {
             "alice".to_string(),
             cap_id.to_string(),
             "nonexistent-block".to_string(),
-            json!({}),
+            json!({
+                "saved_content": "test",
+                "saved_at": "2026-01-13T10:30:00Z"
+            }),
         );
 
         let result = cap.handler(&cmd, None);
@@ -473,4 +557,145 @@ fn test_save_authorization_non_owner_with_grant() {
         block.owner == "bob" || grants_table.has_grant("bob", "terminal.save", &block.block_id);
 
     assert!(is_authorized, "Non-owner with grant should be authorized");
+}
+
+// ============================================
+// Terminal Init/Close - Event Content Tests
+// ============================================
+
+#[test]
+fn test_terminal_init_event_content() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("terminal.init").unwrap();
+
+    let block = Block::new(
+        "Terminal 1".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.init".to_string(),
+        block.block_id.clone(),
+        json!({
+            "cols": 80,
+            "rows": 24
+        }),
+    );
+
+    let events = cap.handler(&cmd, Some(&block)).unwrap();
+    let event = &events[0];
+
+    // Verify event structure
+    assert_eq!(event.entity, block.block_id);
+    assert_eq!(event.attribute, "alice/terminal.init");
+    assert_eq!(event.value["session_started"], true);
+
+    // Verify started_at is a valid timestamp
+    let started_at = event.value["started_at"].as_str().unwrap();
+    assert!(
+        chrono::DateTime::parse_from_rfc3339(started_at).is_ok(),
+        "started_at should be valid RFC3339 timestamp"
+    );
+}
+
+#[test]
+fn test_terminal_close_event_content() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("terminal.close").unwrap();
+
+    let block = Block::new(
+        "Terminal 1".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.close".to_string(),
+        block.block_id.clone(),
+        json!({}),
+    );
+
+    let events = cap.handler(&cmd, Some(&block)).unwrap();
+    let event = &events[0];
+
+    // Verify event structure
+    assert_eq!(event.entity, block.block_id);
+    assert_eq!(event.attribute, "alice/terminal.close");
+    assert_eq!(event.value["session_closed"], true);
+
+    // Verify closed_at is a valid timestamp
+    let closed_at = event.value["closed_at"].as_str().unwrap();
+    assert!(
+        chrono::DateTime::parse_from_rfc3339(closed_at).is_ok(),
+        "closed_at should be valid RFC3339 timestamp"
+    );
+}
+
+#[test]
+fn test_terminal_execute_event_content() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("terminal.execute").unwrap();
+
+    let block = Block::new(
+        "Terminal 1".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        json!({
+            "command": "echo hello",
+            "exit_code": 0
+        }),
+    );
+
+    let events = cap.handler(&cmd, Some(&block)).unwrap();
+    let event = &events[0];
+
+    // Verify event structure
+    assert_eq!(event.entity, block.block_id);
+    assert_eq!(event.attribute, "alice/terminal.execute");
+    assert_eq!(event.value["command"], "echo hello");
+    assert_eq!(event.value["exit_code"], 0);
+
+    // Verify executed_at is a valid timestamp
+    let executed_at = event.value["executed_at"].as_str().unwrap();
+    assert!(
+        chrono::DateTime::parse_from_rfc3339(executed_at).is_ok(),
+        "executed_at should be valid RFC3339 timestamp"
+    );
+}
+
+#[test]
+fn test_terminal_execute_with_null_exit_code() {
+    let registry = CapabilityRegistry::new();
+    let cap = registry.get("terminal.execute").unwrap();
+
+    let block = Block::new(
+        "Terminal 1".to_string(),
+        "terminal".to_string(),
+        "alice".to_string(),
+    );
+
+    let cmd = Command::new(
+        "alice".to_string(),
+        "terminal.execute".to_string(),
+        block.block_id.clone(),
+        json!({
+            "command": "sleep 100",
+            "exit_code": null
+        }),
+    );
+
+    let events = cap.handler(&cmd, Some(&block)).unwrap();
+    let event = &events[0];
+
+    assert_eq!(event.value["command"], "sleep 100");
+    assert!(event.value["exit_code"].is_null());
 }

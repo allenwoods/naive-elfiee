@@ -17,9 +17,6 @@ import {
   type GrantPayload,
   type RevokePayload,
   type FileMetadata,
-  type TerminalInitPayload,
-  type TerminalWritePayload,
-  type TerminalResizePayload,
 } from '@/bindings'
 import { sortEventsByVectorClock } from '@/utils/event-utils'
 
@@ -837,10 +834,26 @@ function getActionDescription(capId: string): string {
 
 /**
  * Terminal Operations
+ *
+ * Architecture Notes:
+ * - Event-producing operations use capabilities via execute_command:
+ *   - terminal.init (session started)
+ *   - terminal.execute (command executed)
+ *   - terminal.save (content saved)
+ *   - terminal.close (session closed)
+ * - PTY operations are high-frequency "patches" that don't record Events:
+ *   - init_pty_session (creates PTY)
+ *   - write_to_pty
+ *   - resize_pty
+ *   - close_pty_session
  */
 export class TerminalOperations {
   /**
-   * Initialize a new PTY session for a block
+   * Initialize terminal session
+   *
+   * This method:
+   * 1. Records a session_started Event via terminal.init capability
+   * 2. Creates the PTY session via init_pty_session command
    */
   static async initTerminal(
     fileId: string,
@@ -849,10 +862,11 @@ export class TerminalOperations {
     rows: number,
     cwd?: string,
     editorId?: string
-  ): Promise<void> {
+  ): Promise<Event[]> {
     const activeEditorId = editorId || (await getSystemEditorId())
 
-    const payload: TerminalInitPayload = {
+    // 1. Record the session_started Event via capability
+    const payload = {
       cols,
       rows,
       block_id: blockId,
@@ -861,7 +875,45 @@ export class TerminalOperations {
       cwd: cwd || null,
     }
 
-    const result = await commands.asyncInitTerminal(payload)
+    const cmd = createCommand(
+      activeEditorId,
+      'terminal.init',
+      blockId,
+      payload as unknown as JsonValue
+    )
+    const events = await BlockOperations.executeCommand(fileId, cmd)
+
+    // 2. Create the PTY session
+    const result = await commands.initPtySession(
+      blockId,
+      cols,
+      rows,
+      cwd || null
+    )
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+
+    return events
+  }
+
+  /**
+   * Initialize PTY session only (without recording Event)
+   *
+   * Use this for restoring sessions where the Event was already recorded.
+   */
+  static async initPtySessionOnly(
+    blockId: string,
+    cols: number,
+    rows: number,
+    cwd?: string
+  ): Promise<void> {
+    const result = await commands.initPtySession(
+      blockId,
+      cols,
+      rows,
+      cwd || null
+    )
     if (result.status === 'error') {
       throw new Error(result.error)
     }
@@ -869,23 +921,17 @@ export class TerminalOperations {
 
   /**
    * Write data to the PTY
+   *
+   * Note: fileId and editorId are kept for API compatibility but no longer used
+   * by the backend (high-frequency operation, no capability check).
    */
   static async writeToPty(
-    fileId: string,
+    _fileId: string,
     blockId: string,
     data: string,
-    editorId?: string
+    _editorId?: string
   ): Promise<void> {
-    const activeEditorId = editorId || (await getSystemEditorId())
-
-    const payload: TerminalWritePayload = {
-      data,
-      block_id: blockId,
-      file_id: fileId,
-      editor_id: activeEditorId,
-    }
-
-    const result = await commands.writeToPty(payload)
+    const result = await commands.writeToPty(blockId, data)
     if (result.status === 'error') {
       throw new Error(result.error)
     }
@@ -893,48 +939,88 @@ export class TerminalOperations {
 
   /**
    * Resize the PTY
+   *
+   * Note: fileId and editorId are kept for API compatibility but no longer used
+   * by the backend (high-frequency operation, no capability check).
    */
   static async resizePty(
-    fileId: string,
+    _fileId: string,
     blockId: string,
     cols: number,
     rows: number,
-    editorId?: string
+    _editorId?: string
   ): Promise<void> {
-    const activeEditorId = editorId || (await getSystemEditorId())
-
-    const payload: TerminalResizePayload = {
-      cols,
-      rows,
-      block_id: blockId,
-      file_id: fileId,
-      editor_id: activeEditorId,
-    }
-
-    const result = await commands.resizePty(payload)
+    const result = await commands.resizePty(blockId, cols, rows)
     if (result.status === 'error') {
       throw new Error(result.error)
     }
   }
 
   /**
-   * Close a PTY session
+   * Close a PTY session (direct PTY operation, no Event)
+   *
+   * Note: To record the session_closed Event, call closeTerminalSession() instead.
+   */
+  static async closePtySession(blockId: string): Promise<void> {
+    const result = await commands.closePtySession(blockId)
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+  }
+
+  /**
+   * Close terminal session with Event recording
+   *
+   * This method:
+   * 1. Records a session_closed Event via terminal.close capability
+   * 2. Closes the PTY session
    */
   static async closeTerminalSession(
     fileId: string,
     blockId: string,
     editorId?: string
-  ): Promise<void> {
+  ): Promise<Event[]> {
     const activeEditorId = editorId || (await getSystemEditorId())
 
-    const result = await commands.closeTerminalSession(
-      fileId,
+    // Record the session_closed Event
+    const cmd = createCommand(
+      activeEditorId,
+      'terminal.close',
       blockId,
-      activeEditorId
+      {} as JsonValue
     )
-    if (result.status === 'error') {
-      throw new Error(result.error)
+    const events = await BlockOperations.executeCommand(fileId, cmd)
+
+    // Close the PTY session
+    await this.closePtySession(blockId)
+
+    return events
+  }
+
+  /**
+   * Record command execution (produces Event via capability)
+   */
+  static async executeTerminalCommand(
+    fileId: string,
+    blockId: string,
+    command: string,
+    exitCode?: number,
+    editorId?: string
+  ): Promise<Event[]> {
+    const activeEditorId = editorId || (await getSystemEditorId())
+
+    const payload = {
+      command,
+      exit_code: exitCode ?? null,
     }
+
+    const cmd = createCommand(
+      activeEditorId,
+      'terminal.execute',
+      blockId,
+      payload as unknown as JsonValue
+    )
+    return await BlockOperations.executeCommand(fileId, cmd)
   }
 
   /**

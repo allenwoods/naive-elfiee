@@ -103,7 +103,7 @@ pub fn spawn(config: SpawnConfig) -> Result<PtyHandle, String> {
     });
 
     let mut cmd_builder = CommandBuilder::new(shell);
-    
+
     // Add arguments
     if !config.args.is_empty() {
         cmd_builder.args(config.args);
