@@ -55,7 +55,7 @@ struct PtyOutputPayload {
 /// * `shell` - The shell type: "bash", "zsh", or "powershell"
 ///
 /// # Returns
-/// * `Ok(String)` - The initialization script (empty for PowerShell which uses profile)
+/// * `Ok(String)` - The initialization script content
 /// * `Err(String)` - Error for unsupported shell types
 fn generate_shell_init(work_dir: &Path, shell: &str) -> Result<String, String> {
     let work_dir_str = work_dir
@@ -79,10 +79,11 @@ cd() {{
 "#,
             work_dir_str
         )),
-        // PowerShell uses a separate profile script mechanism
+        // PowerShell script to be run via -File
+        // Must use global: scope modifier to persist functions after script execution
         "powershell" => Ok(format!(
             r#"$env:ELF_WORK_DIR = "{}"
-function cd {{
+function global:cd {{
     param([string]$Path)
     if ($Path -eq "~" -or $Path -eq "$HOME") {{
         Set-Location $env:ELF_WORK_DIR
@@ -157,6 +158,32 @@ pub async fn init_pty_session(
 
     // Detect shell type
     let shell = detect_shell();
+    let mut args = Vec::new();
+    let mut script_content_for_pty = String::new();
+
+    // Prepare init script
+    if let Some(ref work_dir) = cwd_path {
+        if let Ok(content) = generate_shell_init(work_dir, shell) {
+            if shell == "powershell" {
+                // For PowerShell, write to temp file and pass as argument
+                // This ensures clean execution and no visual noise
+                let temp_dir = std::env::temp_dir();
+                let profile_path = temp_dir.join(format!("elfiee_init_{}.ps1", uuid::Uuid::new_v4()));
+                
+                std::fs::write(&profile_path, content)
+                    .map_err(|e| format!("Failed to write init script: {}", e))?;
+                
+                args.push("-NoExit".to_string());
+                args.push("-ExecutionPolicy".to_string());
+                args.push("Bypass".to_string());
+                args.push("-File".to_string());
+                args.push(profile_path.to_string_lossy().to_string());
+            } else {
+                // For Bash/Zsh, we will inject via PTY
+                script_content_for_pty = content;
+            }
+        }
+    }
 
     // Spawn PTY using pure function
     let config = SpawnConfig {
@@ -164,6 +191,7 @@ pub async fn init_pty_session(
         rows,
         cwd: cwd_path.as_deref(),
         shell: Some(shell),
+        args,
     };
 
     let handle = pty_spawn(config)?;
@@ -186,18 +214,15 @@ pub async fn init_pty_session(
 
     // Send shell initialization script if we have a working directory
     // This overrides `cd ~` to redirect to the workspace directory
-    if let Some(ref work_dir) = cwd_path {
-        if let Ok(init_script) = generate_shell_init(work_dir, shell) {
-            if !init_script.is_empty() {
-                // Small delay to ensure shell is ready
-                thread::sleep(std::time::Duration::from_millis(100));
+    // Only for Bash/Zsh (PowerShell handled via args)
+    if !script_content_for_pty.is_empty() {
+        // Small delay to ensure shell is ready
+        thread::sleep(std::time::Duration::from_millis(100));
 
-                // Send init script to PTY
-                let mut sessions = state.sessions.lock().unwrap();
-                if let Some(session) = sessions.get_mut(&block_id) {
-                    let _ = pty_write(&mut *session.writer, &init_script);
-                }
-            }
+        // Send init script to PTY
+        let mut sessions = state.sessions.lock().unwrap();
+        if let Some(session) = sessions.get_mut(&block_id) {
+            let _ = pty_write(&mut *session.writer, &script_content_for_pty);
         }
     }
 
@@ -240,6 +265,7 @@ pub async fn init_pty_session(
 
     Ok(())
 }
+
 
 /// Write data to the PTY.
 ///
@@ -404,8 +430,8 @@ mod tests {
             "PowerShell script should set environment variable"
         );
         assert!(
-            script.contains("function cd"),
-            "PowerShell script should define cd function"
+            script.contains("function global:cd"),
+            "PowerShell script should define global:cd function"
         );
         assert!(
             script.contains("Set-Location $env:ELF_WORK_DIR"),
