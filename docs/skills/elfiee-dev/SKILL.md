@@ -77,6 +77,9 @@ pub fn register_extensions() {
 | Simple operations | Convenience API (see below) |
 
 ### Convenience APIs (prefer these)
+
+Type-safe wrappers in `src-tauri/src/commands/`. They internally call `executeCommand` with correct payload, reducing boilerplate.
+
 | API | Equivalent Capability |
 |-----|----------------------|
 | `renameBlock(fileId, blockId, name)` | `core.rename` |
@@ -121,16 +124,24 @@ pub fn register_extensions() {
 ### Terminal
 | Capability | Required | Optional |
 |------------|----------|----------|
-| `terminal.init` | `cols`, `rows`, `block_id`, `editor_id`, `file_id` | `cwd` |
+| `terminal.init` | (none - handler only validates block type) | |
+| `terminal.close` | (none) | |
 | `terminal.execute` | `command` | `exit_code` |
 | `terminal.save` | `saved_content`, `saved_at` | |
+
+> **Note**: For PTY operations, use Tauri commands directly:
+> `initPtySession(blockId, cols, rows, cwd)`, `writeToPty`, `resizePty`, `closePtySession`
 
 ---
 
 ## Part 6: API & Capability List
 
 ### Commands (`commands.*`)
-| Category | Commands |
+
+> **Note**: Commands use camelCase in TypeScript (auto-converted from Rust snake_case by tauri-specta).
+> Example: Rust `init_pty_session` → TypeScript `initPtySession`
+
+| Category | Commands (TypeScript) |
 |----------|----------|
 | File | `createFile`, `openFile`, `saveFile`, `closeFile`, `listOpenFiles`, `getFileInfo`, `renameFile`, `duplicateFile` |
 | Block | `executeCommand`, `getBlock`, `getAllBlocks`, `updateBlockMetadata`, `renameBlock`, `changeBlockType`, `checkPermission` |
@@ -178,16 +189,17 @@ if (result.status === 'ok') {
 ## Part 8: Checklist
 
 ### Frontend
-- [ ] Used `commands` from `@/bindings`
-- [ ] Used generated types (not manual interfaces)
+- [ ] Used `commands` from `@/bindings` (not `invoke()`)
+- [ ] Used generated types from `@/bindings` (not manual interfaces)
 - [ ] Did NOT edit `src/bindings.ts`
 
 ### Backend
 - [ ] Defined Payload with `#[derive(Serialize, Deserialize, Type)]`
-- [ ] Registered in `lib.rs` and `registry.rs`
-- [ ] Ran `pnpm tauri dev`
-- [ ] Added tests
+- [ ] Registered capability in `registry.rs` via `register_capability!`
+- [ ] Registered command in `lib.rs` (both debug + release handlers)
+- [ ] Ran `pnpm tauri dev` to regenerate bindings
+- [ ] Added tests (handler logic + authorization checks)
 
 ### Both
 - [ ] `pnpm tauri dev` runs without errors
-- [ ] No TypeScript errors
+- [ ] `pnpm tsc --noEmit` passes (no TypeScript errors)
