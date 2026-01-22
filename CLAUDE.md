@@ -2,6 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL: Development Rules
+
+**Before any frontend or backend development, you MUST read:** `docs/skills/elfiee-dev/SKILL.md`
+
+This skill contains:
+- Forbidden actions (NEVER do these)
+- Frontend development rules (use `commands` from `@/bindings`)
+- Backend development rules (adding capabilities/commands)
+- Complete API and Capability reference
+- Pre-commit checklist
+
+Violating these rules breaks type safety, event sourcing, or CBAC security.
+
 ## Project Overview
 
 **Elfiee** (Event-sourcing Literate programming Format Integrated Editing Environment) is a block-based editor for the `.elf` file format. The system is built on three core principles:
