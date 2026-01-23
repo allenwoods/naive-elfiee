@@ -44,20 +44,23 @@ interface MarkdownWritePayload { content: string }  // Don't define manually
 
 ### Adding Capability
 ```rust
-// 1. Create in src-tauri/src/extensions/{ext}/
+// 1. Create in src-tauri/src/extensions/{ext}/{cap_name}.rs
+use capability_macros::capability;
+
 #[capability(id = "myext.write", target = "myext")]
-fn handle_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
+fn handle_myext_write(cmd: &Command, block: Option<&Block>) -> CapResult<Vec<Event>> {
     let payload: MyExtWritePayload = serde_json::from_value(cmd.payload.clone())?;
     // ...
 }
 
-// 2. Define payload in same file
+// 2. Define payload in extension's mod.rs
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct MyExtWritePayload { pub content: String }
 
 // 3. Register in src-tauri/src/capabilities/registry.rs
-pub fn register_extensions() {
-    register_capability!(myext_write);  // Add this line
+fn register_extensions(&mut self) {
+    use crate::extensions::myext::*;
+    self.register(Arc::new(MyextWriteCapability));  // Macro generates this struct
 }
 ```
 
@@ -154,7 +157,7 @@ Type-safe wrappers in `src-tauri/src/commands/`. They internally call `executeCo
 |----------|--------------|
 | Core | `core.create`, `core.delete`, `core.link`, `core.unlink`, `core.read`, `core.rename`, `core.change_type`, `core.update_metadata`, `core.grant`, `core.revoke` |
 | Content | `markdown.read`, `markdown.write`, `code.read`, `code.write` |
-| Directory | `directory.create`, `directory.delete`, `directory.rename`, `directory.write`, `directory.read`, `directory.export`, `directory.import` |
+| Directory | `directory.create`, `directory.delete`, `directory.rename`, `directory.rename_with_type_change`, `directory.write`, `directory.export`, `directory.import` |
 | Editor | `editor.create`, `editor.delete` |
 | Terminal | `terminal.init`, `terminal.close`, `terminal.execute`, `terminal.save` |
 
@@ -195,7 +198,7 @@ if (result.status === 'ok') {
 
 ### Backend
 - [ ] Defined Payload with `#[derive(Serialize, Deserialize, Type)]`
-- [ ] Registered capability in `registry.rs` via `register_capability!`
+- [ ] Registered capability in `registry.rs` via `self.register(Arc::new(...))`
 - [ ] Registered command in `lib.rs` (both debug + release handlers)
 - [ ] Ran `pnpm tauri dev` to regenerate bindings
 - [ ] Added tests (handler logic + authorization checks)
