@@ -42,4 +42,16 @@ portable-pty = "0.8"
 base64 = "0.21"
 log = "0.4"
 dirs = "5.0"
+clap = { version = "4", features = ["derive"] }
+anyhow = "1.0"
+
+# GUI binary (Tauri app)
+[[bin]]
+name = "elfiee-app"
+path = "src/main.rs"
+
+# CLI binary
+[[bin]]
+name = "elfiee"
+path = "src/bin/elfiee.rs"
 
