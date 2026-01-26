@@ -53,6 +53,28 @@ impl AppState {
     pub fn set_active_editor(&self, file_id: String, editor_id: String) {
         self.active_editors.insert(file_id, editor_id);
     }
+
+    /// List all open files.
+    ///
+    /// Returns a vector of (file_id, path) tuples for all currently open files.
+    pub fn list_open_files(&self) -> Vec<(String, String)> {
+        self.files
+            .iter()
+            .map(|entry| {
+                (
+                    entry.key().clone(),
+                    entry.value().path.to_string_lossy().to_string(),
+                )
+            })
+            .collect()
+    }
+
+    /// Get file info by file_id.
+    pub fn get_file_info(&self, file_id: &str) -> Option<(PathBuf, Arc<ElfArchive>)> {
+        self.files
+            .get(file_id)
+            .map(|entry| (entry.value().path.clone(), entry.value().archive.clone()))
+    }
 }
 
 impl Default for AppState {

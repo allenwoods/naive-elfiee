@@ -2,6 +2,25 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL: Required Skills
+
+**Before working with this project, you MUST read these skill documents:**
+
+### System-level: `docs/skills/elfiee-dev/SKILL.md`
+How AI interacts with `.elf` files:
+- Forbidden filesystem commands (cat, ls, rm, etc.)
+- Required elf APIs (Read, Write, File, Terminal)
+- NEVER use shell commands on .elf contents
+
+### Project-level: `docs/skills/elfiee-workflow/SKILL.md`
+Development rules for frontend and backend:
+- Forbidden actions (edit bindings.ts, use invoke(), etc.)
+- Frontend/Backend development patterns
+- Capability registration and payload reference
+- Pre-commit checklist
+
+Violating these rules breaks type safety, event sourcing, or CBAC security.
+
 ## Project Overview
 
 **Elfiee** (Event-sourcing Literate programming Format Integrated Editing Environment) is a block-based editor for the `.elf` file format. The system is built on three core principles:

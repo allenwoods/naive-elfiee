@@ -1,9 +1,11 @@
 pub mod capabilities;
+pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod elf;
 pub mod engine;
 pub mod extensions;
+pub mod ipc;
 pub mod models;
 pub mod state;
 pub mod utils;
@@ -19,7 +21,21 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
-        .manage(extensions::terminal::TerminalState::new());
+        .manage(extensions::terminal::TerminalState::new())
+        .setup(|app| {
+            // Start IPC Server in background with AppHandle
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let port = ipc::server::DEFAULT_PORT;
+                println!("Starting IPC Server on port {}...", port);
+
+                if let Err(e) = ipc::server::start_with_handle(app_handle, port).await {
+                    eprintln!("IPC Server error: {}", e);
+                }
+            });
+
+            Ok(())
+        });
 
     // Generate TypeScript bindings in debug mode
     #[cfg(debug_assertions)]
