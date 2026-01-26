@@ -1,17 +1,29 @@
 ---
 name: elfiee-system
-description: How AI should interact with .elf files. MUST use elf APIs, NOT filesystem commands.
+description: How AI should interact with .elf files. MUST use Elfiee HTTP API, NOT filesystem commands.
 ---
 
 # Elfiee System Interface
 
-**CRITICAL**: When working with `.elf` files, you MUST use Elfiee APIs. NEVER use filesystem commands.
+**CRITICAL**: When working with `.elf` files, you MUST use Elfiee HTTP API. NEVER use filesystem commands.
+
+---
+
+## Prerequisites
+
+Elfiee GUI must be running. The IPC Server listens on `http://127.0.0.1:47100`.
+
+Check if Elfiee is running:
+```bash
+curl -s http://127.0.0.1:47100/health
+# Expected: {"status":"ok","service":"elfiee-ipc","version":"0.1.0"}
+```
 
 ---
 
 ## Forbidden Operations
 
-### Read (use Read APIs instead)
+### Read (use HTTP API instead)
 | Bash | PowerShell | Git |
 |------|------------|-----|
 | `cat`, `head`, `tail`, `less`, `more` | `Get-Content`, `type` | `git show` |
@@ -29,7 +41,7 @@ description: How AI should interact with .elf files. MUST use elf APIs, NOT file
 |------|------------|
 | `rm`, `rmdir` | `Remove-Item`, `del`, `rd` |
 
-### Modify (use Write APIs instead)
+### Modify (use HTTP API instead)
 | Bash | PowerShell | Editor |
 |------|------------|--------|
 | `echo >> file`, `sed` | `Add-Content`, `Set-Content` | `vim`, `nano`, `code` |
@@ -43,62 +55,221 @@ description: How AI should interact with .elf files. MUST use elf APIs, NOT file
 
 ---
 
-## Read APIs
+## HTTP API Usage
 
-| Task | API |
-|------|-----|
-| Get block | `commands.getBlock(fileId, blockId)` |
-| List all blocks | `commands.getAllBlocks(fileId)` |
-| Get active editor | `commands.getActiveEditor(fileId)` |
-| List editors | `commands.listEditors(fileId)` |
-| List permissions | `commands.listGrants(fileId)` |
-| Check permission | `commands.checkPermission(fileId, editorId, blockId, capId)` |
-| Get event history | `commands.getAllEvents(fileId)` |
+All operations use POST requests to `http://127.0.0.1:47100/api`.
 
----
+### Request Format
 
-## Write APIs
+```bash
+curl -X POST http://127.0.0.1:47100/api \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Id: <your-session-id>" \
+  -d '{"capability":"<capability>","project":"<path>","block":"<block_id>","payload":{...}}'
+```
 
-All writes use `commands.executeCommand(fileId, cmd)` with a capability:
+### Session ID
 
-| Task | Capability | Payload |
-|------|------------|---------|
-| Write markdown | `markdown.write` | `{ content }` |
-| Write code | `code.write` | `{ content }` |
-| Create block | `core.create` | `{ name, block_type }` |
-| Delete block | `core.delete` | (none) |
-| Link blocks | `core.link` | `{ relation, target_id }` |
-| Unlink blocks | `core.unlink` | `{ relation, target_id }` |
-| Rename block | `core.rename` | `{ name }` |
-
-### Convenience APIs
-
-| Task | API |
-|------|-----|
-| Rename block | `commands.renameBlock(fileId, blockId, name)` |
-| Change block type | `commands.changeBlockType(fileId, blockId, type, ext)` |
-| Create editor | `commands.createEditor(fileId, name, type, blockId)` |
-| Delete editor | `commands.deleteEditor(fileId, editorId, blockId)` |
+Set a unique session ID to identify your agent:
+```bash
+export ELFIEE_SESSION="claude-$(date +%s)"
+```
 
 ---
 
-## File APIs
+## File Operations
 
-| Task | API |
-|------|-----|
-| Open file | `commands.openFile(path)` → returns fileId |
-| Create file | `commands.createFile(path)` |
-| Save file | `commands.saveFile(fileId)` |
-| Close file | `commands.closeFile(fileId)` |
-| List open files | `commands.listOpenFiles()` |
+### List Open Files
+```bash
+curl -s http://127.0.0.1:47100/api \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Id: $ELFIEE_SESSION" \
+  -d '{"capability":"file.list"}'
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "files": [
+      {"file_id": "file-abc123", "path": "/path/to/project.elf"}
+    ],
+    "count": 1
+  }
+}
+```
+
+### Open File
+```bash
+curl -s http://127.0.0.1:47100/api \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Id: $ELFIEE_SESSION" \
+  -d '{"capability":"file.open","project":"./my.elf"}'
+```
+
+### Save File
+```bash
+curl -s http://127.0.0.1:47100/api \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Id: $ELFIEE_SESSION" \
+  -d '{"capability":"file.save","project":"./my.elf"}'
+```
 
 ---
 
-## Terminal APIs
+## Block Operations
 
-| Task | API |
-|------|-----|
-| Init PTY | `commands.initPtySession(blockId, cols, rows, cwd)` |
-| Write to PTY | `commands.writeToPty(blockId, data)` |
-| Resize PTY | `commands.resizePty(blockId, cols, rows)` |
-| Close PTY | `commands.closePtySession(blockId)` |
+### List All Blocks
+```bash
+curl -s http://127.0.0.1:47100/api \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Id: $ELFIEE_SESSION" \
+  -d '{"capability":"block.list","project":"./my.elf"}'
+```
+
+Response:
+```json
+{
+  "success": true,
+  "data": {
+    "blocks": [
+      {
+        "block_id": "abc123",
+        "name": "root",
+        "block_type": "directory",
+        "owner": "system",
+        "children_count": 3
+      }
+    ],
+    "count": 1
+  }
+}
+```
+
+### Get Block Details
+```bash
+curl -s http://127.0.0.1:47100/api \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Id: $ELFIEE_SESSION" \
+  -d '{"capability":"block.get","project":"./my.elf","block":"abc123"}'
+```
+
+---
+
+## Write Operations
+
+All write operations use capabilities through the same API endpoint.
+
+### Create Block
+```bash
+curl -s http://127.0.0.1:47100/api \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Id: $ELFIEE_SESSION" \
+  -d '{
+    "capability": "core.create",
+    "project": "./my.elf",
+    "payload": {
+      "name": "notes",
+      "block_type": "markdown"
+    }
+  }'
+```
+
+### Write Markdown
+```bash
+curl -s http://127.0.0.1:47100/api \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Id: $ELFIEE_SESSION" \
+  -d '{
+    "capability": "markdown.write",
+    "project": "./my.elf",
+    "block": "abc123",
+    "payload": {
+      "content": "# Hello World\n\nThis is my document."
+    }
+  }'
+```
+
+### Write Code
+```bash
+curl -s http://127.0.0.1:47100/api \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Id: $ELFIEE_SESSION" \
+  -d '{
+    "capability": "code.write",
+    "project": "./my.elf",
+    "block": "abc123",
+    "payload": {
+      "content": "console.log(\"Hello\");"
+    }
+  }'
+```
+
+### Link Blocks
+```bash
+curl -s http://127.0.0.1:47100/api \
+  -H "Content-Type: application/json" \
+  -H "X-Session-Id: $ELFIEE_SESSION" \
+  -d '{
+    "capability": "core.link",
+    "project": "./my.elf",
+    "block": "parent-id",
+    "payload": {
+      "child_id": "child-id",
+      "relation": "contains"
+    }
+  }'
+```
+
+---
+
+## Capability Reference
+
+| Capability | Description | Payload |
+|------------|-------------|---------|
+| `core.create` | Create a new block | `{ name, block_type }` |
+| `core.link` | Link two blocks | `{ child_id, relation }` |
+| `core.unlink` | Remove link between blocks | `{ child_id, relation }` |
+| `core.rename` | Rename a block | `{ name }` |
+| `markdown.write` | Write markdown content | `{ content }` |
+| `markdown.read` | Read markdown content | - |
+| `code.write` | Write code content | `{ content }` |
+| `code.read` | Read code content | - |
+
+---
+
+## Error Handling
+
+### Error Response Format
+```json
+{
+  "success": false,
+  "error": {
+    "code": "PROJECT_NOT_OPEN",
+    "message": "Project ./my.elf is not open"
+  }
+}
+```
+
+### Error Codes
+
+| Code | Description |
+|------|-------------|
+| `PROJECT_NOT_OPEN` | The project file is not open in Elfiee |
+| `BLOCK_NOT_FOUND` | The specified block does not exist |
+| `INVALID_CAPABILITY` | Unknown capability ID |
+| `UNAUTHORIZED` | No permission to perform this action |
+| `INVALID_PAYLOAD` | Payload format is incorrect |
+| `MISSING_PARAMETER` | Required parameter is missing |
+| `NO_ACTIVE_EDITOR` | No active editor set for the file |
+
+---
+
+## Best Practices
+
+1. **Always check if Elfiee is running** before making API calls
+2. **Use a consistent Session ID** to track your agent's activities
+3. **List open files first** to get the project path
+4. **Handle errors gracefully** - check `success` field in response
+5. **Use JSON output format** for reliable parsing
