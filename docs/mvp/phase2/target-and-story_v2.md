@@ -103,11 +103,11 @@ Phase 1 聚焦"统一工作面"和"决策资产化"的基础能力验证，在**
 
 ### 3.1 大目标
 
-**让 Elfiee 成为 AI 开发工具的"决策记忆层"，实现 AI 会话 → Event 记录 → Git Commit 的完整映射**
+**让 Elfiee 成为 AI 开发工具的"决策记忆层"，实现 AI 会话 → Event 记录 → Git Commit 的完整映射，完整实现dogfooding自举开发**
 
 具体需要验证：
 1. ✅ Claude Code 能通过 Skills 调用 Elfiee CLI（core.create, markdown.write 等）
-2. ✅ AI 会话记录能自动同步到 Elfiee，并与代码变更建立关联
+2. ✅ AI 会话记录能自动同步到 Elfiee，并与任务文档、代码变更建立关联
 3. ✅ Elfiee 内部 Task 能驱动外部 Git 分支和 Commit
 
 ### 3.2 关键假设验证
@@ -140,6 +140,8 @@ Phase 1 聚焦"统一工作面"和"决策资产化"的基础能力验证，在**
 
 #### 3.3.2 产品目标
 
+**竞品分析**：
+
 **Dogfooding 实验**：
 - [ ] **实验计划**：设计 Dogfooding 流程和场景
 - [ ] **评价指标**：定义效率、完整性、可追溯性等指标
@@ -170,40 +172,38 @@ sequenceDiagram
     Note over Dev,Git: === 阶段1: 项目初始化 ===
     Dev->>ELF: 1. 创建/打开 project.elf
     ELF->>ELF: 解压 temp → 生成 root Directory Block
-    ELF->>ELF: 自动创建 .elf/ 元数据目录（置顶展示）
-    ELF->>ELF: 内置通用 SKILLS.md 模板
+    ELF->>ELF: 自动创建 .elf/ 元数据目录（自动创建 directory block .elf）
 
     Note over Dev,Git: === 阶段2: 导入代码仓库 ===
     Dev->>ELF: 2. directory.import(外部项目路径)
-    ELF->>ELF: 创建 projects/{project-name}/ 目录结构
-    ELF->>ELF: 生成项目级 SKILLS.md
-    ELF->>ELF: 复制原 .git/hooks/ → .elf/.git/hooks/
+    ELF->>ELF: 在linked repo 中创建dir block {project-name}/ 目录结构
+    ELF->>ELF: 如果原项目有.git/, 复制原 .git/hooks/ → .elf/.git/hooks/{project_name}/
     ELF->>ELF: 在复制的 hooks 中添加 Elfiee 检查逻辑
-    ELF->>Git: git config core.hooksPath .elf/.git/hooks/
+    ELF->>Git: 调用沙箱启动脚本，设定elfiee启动时候的hooks路径为环境变量，并启用（保证在外部git init时，使用同一套hooks）
 
     Note over Dev,Git: === 阶段3: 关联 Agent（先 Claude 后认证）===
     Dev->>CC: 3. 启动 Claude Code
-    CC->>CC: 生成 session_id: "sess-abc123"
+    CC->>CC: 指定 claude --session-id: "sess-abc123"
     Dev->>ELF: 4. 在 Elfiee 中"关联 Agent"
     ELF->>ELF: 扫描 ~/.claude/projects/ 活跃 sessions
     ELF-->>Dev: 显示可关联的 session 列表
     Dev->>ELF: 选择 session "sess-abc123"
     ELF->>ELF: 创建 Agent Block
     ELF->>ELF: editor_id = "claude:sess-abc123"
-    ELF->>ELF: 生成 Agent 的 SKILLS.md（通用 + 项目级）
-    ELF-->>CC: symlink 到 ~/.claude/skills/
+    ELF->>ELF: 自动生成两个agent。 1. 系统级.elf/Agents/claude/SKILLS/ 和 2. 项目级.elf/Agents/{project_name}/
+    ELF-->>CC: 将各级/claude/SKILLS目录symlink 到 ~/.claude/skills/
 
     Note over Dev,Git: === 阶段4: 任务创建（两种方式）===
     alt 方式A: Claude Code 内创建
-        Dev->>CC: 5a. /new-task "添加用户认证"
+        Dev->>CC: 5a. 使用系统级SKILL /new-task "添加用户认证"
         CC->>ELF: CLI: elfiee --agent claude:sess-abc123 core.create task
-        CC->>ELF: CLI: elfiee markdown.write {task_id} "内容"
+        CC->>ELF: CLI: elfiee --agent claude:sess-abc123 markdown.write {task_id} "内容"
     else 方式B: Elfiee 内创建
         Dev->>ELF: 5b. 在 Elfiee 内新建 task.md
         Dev->>ELF: 编辑任务内容
-        Dev->>CC: 让 Claude 读取 task.md
+        Dev->>CC: 让 Claude 通过系统SKILL读取 task.md: markdown.read {task_id}
     end
-    ELF->>ELF: 创建 session/log-{timestamp}.md
+    ELF->>ELF: 创建 .elf/Agents/session/log-{session-id}.md
     ELF->>ELF: core.link(session-log → task.md)
 
     Note over Dev,Git: === 阶段5: AI 开发过程 ===
@@ -211,7 +211,7 @@ sequenceDiagram
         CC->>ELF: CLI: elfiee code.write / markdown.write / ...
         ELF->>ELF: 记录 Event，Vector Clock++
         ELF->>ELF: 同步会话内容到 session/log-xxx.md
-        Note right of ELF: 保持顺序：会话 → 代码变更
+        Note right of ELF: 在eventdb中，记录操作的顺序，为以后的多agent协作的幂等合并做准备
     end
 
     Note over Dev,Git: === 阶段6: 导出与提交 ===
@@ -225,34 +225,71 @@ sequenceDiagram
     Git-->>ELF: 7. PR 合并 / 本地 merge 检测
     ELF->>ELF: 自动创建归档文档 (summary-{task}.md)
     ELF->>ELF: 汇总：对话 Events + 编辑 Events（按时间顺序）
-    ELF->>Git: git config --unset core.hooksPath（关闭时恢复）
 
     Note over Dev,Git: === 阶段8: SKILLS 更新 ===
-    opt 如果生成了新功能
-        ELF->>ELF: 8. 更新 projects/{project}/SKILLS.md
-        Note right of ELF: Dogfooding: 手动更新通用 SKILLS
+    
+    CC ->>ELF: 8. 通过系统SKILLS读取新生成的summary-{task}.md文档，更新项目级SKILL.md
+    
+    opt 如果实现了新功能
+        CC->>ELF: 9. 更新系统级SKILL.md的模板
+        Note right of ELF: Dogfooding: 通过开发elfiee项目，不断更新系统SKILL
     end
 ```
 
-### 4.3 详细步骤
+### 4.3 详细步骤说明
+
+> **架构说明**：所有内容均 Block 化。Directory Block 存储索引（entries），Content Block 存储实际内容（`block-{uuid}/body.*`）。索引与内容通过 Relation 关联，权限独立管理。
+
+---
 
 #### Step 1: 创建/打开 .elf 项目
 
 **操作**：用户创建或打开 `project.elf` 文件
 
 **系统行为**：
-1. 解压 .elf 到临时目录
-2. 生成根 Directory Block，展示解压内容
-3. 自动创建 `.elf/` 元数据目录（如果不存在）：
+
+1. **解压与初始化**：
+   - 解压 `.elf` (ZIP) 到临时目录
+   - 加载 `_eventstore.db`，重放 Events 构建 StateProjector
+
+2. **生成根 Directory Block**：
+   - 创建 Root Dir Block，索引临时目录下所有 `block-{uuid}/` 内容
+   - Dir Block 的 `contents.entries` 存储索引映射
+
+3. **自动创建 `.elf/` 元数据 Block 结构**（如果不存在）：
+
    ```
-   .elf/
-   ├── SKILLS.md            # 通用 Skills（内置模板）
-   ├── projects/            # 项目级配置
-   └── git/                 # Git 集成配置
-       └── hooks/           # Hooks 目录
+   block-{elf-meta-uuid}/          # .elf/ → Directory Block（索引）
+   ├── entries: {
+   │     "SKILLS.md": {id: "skills-sys", type: "file"},
+   │     "Agents/": {id: "agents-dir", type: "directory"},
+   │     "git/": {id: "git-dir", type: "directory"}
+   │   }
+
+   block-{skills-sys-uuid}/        # .elf/SKILLS.md → Markdown Block
+   └── body.md                     # 内置通用 Skills 模板
+
+   block-{agents-dir-uuid}/        # .elf/Agents/ → Directory Block
+   └── entries: {}                 # 初始为空
+
+   block-{git-dir-uuid}/           # .elf/git/ → Directory Block
+   └── entries: {"hooks/": {...}}
+
+   block-{hooks-dir-uuid}/         # .elf/git/hooks/ → Directory Block
+   └── entries: {}                 # 初始为空
    ```
-4. `.elf/` 目录在 UI 中置顶展示，与普通内容区分
-5. 内置通用 SKILLS.md 模板：
+
+4. **Event 记录**：
+   - 每个 Block 创建生成 `core.create` Event
+   - Event 只记录元数据（name, type, owner），不存储完整内容
+   - 实际内容存储在 `block-{uuid}/body.*` 物理文件中
+
+5. **前端展示**：
+   - 不显示完整的 `.elf/` Directory Block
+   - 只显示关键文件夹：**SKILLS** / **Agents** / **Hooks**
+   - 置顶展示，与普通内容区分
+
+6. **内置通用 SKILLS.md 模板**（存储在 `block-{skills-sys}/body.md`）：
    ```markdown
    # Elfiee 通用 Skills
 
@@ -276,29 +313,62 @@ sequenceDiagram
    - 命令: `elfiee --agent {agent_id} core.link {source_id} {target_id} {relation}`
    ```
 
-**验证点**：每个新建的 .elf 文件都自动包含通用 SKILLS.md
+**验证点**：
+- 每个新建的 .elf 文件都自动包含 `.elf/` 元数据 Block 结构
+- 通用 SKILLS.md 是可编辑的 Markdown Block
 
 ---
 
 #### Step 2: 导入代码仓库
 
-**操作**：用户执行 `directory.import` 导入外部项目
+**操作**：用户执行 `directory.import(外部项目路径)`
 
 **系统行为**：
-1. 扫描源目录，过滤二进制文件
-2. 创建 Directory Block，记录 `external_root_path`
-3. 在 `.elf/projects/` 下创建项目级目录：
-   ```
-   .elf/projects/{project-name}/
-   ├── SKILLS.md      # 项目级 Skills（工作流、规范）
-   └── CLAUDE.md      # 项目级 Claude 配置
-   ```
-4. **Git Hooks 处理**：
-   - 复制原项目 `.git/hooks/` 的所有文件到 `.elf/git/hooks/`
-   - 在复制的 hooks 中**追加** Elfiee 的检查逻辑
-   - 设置 `git config core.hooksPath .elf/git/hooks/`
 
-**复制后的 pre-commit 示例**：
+1. **扫描源目录**：
+   - 遍历外部项目，过滤二进制文件和 `.git/` 目录
+   - 按文件类型推断 Block 类型（markdown, code 等）
+
+2. **创建项目 Directory Block**：
+   ```
+   block-{project-dir-uuid}/       # {project-name}/ → Directory Block
+   └── entries: {
+         "src/main.rs": {id: "main-rs", type: "file"},
+         "README.md": {id: "readme", type: "file"},
+         ...
+       }
+   └── metadata: {
+         external_root_path: "/path/to/project"
+       }
+   ```
+
+3. **创建内容 Block**（每个导入的文件）：
+   ```
+   block-{main-rs-uuid}/           # src/main.rs → Code Block
+   └── body.rs                     # 复制文件内容到此
+
+   block-{readme-uuid}/            # README.md → Markdown Block
+   └── body.md                     # 复制文件内容到此
+   ```
+
+4. **建立 Relation**：
+   - Dir Block → Content Block（`contains` 关系）
+   - 通过 `children` 字段或后续 Relation 模块管理
+
+5. **更新 `.elf/` 元数据**：
+   ```
+   .elf/projects/{project-name}/   # 新增项目级目录
+   ├── SKILLS.md                   # 项目级 Skills（工作流、规范）
+   └── CLAUDE.md                   # 项目级 Claude 配置
+   ```
+
+6. **Git Hooks 处理**：
+   - 检测外部项目是否有 `.git/hooks/`
+   - 复制原 hooks 到 `.elf/git/hooks/{project-name}/`（作为 Code Block）
+   - 在复制的 hooks 中**追加** Elfiee 检查逻辑
+   - 设置环境变量，供沙箱启动脚本使用
+
+**复制后的 pre-commit 示例**（存储在 `block-{hook-uuid}/body.sh`）：
 ```bash
 #!/bin/bash
 # === 原有 hooks 内容（复制自 .git/hooks/pre-commit）===
@@ -310,9 +380,14 @@ if command -v elfiee &> /dev/null; then
 fi
 ```
 
+7. **Event 记录**：
+   - `core.create` × N（每个 Block）
+   - `directory.import` 记录导入操作元数据
+   - Event 不存储文件内容，只存索引和引用
+
 **SKILLS 层级设计**：
-- **通用 SKILLS**（`.elf/SKILLS.md`）：Elfiee 编辑指令（core.create, markdown.write 等）
-- **项目级 SKILLS**（`.elf/projects/{name}/SKILLS.md`）：该项目的代码工作流、开发规范等
+- **通用 SKILLS**（`.elf/SKILLS.md`）：Elfiee 编辑指令
+- **项目级 SKILLS**（`.elf/projects/{name}/SKILLS.md`）：项目代码工作流、开发规范
 
 ---
 
@@ -321,31 +396,56 @@ fi
 **操作**：用户启动 Claude Code，然后在 Elfiee 中关联
 
 **工作流**：
-1. 用户启动 Claude Code
-2. Claude 生成 session_id（如 `sess-abc123`）
-3. 用户在 Elfiee 中点击"关联 Agent"
-4. Elfiee 扫描 `~/.claude/projects/` 下的活跃 sessions
-5. 用户选择要关联的 session
-6. Elfiee 创建 Agent Block：
+
+1. **用户启动 Claude Code**：
+   ```bash
+   claude --session-id sess-abc123
    ```
-   blocks/agent-{uuid}/
-   ├── config.json
-   │   {
-   │     "provider": "claude",
-   │     "session_id": "sess-abc123",
-   │     "editor_id": "claude:sess-abc123"
-   │   }
-   ├── SKILLS.md         # 合并后的 Skills（通用 + 项目级）
-   └── hooks/            # Agent 特定的 hooks
+   - Claude 生成唯一的 session_id
+
+2. **用户在 Elfiee 中点击"关联 Agent"**
+
+3. **Elfiee 扫描活跃 sessions**：
+   - 读取 `~/.claude/projects/` 下的 `.jsonl` 文件
+   - 解析活跃的 session 列表
+   - 显示可关联的 session
+
+4. **用户选择要关联的 session**
+
+5. **创建 Agent Block 结构**：
    ```
-7. 创建 symlink：`~/.claude/skills/elfiee-{project} → agent-{uuid}/SKILLS.md`
+   block-{agent-uuid}/             # Agent Block
+   └── body.json                   # Agent 配置
+       {
+         "provider": "claude",
+         "session_id": "sess-abc123",
+         "editor_id": "claude:sess-abc123",
+         "linked_projects": ["project-name"]
+       }
+
+   .elf/Agents/claude/             # 系统级 Agent 目录
+   └── SKILLS.md                   # 系统级 Skills
+
+   .elf/Agents/{project-name}/     # 项目级 Agent 目录
+   └── SKILLS.md                   # 合并后的 Skills（通用 + 项目级）
+   ```
+
+6. **创建 Symlink**：
+   ```
+   ~/.claude/skills/elfiee-{project} → block-{agent-skills}/body.md
+   ```
+   - Symlink 指向临时目录中的物理文件
+   - 关闭 .elf 时自动清理
+
+7. **注册 Editor**：
+   - 创建 Editor，`editor_id = "claude:sess-abc123"`
+   - 授予默认权限（core.create, markdown.write, code.write 等）
 
 **身份唯一性保证**：
-- 每个 Claude session 有唯一的 session_id
-- editor_id = `{provider}:{session_id}`
-- 不同 AI 工具、不同会话的 editor_id 完全不同
+- `editor_id = {provider}:{session_id}`
 - Claude `sess-abc123` → `claude:sess-abc123`
-- Codex `codex-xyz789` → `codex:codex-xyz789`
+- Cursor `cursor-xyz789` → `cursor:cursor-xyz789`
+- 不同 AI 工具、不同会话的 editor_id 完全不同
 
 **验证点**：必须先启动 AI 工具获取 session_id，再在 Elfiee 中关联
 
@@ -357,32 +457,36 @@ fi
 
 用户输入：`/new-task "添加用户认证功能"`
 
-Claude 执行的命令序列（通过 Bash 调用 Elfiee CLI）：
+Claude 通过 SKILLS 执行命令序列：
 ```bash
 # 1. 创建任务 Block
 elfiee --agent claude:sess-abc123 core.create task
-# 返回: {"block_id": "task-001"}
+# 返回: {"block_id": "task-001", "block_dir": "/tmp/xxx/block-task-001"}
 
-# 2. 写入任务内容
+# 2. 写入任务内容（写入 block-task-001/body.md）
 elfiee --agent claude:sess-abc123 markdown.write task-001 "# 添加用户认证功能\n\n## 需求\n..."
 
-# 3. 关联到 session log
-elfiee --agent claude:sess-abc123 core.link task-001 session-log-001 tracks
+# 3. 创建 session log Block
+elfiee --agent claude:sess-abc123 core.create markdown --name "session-log-001"
+
+# 4. 建立关联
+elfiee --agent claude:sess-abc123 core.link session-log-001 task-001 tracks
 ```
 
 **方式 B：在 Elfiee 中创建**
 
-1. 用户在 Elfiee 内新建 `task.md`
+1. 用户在 Elfiee 内新建 `task.md`（创建 Markdown Block）
 2. 编辑任务内容（需求、验收标准等）
-3. 在 Claude Code 中输入：`请读取并执行 task.md` 或通过 @ 引用
-4. Claude 读取任务内容，开始执行
+3. 在 Claude Code 中：`请读取并执行 task.md`
+4. Claude 通过 CLI 读取任务：
+   ```bash
+   elfiee --agent claude:sess-abc123 markdown.read task-001
+   ```
 
 **会话关联**：
-- 任务创建时，系统自动创建 `session/log-{timestamp}.md`
-- 建立 relation：`session-log → task.md (tracks)`
-- 双重校验：
-  1. task.md 是否为新任务（无关联的 session）
-  2. Claude 是否为新 session（无关联的 task）
+- 任务创建时，系统自动创建 `session/log-{session-id}.md` Block
+- 建立 Relation：`session-log → task.md (tracks)`
+- Event 记录完整的关联链
 
 ---
 
@@ -391,32 +495,46 @@ elfiee --agent claude:sess-abc123 core.link task-001 session-log-001 tracks
 **开发过程**：Claude 通过 CLI 执行操作
 
 ```bash
-[14:32:01] elfiee --agent claude:sess-abc123 markdown.write design-doc "设计文档..."
-           → Event{editor_id: "claude:sess-abc123", vc: {"claude:sess-abc123": 1}}
+[14:32:01] elfiee --agent claude:sess-abc123 core.create code --name "auth.rs"
+           → 创建 block-{auth-uuid}/body.rs
+           → Event{entity: "auth-uuid", attr: "claude:sess-abc123/core.create", vc: {1}}
 
-[14:32:15] elfiee --agent claude:sess-abc123 code.write auth-rs "fn authenticate()..."
-           → Event{editor_id: "claude:sess-abc123", vc: {"claude:sess-abc123": 2}}
+[14:32:15] elfiee --agent claude:sess-abc123 code.write auth-uuid "fn authenticate()..."
+           → 写入 block-{auth-uuid}/body.rs
+           → Event{entity: "auth-uuid", attr: "claude:sess-abc123/code.write", vc: {2}}
 
-[14:33:42] elfiee --agent claude:sess-abc123 core.link auth-rs task-001 implements
-           → Event{editor_id: "claude:sess-abc123", vc: {"claude:sess-abc123": 3}}
+[14:33:42] elfiee --agent claude:sess-abc123 core.link auth-uuid task-001 implements
+           → 建立 Relation
+           → Event{entity: "auth-uuid", attr: "claude:sess-abc123/core.link", vc: {3}}
 ```
 
 **会话同步机制**：
 
-每次 Claude 响应完成（用户停止输入，Claude 完整回复），触发同步：
+每次 Claude 响应完成，触发同步：
 
-1. Elfiee 监听 `~/.claude/projects/{path}/{session}.jsonl` 文件变化
-2. 解析新增的会话内容
-3. 写入 `session/log-xxx.md`
-4. **保持时序**：会话内容的 Event 在代码变更的 Event 之前
+1. **监听会话文件**：
+   - Elfiee 监听 `~/.claude/projects/{path}/{session}.jsonl`
+   - 检测文件变化（inotify/FSEvents）
+
+2. **解析新增内容**：
+   - 提取用户输入和 Claude 响应
+   - 格式化为 Markdown
+
+3. **写入 session log Block**：
+   - 追加内容到 `block-{session-log}/body.md`
+   - 生成 `markdown.write` Event
+
+4. **保持时序**：
    ```
-   Event 顺序：
-   1. markdown.write(session/log-xxx.md, "用户: 添加认证...")  vc: {1}
-   2. code.write(auth.rs, "fn authenticate()...")              vc: {2}
-   3. core.link(auth.rs → task.md)                             vc: {3}
+   Event 顺序（按 Vector Clock）：
+   vc: {1} → markdown.write(session-log, "用户: 添加认证...")
+   vc: {2} → code.write(auth.rs, "fn authenticate()...")
+   vc: {3} → core.link(auth.rs → task.md)
    ```
 
-**Vector Clock 匹配**：通过 vc 值建立会话-代码的精确关联
+5. **关联匹配**：
+   - 通过 Vector Clock 值建立会话-代码的精确关联
+   - 为后续多 Agent 协作的幂等合并做准备
 
 ---
 
@@ -425,32 +543,65 @@ elfiee --agent claude:sess-abc123 core.link task-001 session-log-001 tracks
 **操作**：用户执行导出
 
 **系统行为**：
-1. `directory.export` → 将 Blocks 写入物理文件
-2. 从 task.md 提取信息：
-   - `title` → 分支名（如 `feat/user-auth`）
-   - `content` → commit message
-3. 执行 Git 操作：
+
+1. **directory.export**：
+   - 遍历项目 Dir Block 的 entries
+   - 将每个 Content Block 的 `body.*` 写入外部目录
+   - 保持原有目录结构
+
+2. **从 task.md 提取信息**：
+   - 读取 task Block 的 `body.md`
+   - 解析 `title` → 分支名（如 `feat/user-auth`）
+   - 解析 `content` → commit message
+
+3. **执行 Git 操作**：
    ```bash
+   # 切换 hooks 路径
+   git config core.hooksPath .elf/git/hooks/{project-name}
+
+   # 创建分支并提交
    git checkout -b feat/user-auth
    git add <exported_files>
-   git commit -m "添加用户认证功能\n\n..."
+   git commit -m "添加用户认证功能
+
+   - 实现 JWT 认证
+   - 添加用户登录接口
+
+   Task: task-001
+   Session: sess-abc123"
+
    git push origin feat/user-auth  # 可选
    ```
-4. Git Hooks 自动生效（因为 `core.hooksPath` 已设置）
+
+4. **Hooks 自动生效**：
+   - 因为 `core.hooksPath` 已设置，Elfiee hooks 被调用
+   - `elfiee check-commit` 记录 commit 与 task 的关联
 
 ---
 
 #### Step 7: 完成归档（自动触发）
 
 **触发条件**：
-- 本地检测到 merge（git reflog 监听）
+- 本地检测到 merge（监听 git reflog）
 - 或远程 PR 合并（GitHub webhook / 定期轮询）
 
 **系统行为**：
-1. 自动创建归档文档：`archive/summary-{task-name}-{date}.md`
-2. 汇总内容（按 Event 时间顺序）：
+
+1. **创建归档 Block**：
+   ```
+   block-{summary-uuid}/           # archive/summary-{task}.md
+   └── body.md                     # 归档内容
+   ```
+
+2. **汇总内容**（按 Event 时间顺序）：
    ```markdown
    # 任务归档：添加用户认证功能
+
+   ## 元信息
+   - 任务 ID: task-001
+   - 会话 ID: sess-abc123
+   - 完成时间: 2026-01-23 15:00:00
+   - 提交: feat/user-auth → main
 
    ## 时间线
 
@@ -470,11 +621,14 @@ elfiee --agent claude:sess-abc123 core.link task-001 session-log-001 tracks
    - auth.rs → task.md (implements)
 
    ## 相关资源
-   - 原始任务：[[task.md]]
-   - 代码文件：[[auth.rs]]
-   - 会话记录：[[session/log-xxx.md]]
+   - 原始任务：[[task-001]]
+   - 代码文件：[[auth-uuid]]
+   - 会话记录：[[session-log-001]]
    ```
-3. 使用 Myst 语法，支持 Elfiee 内渲染
+
+3. **建立 Relation**：
+   - `summary → task (archives)`
+   - `summary → session-log (summarizes)`
 
 ---
 
@@ -483,9 +637,22 @@ elfiee --agent claude:sess-abc123 core.link task-001 session-log-001 tracks
 **操作**：用户关闭 Elfiee 或关闭项目
 
 **系统行为**：
-1. 执行 `git config --unset core.hooksPath`
-2. Git 恢复使用原始的 `.git/hooks/` 目录
-3. 原项目的 `.git/hooks/` 完全不变，正常提交不受影响
+
+1. **恢复 Git 配置**：
+   ```bash
+   git config --unset core.hooksPath
+   ```
+
+2. **清理 Symlink**：
+   - 删除 `~/.claude/skills/elfiee-{project}`
+
+3. **保存 .elf**：
+   - 将临时目录重新打包为 `.elf` (ZIP)
+   - 包含所有 `block-{uuid}/` 目录和 `_eventstore.db`
+
+4. **原项目不受影响**：
+   - `.git/hooks/` 完全不变
+   - 正常提交不受影响
 
 ---
 
@@ -493,63 +660,167 @@ elfiee --agent claude:sess-abc123 core.link task-001 session-log-001 tracks
 
 **触发条件**：任务涉及新功能/新规范
 
-**Dogfooding 场景**：
-- 自动更新：`.elf/projects/{project}/SKILLS.md`（项目级）
-- 手动更新：通用 SKILLS（需要人工审核）
+**更新流程**：
 
-**更新内容示例**：
+1. **项目级 SKILLS 自动更新**：
+   - Claude 读取归档文档
+   - 提取新增的能力/规范
+   - 追加到 `.elf/projects/{project}/SKILLS.md`
+
+2. **系统级 SKILLS 手动更新**：
+   - 需要人工审核
+   - 通过 Claude 辅助编辑 `.elf/SKILLS.md`
+
+**Dogfooding 场景**：
 ```markdown
-## 新增能力
+## 新增能力（自动生成）
 
 ### auth.validate
 验证用户身份
 - 命令: `elfiee --agent {agent_id} auth.validate {token}`
 - 示例: `elfiee --agent claude:sess-abc auth.validate "eyJhbG..."`
+- 来源: [[summary-task-001]]
 ```
 
 ---
 
-## 五、Phase 2 拆分 User Stories
+## 五、Phase 2 功能模块拆分
 
-### 5.1 研发功能点拆分（10 个用户故事）
+### 5.1 模块总览
 
-#### A. Skills 模块（3 个）
+Phase 2 包含两大类改动：
+
+| 类别 | 模块 | 描述 |
+|:---|:---|:---|
+| **基础设施** | Block 存储、Event 优化、Relation 增强、Dir Block 改造 | 支撑 AI 集成的底层改动 |
+| **AI 集成** | Agent、CLI、Skills、Session 同步、Git 集成 | Phase 2 核心功能 |
+
+---
+
+### 5.2 基础设施模块（4 个）
+
+#### A. Block 存储改造
+
+| 编号 | 功能名称 | 改动描述 | 验收标准 | 优先级 |
+|:---|:---|:---|:---|:---|
+| **I1** | 内容物理存储 | Content Block 内容存储到 `block-{uuid}/body.*` 物理文件，而非 Event.value | ✓ `code.write` 写入物理文件 <br> ✓ `markdown.write` 写入物理文件 <br> ✓ 读取时从物理文件加载 | P0 |
+| **I2** | 索引与内容分离 | Dir Block 只存索引（entries），通过引用指向 Content Block | ✓ `directory.import` 创建索引 + 内容 Block <br> ✓ 索引权限与内容权限独立 | P0 |
+| **I3** | Block 目录结构 | 每个 Block 对应 `block-{uuid}/` 目录，支持 `body.*` + `assets/` | ✓ `core.create` 自动创建目录 <br> ✓ 支持多文件资产 | P0 |
+
+#### B. Event 存储优化
+
+| 编号 | 功能名称 | 改动描述 | 验收标准 | 优先级 |
+|:---|:---|:---|:---|:---|
+| **I4** | Event 轻量化 | Event.value 只存操作元数据，不存完整内容 | ✓ `code.write` Event 不含文件内容 <br> ✓ EventDB 体积显著减小 | P0 |
+| **I5** | 操作审计 | Event 记录操作类型、时间、操作者，可选存 diff | ✓ 支持历史操作回溯 <br> ✓ 可选开启 diff 存储 | P1 |
+
+#### C. Relation 增强
+
+| 编号 | 功能名称 | 改动描述 | 验收标准 | 优先级 |
+|:---|:---|:---|:---|:---|
+| **I6** | 索引关系类型 | 新增 `contains` 关系类型，表示 Dir Block 包含 Content Block | ✓ `directory.import` 自动建立 <br> ✓ 支持查询"目录包含哪些文件" | P0 |
+| **I7** | 反向索引 | StateProjector 维护反向索引，支持"谁引用了我"查询 | ✓ `get_parents(block_id)` 接口 <br> ✓ 实时更新 | P1 |
+| **I8** | 关系类型扩展 | 支持 `tracks`, `implements`, `archives`, `generated_by` 等 | ✓ 任务-代码关联 <br> ✓ 会话-代码关联 | P0 |
+
+#### D. Dir Block 改造
+
+| 编号 | 功能名称 | 改动描述 | 验收标准 | 优先级 |
+|:---|:---|:---|:---|:---|
+| **I9** | entries 索引结构 | `contents.entries` 只存 `{path: {id, type}}`，不存文件内容 | ✓ 与现有结构兼容 <br> ✓ 支持嵌套目录 | P0 |
+| **I10** | .elf/ 元数据目录 | 自动创建 `.elf/` Dir Block 结构（SKILLS, Agents, git/hooks） | ✓ 新建 .elf 自动创建 <br> ✓ 前端只显示关键文件夹 | P0 |
+| **I11** | directory.import 改造 | 导入时复制文件到 `block-{uuid}/body.*`，创建索引 | ✓ 支持增量导入 <br> ✓ 支持过滤规则 | P0 |
+| **I12** | directory.export 改造 | 导出时从 Content Block 读取内容写入外部 | ✓ 保持目录结构 <br> ✓ 支持部分导出 | P0 |
+
+---
+
+### 5.3 AI 集成模块（5 个）
+
+#### A. Agent 模块
 
 | 编号 | 功能名称 | 用户故事 | 验收标准 | 优先级 |
-| :--- | :--- | :--- | :--- | :--- |
-| **F1** | Skills 生成器 | 作为系统，我需要将 Elfiee Capabilities 导出为 Claude Code Skills 格式 | ✓ 内置通用 SKILLS.md 模板 <br> ✓ 生成项目级 SKILLS.md（工作流规范） <br> ✓ 支持合并输出到 Agent Block | P0 |
-| **F2** | Symlink 管理 | 作为用户，我希望 Elfiee 自动将 Skills 链接到 Claude Code 目录 | ✓ 创建 symlink 到 Agent 的 SKILLS.md <br> ✓ 支持多项目切换 <br> ✓ 关闭时清理 symlink | P0 |
-| **F3** | CLI 接口 | 作为系统，我需要提供 CLI 供 Claude Code 调用 | ✓ `elfiee --agent {id} {capability} {args}` <br> ✓ CLI 通过 IPC 与运行中的 Elfiee 通信 <br> ✓ 支持 JSON 输出 | P0 |
+|:---|:---|:---|:---|:---|
+| **F1** | Agent Block | 作为系统，我需要创建 Agent Block 存储 AI 会话配置 | ✓ 存储 provider, session_id, editor_id <br> ✓ 关联项目和 SKILLS | P0 |
+| **F2** | Session 扫描 | 作为用户，我希望 Elfiee 自动发现可关联的 AI sessions | ✓ 扫描 ~/.claude/projects/ <br> ✓ 显示活跃 session 列表 | P0 |
+| **F3** | Agent 关联 | 作为用户，我希望将 Claude session 关联为 Elfiee Agent | ✓ 用户选择 session 进行关联 <br> ✓ 创建 Editor，editor_id = {provider}:{session_id} | P0 |
 
-#### B. Session 模块（3 个）
-
-| 编号 | 功能名称 | 用户故事 | 验收标准 | 优先级 |
-| :--- | :--- | :--- | :--- | :--- |
-| **F4** | 会话解析器 | 作为系统，我需要解析 Claude Code 的会话历史文件 | ✓ 监听 Claude JSONL 文件变化 <br> ✓ 提取新增会话内容 <br> ✓ 每次响应完成时触发同步 | P0 |
-| **F5** | Event 映射 | 作为系统，我需要将会话内容映射为 Elfiee Events | ✓ 会话内容写入 session/log-xxx.md <br> ✓ 保持时序：会话 Event 在代码 Event 之前 <br> ✓ Vector Clock 正确递增 | P0 |
-| **F6** | 关系关联 | 作为用户，我希望看到 AI 会话与代码变更的关联 | ✓ session-log 自动关联 task.md <br> ✓ 通过 Vector Clock 匹配会话和代码 <br> ✓ 建立 relation (generated_by) | P1 |
-
-#### C. Git 模块（3 个）
+#### B. CLI 模块
 
 | 编号 | 功能名称 | 用户故事 | 验收标准 | 优先级 |
-| :--- | :--- | :--- | :--- | :--- |
-| **F7** | 内外映射 | 作为用户，我希望 task.md 驱动 Git 分支和 Commit | ✓ task title → 分支名 <br> ✓ task content → commit message <br> ✓ 一键"导出 + Commit" | P0 |
-| **F8** | Hooks 管理 | 作为用户，我希望 Elfiee 管理 Git Hooks 但不污染原项目 | ✓ 导入时复制原 hooks 到 .elf/git/hooks/ <br> ✓ 在复制的 hooks 中追加 Elfiee 逻辑 <br> ✓ 通过 core.hooksPath 切换 <br> ✓ 关闭时恢复原配置 | P1 |
-| **F9** | 完成归档 | 作为用户，我希望任务完成后自动生成归档文档 | ✓ 检测 merge（本地/远程 PR） <br> ✓ 自动创建 summary markdown <br> ✓ 按时间顺序汇总对话+编辑 Events <br> ✓ 使用 Myst 语法 | P1 |
+|:---|:---|:---|:---|:---|
+| **F4** | CLI 接口 | 作为系统，我需要提供 CLI 供 AI 工具调用 | ✓ `elfiee --agent {id} {capability} {args}` <br> ✓ 支持 JSON 输出 | P0 |
+| **F5** | IPC 通信 | 作为 CLI，我需要与运行中的 Elfiee 通信 | ✓ Unix Socket / Named Pipe <br> ✓ 命令转发和结果返回 | P0 |
+| **F6** | elfiee-ext-gen 改造 | 作为 CLI，我需要通过 Elfiee 命令生成代码 | ✓ 原有直接生成改为调用 CLI <br> ✓ 生成后自动 directory.export | P1 |
 
-#### D. Agent 模块（1 个）
+#### C. Skills 模块
 
 | 编号 | 功能名称 | 用户故事 | 验收标准 | 优先级 |
-| :--- | :--- | :--- | :--- | :--- |
-| **F10** | Agent 关联 | 作为用户，我希望将 Claude session 关联为 Elfiee Agent | ✓ 扫描 ~/.claude/projects/ 活跃 sessions <br> ✓ 用户选择 session 进行关联 <br> ✓ 创建 Agent Block，editor_id = {provider}:{session_id} <br> ✓ 合并生成 Agent 的 SKILLS.md | P0 |
+|:---|:---|:---|:---|:---|
+| **F7** | Skills 模板 | 作为系统，我需要内置通用 SKILLS.md 模板 | ✓ 包含 core.create, markdown.write 等 <br> ✓ 可编辑（Markdown Block） | P0 |
+| **F8** | 项目级 Skills | 作为用户，我希望每个项目有独立的 SKILLS | ✓ 导入项目时自动创建 <br> ✓ 存储项目工作流规范 | P0 |
+| **F9** | Symlink 管理 | 作为用户，我希望 Elfiee 自动将 Skills 链接到 Claude 目录 | ✓ 创建 symlink 到 ~/.claude/skills/ <br> ✓ 关闭时清理 symlink | P0 |
 
-### 5.2 产品研究拆分
+#### D. Session 同步模块
+
+| 编号 | 功能名称 | 用户故事 | 验收标准 | 优先级 |
+|:---|:---|:---|:---|:---|
+| **F10** | 会话监听 | 作为系统，我需要监听 Claude 会话文件变化 | ✓ 监听 ~/.claude/projects/{path}/*.jsonl <br> ✓ 实时检测新增内容 | P0 |
+| **F11** | 会话解析 | 作为系统，我需要解析 Claude JSONL 格式 | ✓ 提取用户输入和 AI 响应 <br> ✓ 格式化为 Markdown | P0 |
+| **F12** | Event 映射 | 作为系统，我需要将会话内容映射为 Events | ✓ 写入 session-log Block <br> ✓ 保持时序（会话 Event 在代码 Event 之前） | P0 |
+| **F13** | 关系关联 | 作为用户，我希望看到会话与代码的关联 | ✓ 通过 Vector Clock 匹配 <br> ✓ 建立 generated_by 关系 | P1 |
+
+#### E. Git 集成模块
+
+| 编号 | 功能名称 | 用户故事 | 验收标准 | 优先级 |
+|:---|:---|:---|:---|:---|
+| **F14** | Hooks 复制 | 作为用户，我希望 Elfiee 不污染原项目 hooks | ✓ 复制原 hooks 到 .elf/git/hooks/ <br> ✓ 追加 Elfiee 检查逻辑 | P0 |
+| **F15** | Hooks 切换 | 作为用户，我希望 Elfiee 管理 hooks 生命周期 | ✓ 打开时设置 core.hooksPath <br> ✓ 关闭时恢复原配置 | P0 |
+| **F16** | 内外映射 | 作为用户，我希望 task.md 驱动 Git 操作 | ✓ task title → 分支名 <br> ✓ task content → commit message | P0 |
+| **F17** | 完成归档 | 作为用户，我希望任务完成后自动生成归档 | ✓ 检测 merge <br> ✓ 生成 summary Block <br> ✓ 汇总对话 + 编辑 Events | P1 |
+
+---
+
+### 5.4 产品研究拆分
 
 | 编号 | 研究主题 | 研究问题 | 产出物 | 优先级 |
-| :--- | :--- | :--- | :--- | :--- |
+|:---|:---|:---|:---|:---|
 | **R1** | Dogfooding 实验设计 | 如何设计有效的 Dogfooding 流程？需要哪些场景覆盖？ | 实验计划文档 + 场景清单 | P0 |
 | **R2** | 评价指标定义 | 如何量化 Skills 集成的效果？效率、完整性、可追溯性如何衡量？ | 指标体系 + 数据采集方案 | P0 |
 | **R3** | 归因分析方法 | 哪些环节提效了？哪些是瓶颈？如何归因？ | 分析框架 + 归因报告模板 | P0 |
+
+---
+
+### 5.5 功能依赖关系
+
+```mermaid
+graph TD
+    subgraph 基础设施
+        I1[Block 存储改造] --> I2[索引与内容分离]
+        I2 --> I9[Dir Block entries]
+        I4[Event 轻量化] --> I1
+        I6[Relation 增强] --> I2
+    end
+
+    subgraph AI集成
+        I9 --> I10[.elf 元数据目录]
+        I10 --> F7[Skills 模板]
+        F7 --> F9[Symlink 管理]
+
+        F1[Agent Block] --> F3[Agent 关联]
+        F3 --> F4[CLI 接口]
+        F4 --> F5[IPC 通信]
+
+        F10[会话监听] --> F11[会话解析]
+        F11 --> F12[Event 映射]
+        I6 --> F13[关系关联]
+
+        F14[Hooks 复制] --> F15[Hooks 切换]
+        F15 --> F16[内外映射]
+        F16 --> F17[完成归档]
+    end
+
+    I1 --> F4
+    I9 --> F14
+```
 
 ---
 
