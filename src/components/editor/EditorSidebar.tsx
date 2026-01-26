@@ -4,6 +4,46 @@ import type { Block } from '@/bindings'
 
 // --- Main Views ---
 
+// --- Helper Components ---
+
+const ActiveTerminalsList = ({ documentId }: { documentId: string }) => {
+  const blocks = useAppStore((state) => {
+    const fileState = state.files.get(documentId)
+    return fileState?.blocks || []
+  })
+
+  const terminalBlocks = blocks.filter((b) => b.block_type === 'terminal')
+
+  return (
+    <div className="border-t border-border bg-card p-4">
+      <h3 className="mb-2 text-sm font-medium text-muted-foreground">
+        Active Terminals
+      </h3>
+      {terminalBlocks.length === 0 ? (
+        <p className="text-xs italic text-muted-foreground">
+          No active terminals
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {terminalBlocks.map((block) => (
+            <div
+              key={block.block_id}
+              className="flex items-center justify-between rounded-md border border-border bg-muted/30 p-2 text-sm"
+            >
+              <span className="truncate font-medium">{block.name}</span>
+              <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                {block.block_id.slice(0, 8)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// --- Main Views ---
+
 const DocumentDetailsView = ({}: { documentId: string }) => {
   return (
     <Tabs defaultValue="info" className="flex flex-1 flex-col">
@@ -134,11 +174,16 @@ export const EditorSidebar = () => {
 
   return (
     <aside className="flex w-[320px] flex-col border-l border-border bg-card">
-      {activeBlock ? (
-        <BlockDetailsView block={activeBlock} />
-      ) : (
-        <DocumentDetailsView documentId={currentFileId} />
-      )}
+      <div className="flex min-h-0 flex-1 flex-col">
+        {activeBlock ? (
+          <BlockDetailsView block={activeBlock} />
+        ) : (
+          <DocumentDetailsView documentId={currentFileId} />
+        )}
+      </div>
+
+      {/* Always show active terminals at the bottom */}
+      <ActiveTerminalsList documentId={currentFileId} />
     </aside>
   )
 }
