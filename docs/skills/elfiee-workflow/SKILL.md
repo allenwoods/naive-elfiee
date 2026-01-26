@@ -1,9 +1,12 @@
 ---
 name: elfiee-workflow
-description: How AI should use Elfiee project interfaces and development rules.
+description: "[Workspace-level] Elfiee development rules, coding standards, and project interfaces."
 ---
 
-# Elfiee Project Interface
+# Elfiee Development Workflow
+
+> **Scope**: This is a **workspace-level** skill for developing Elfiee itself.
+> For using `.elf` files via HTTP API, see `elfiee-dev/SKILL.md`.
 
 ---
 
