@@ -175,9 +175,30 @@
 | **Elfiee (Phase 2)** |                                                                                 |                                                        |                                             |
      
 
-## 5   问题2：其他产品的“skills”（进行中）
+## 5   问题2：其他产品的“skills”
 
-## 6   问题3：其他产品的内外双循环（进行中）
+1. Claude: https://code.claude.com/docs/en/skills
+2. Codex: https://developers.openai.com/codex/skills
+3. Gemini: https://geminicli.com/docs/cli/skills/
+4. Githu: https://docs.github.com/en/copilot/concepts/agents/about-agent-skills
+5. VS: https://code.visualstudio.com/docs/copilot/customization/agent-skills
+6. Antigravity: https://antigravity.google/docs/skills
+7. Qwen: https://qwenlm.github.io/qwen-code-docs/zh/users/features/skills/
+8. Kimi: https://moonshotai.github.io/kimi-cli/en/customization/skills.html
+9. Flowith: https://doc.flowith.io/flowithos/skill-and-memory
+10. Coze: https://www.coze.cn/open/docs/cozespace/what_is_skill
+11. 
+
+- Claude、Gemini、Qwen、Kimi：高度一致，均采用基于 `SKILL.md` 的文件夹结构
+- Flowith：详细指导 UI 操作，例如 Agent 如何在特定网站上执行点击、输入等操作。
+- 机会点：
+	- 默认skills正确，没有失败历史、强化/削弱机制：现有的 Skills (如 Claude 或 OpenAI) 是一次性定义的。Traceability 链条可以根据业务结果自动反过来更新 Skill 的 Strength。
+		- `skill` 
+		- `ExecutionSession`
+		- `VerificationEvent`
+	- 没有共识驱动：市面上的 Skill 多数由专家手动编写。effiee 可以利用 Consensus History，从团队解决冲突的原始日志中自动“提炼”出属于该团队的 Skill。
+
+## 6   问题3：其他产品的内外双循环
 
 
 | **特性**            | **Elfiee (Phase 2)**                                   | **Cursor / Windsurf**                                                         | **Plandex / Aider**                        | **Jira+Github**      | **Emacs Org-mode (文学编程)**                 |
