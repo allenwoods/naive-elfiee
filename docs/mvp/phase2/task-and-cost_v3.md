@@ -7,12 +7,12 @@
 | 模块 | 人时 | 说明 |
 | :--- | :--- | :--- |
 | **基础设施** | 24 | Block 快照 (7) + Relation (12) + .elf/ (5) |
-| **AI 集成** | 63 | Agent (15) + MCP (14) + Skills (5) + Session (14) + Task (15) |
+| **AI 集成** | 64 | Agent (15) + MCP (15) + Skills (5) + Session (14) + Task (15) |
 | **前端开发** | 16 | Task UI (6) + Agent UI (6) + 基础 UI (4) |
 | **测试** | 12 | 核心路径测试 |
 | **产品研究** | 55 | Dogfooding (25) + 指标 (15) + 归因 (15) |
 | **缓冲预留** | 20 | 风险应对 (~10%) |
-| **总计** | **190** | **约 2.5-3 周** |
+| **总计** | **191** | **约 2.5-3 周** |
 
 ### 1.2 功能范围对照
 
@@ -175,7 +175,7 @@ pub enum AgentStatus {
 | **F3-02** | agent.disable Capability | `extensions/agent/agent_disable.rs` (新建) | 实现 `agent.disable(agent_block_id)`：①清理软连接 ②从 `.claude/mcp.json` 移除 `elfiee` 配置 ③更新状态为 Disabled | 3 | F3 |
 | **F3-03** | MCP 配置合并器 | `utils/mcp_config.rs` (新建) | 实现幂等的 MCP 配置合并：①`merge_server(config_path, server_name, server_config)` ②`remove_server(config_path, server_name)` ③替换 `{elf_path}` 占位符 | 3 | F3 |
 
-### 3.2 MCP Server 模块（14 人时）
+### 3.2 MCP Server 模块（15 人时）
 
 **核心设计**：
 - **MCP Server 独立运行**：嵌入独立的 Engine 实例，无需 GUI
@@ -192,7 +192,7 @@ pub enum AgentStatus {
 | **F4-01** | MCP Server 入口 | `mcp/mod.rs` (新建) | 创建 MCP Server 入口，支持 `elfiee mcp-server --elf {path}` 命令，解析命令行参数 | 2 | F4 |
 | **F4-02** | MCP 协议实现 | `mcp/protocol.rs` (新建) | 实现 MCP JSON-RPC 协议：`tools/list` 返回 execute_command，`tools/call` 执行命令，stdin/stdout 通信 | 5 | F4 |
 | **F4-03** | execute_command tool | `mcp/tools.rs` (新建) | 实现 MCP tool `execute_command(agent_id, capability, payload)`：解析参数 → 构造 Command → 调用 Engine → 返回结果（JSON 格式） | 3 | F4 |
-| **F5-01** | Engine 独立模式 | `engine/standalone.rs` (新建) | 为 MCP Server 创建独立 Engine：打开 .elf 文件（解压到临时目录），加载 EventStore（WAL 模式），构建 StateProjector，无需 GUI | 3 | F5 |
+| **F5-01** | Engine 独立模式 | `engine/standalone.rs` (新建), `engine/event_store.rs` (修改) | 为 MCP Server 创建独立 Engine：①打开 .elf 文件（解压到临时目录）②**修改 EventStore 启用 WAL 模式**（`.journal_mode(SqliteJournalMode::Wal)`），支持多进程并发写入 ③构建 StateProjector，无需 GUI | 4 | F5 |
 | **F5-02** | GUI EventStore 重载 | `commands/reload.rs` (新建) | 为 GUI 提供 Tauri 命令 `reload_events()`：重新从 EventStore 加载所有 Events，重建 StateProjector（用于检测外部 MCP 的修改） | 1 | F5 |
 
 **跨模型 MCP 兼容性（研究发现）**：
@@ -481,9 +481,9 @@ Week 4: Dogfooding + 收尾
 | 模块 | 人时 | 说明 |
 | :--- | :--- | :--- |
 | **基础设施** | 24 | Block 快照 + Relation + .elf/ |
-| **AI 集成** | 63 | Agent (15) + MCP (14) + Skills (5) + Session (14) + Task (15) |
+| **AI 集成** | 64 | Agent (15) + MCP (15) + Skills (5) + Session (14) + Task (15) |
 | **前端开发** | 16 | Task UI + Agent UI + 基础 UI |
 | **测试** | 12 | 核心路径测试 |
 | **产品研究** | 55 | Dogfooding + 指标 + 归因 |
 | **缓冲预留** | 20 | 风险应对 |
-| **总计** | **190** | **约 2.5-3 周** |
+| **总计** | **191** | **约 2.5-3 周** |
