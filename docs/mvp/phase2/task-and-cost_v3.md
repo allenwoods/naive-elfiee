@@ -4,209 +4,346 @@
 
 ### 1.1 预算分配
 
-| 角色类型 | 总预算（人时） | 占比 | 说明 |
-| :--- | :--- | :--- | :--- |
-| **研发团队** | 240 人时 | 72% | 基础设施 + AI 集成 + 测试 |
-| **产品团队** | 55 人时 | 17% | Dogfooding 实验 + 指标 + 归因 |
-| **缓冲预留** | 35 人时 | 11% | 风险应对 |
-| **总计** | 330 人时 | 100% | 约 3.5-4 周 |
+| 模块 | 人时 | 说明 |
+| :--- | :--- | :--- |
+| **基础设施** | 24 | Block 快照 (7) + Relation (12) + .elf/ (5) |
+| **AI 集成** | 63 | Agent (15) + MCP (14) + Skills (5) + Session (14) + Task (15) |
+| **前端开发** | 16 | Task UI (6) + Agent UI (6) + 基础 UI (4) |
+| **测试** | 12 | 核心路径测试 |
+| **产品研究** | 55 | Dogfooding (25) + 指标 (15) + 归因 (15) |
+| **缓冲预留** | 20 | 风险应对 (~10%) |
+| **总计** | **190** | **约 2.5-3 周** |
 
 ### 1.2 功能范围对照
 
-**基础设施模块（12 个）**：
-- Block 存储改造：I1 (P0), I2 (P0), I3 (P0)
-- Event 存储优化：I4 (P0), I5 (P1)
-- Relation 增强：I6 (P0), I7 (P1), I8 (P0)
-- Dir Block 改造：I9 (P0), I10 (P0), I11 (P0), I12 (P0)
+**基础设施模块**：
+- Block 快照：I1 (write 时同步物理文件)
+- Relation 增强：I2 (implement 关系 + DAG 环检测 + 反向索引)
+- .elf/ 初始化：I10 (系统目录自动创建)
 
-**AI 集成模块（17 个）**：
-- Agent 模块：F1 (P0), F2 (P0), F3 (P0)
-- CLI 模块：F4 (P0), F5 (P0), F6 (P1)
-- Skills 模块：F7 (P0), F8 (P0), F9 (P0)
-- Session 同步：F10 (P0), F11 (P0), F12 (P0), F13 (P1)
-- Git 集成：F14 (P0), F15 (P0), F16 (P0), F17 (P1)
+**AI 集成模块**：
+- Agent 模块：F1, F3 (Agent Block + create/enable/disable + MCP 配置合并)
+- MCP Server：F4, F5 (协议实现 + 独立 Engine)
+- Skills 模块：F7 (elfiee-client 模板)
+- Session 同步：F10-F13 (JSONL 监听 + 解析 + 写入)
+- Task Block：F16 (write/read/commit/archive)
 
-**产品研究（3 个）**：
-- R1 Dogfooding 实验设计 (P0)
-- R2 评价指标定义 (P0)
-- R3 归因分析方法 (P0)
+**产品研究**：
+- R1 Dogfooding 实验设计
+- R2 评价指标定义
+- R3 归因分析方法
 
 ---
 
-## 二、基础设施模块（80 人时）
+## 二、基础设施模块（24 人时）
 
 > **重要架构变更**：所有内容均 Block 化。Directory Block 存储索引（entries），Content Block 存储实际内容（`block-{uuid}/body.*`）。索引与内容通过 Relation 关联，权限独立管理。
 
-### 2.1 Block 存储改造（30 人时）
+### 2.1 Block 快照功能（7 人时）
 
-**文件结构**: `src-tauri/src/engine/` + `src-tauri/src/extensions/`
+**设计决策**：
+- **Event 继续存储完整内容**：保持 AI 可查看完整历史的能力（Event Sourcing 核心价值）
+- **物理文件作为快照**：用于 symlink（如 SKILLS.md → ~/.claude/skills/）和迁移
+- **Dir Block 也有快照**：`block-{uuid}/body.json` 存储 entries 索引的完整快照
+- **已实现**：`block-{uuid}/` 目录自动创建（`inject_block_dir` in actor.rs）
+- **已实现**：Dir Block entries 只存索引（`directory_import.rs`）
 
-| 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **I1-01** | 物理文件存储层 | `engine/block_storage.rs` (新建) | 实现 `BlockStorage` trait：`read_body(block_id)` 和 `write_body(block_id, content)`，支持 `block-{uuid}/body.*` 路径 | 6 | I1 |
-| **I1-02** | code.write 改造 | `extensions/code/code_write.rs` | 将内容写入 `block-{uuid}/body.{ext}` 物理文件，Event.value 只存操作元数据（file_path, operation, editor_id） | 5 | I1 |
-| **I1-03** | markdown.write 改造 | `extensions/markdown/markdown_write.rs` | 将内容写入 `block-{uuid}/body.md` 物理文件，Event.value 只存操作元数据 | 4 | I1 |
-| **I2-01** | Dir Block entries 结构 | `extensions/directory/mod.rs` | 修改 `contents.entries` 只存索引 `{path: {id, type}}`，不存文件内容 | 4 | I2, I9 |
-| **I2-02** | 索引-内容关系建立 | `extensions/directory/directory_import.rs` | 创建 Content Block 时自动建立 Dir Block → Content Block 的 `contains` 关系 | 4 | I2, I6 |
-| **I3-01** | Block 目录自动创建 | `engine/actor.rs` | `core.create` 时自动创建 `block-{uuid}/` 目录，支持 `body.*` + `assets/` 结构 | 4 | I3 |
-| **I3-02** | Block 目录删除 | `extensions/core/core_delete.rs` | `core.delete` 时处理物理目录（软删除：移动到 `.trash/`） | 3 | I3 |
-
-### 2.2 Event 存储优化（12 人时）
-
-**文件结构**: `src-tauri/src/engine/`
+**文件结构**: `src-tauri/src/extensions/`
 
 | 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **I4-01** | Event 轻量化结构 | `engine/event_store.rs` | Event.value 只存操作元数据（operation, path, hash），不存完整内容 | 4 | I4 |
-| **I4-02** | StateProjector 物理文件加载 | `engine/state.rs` | 投影时从 `block-{uuid}/body.*` 读取内容，而非 Event.value | 5 | I4 |
-| **I5-01** | 可选 Diff 存储 | `engine/event_store.rs` | 支持配置存储增量 diff（可选），使用 `similar` crate 计算 | 3 | I5 |
+| **I1-01** | markdown.write 快照 | `extensions/markdown/markdown_write.rs` | write 时同步写入 `block-{uuid}/body.md` 物理文件（Event 保持完整内容不变） | 2 | I1 |
+| **I1-02** | code.write 快照 | `extensions/code/code_write.rs` | write 时同步写入 `block-{uuid}/body.{ext}` 物理文件 | 2 | I1 |
+| **I1-03** | directory.import 快照 | `extensions/directory/directory_import.rs` | import 时为每个 Content Block 同步写入 `block-{uuid}/body.*` 物理文件，并为 Dir Block 写入 `block-{uuid}/body.json`（存储 entries 索引快照） | 2 | I1 |
+| **I1-04** | Dir Block 快照同步 | `extensions/directory/directory_import.rs` | 每次 Dir Block 的 entries 变化时（添加/删除文件），同步更新 `block-{uuid}/body.json` 快照 | 1 | I1 |
 
-### 2.3 Relation 增强（18 人时）
+**已实现，无需改动**：
+- I2-01 Dir Block entries 结构 ✅
+- I3-01 Block 目录自动创建 ✅（`inject_block_dir`）
+- I3-02 Block 目录删除 ❌ 不需要（Event 记录删除即可，物理文件保留供历史查看）
 
-**文件结构**: `src-tauri/src/engine/` + `src-tauri/src/models/`
+### 2.3 基础设施：Relation 系统增强（12 人时）
+
+**设计变更**：构建纯粹的"逻辑因果图" (Logical Causal Graph)。
+- **单一关系**：仅使用 `implement`，表示"上游定义/决定下游" (如 Task -> Code, Test -> Code)。
+- **排除干扰**：Directory 的物理包含关系（存 `entries` JSON）、代码的引用关系（AST 分析）均**不进入** Relation Graph。
+- **严格 DAG**：坚决拒绝环。工程逻辑流应当是单向的（PRD -> Test -> Code），不允许反向依赖。
 
 | 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **I6-01** | 关系类型枚举扩展 | `models/relation.rs` (新建) | 定义关系类型枚举：`contains`, `tracks`, `implements`, `archives`, `generated_by` | 3 | I6, I8 |
-| **I6-02** | core.link 支持新类型 | `extensions/core/core_link.rs` | 扩展 `core.link` 支持新的关系类型，验证关系类型有效性 | 3 | I6, I8 |
-| **I7-01** | RelationGraph 反向索引 | `engine/relation_graph.rs` (新建) | 维护 `incoming` 反向索引，支持 `get_parents(block_id)` 查询 | 5 | I7 |
-| **I7-02** | StateProjector 集成 | `engine/state.rs` | 在 `apply_event` 时更新 `RelationGraph`，维护双向索引 | 4 | I7 |
-| **I8-01** | 关系查询 API | `commands/relation.rs` (新建) | 暴露 `query_relations`、`get_parents`、`get_children` Tauri 命令 | 3 | I8 |
+| **I2-01** | Relation 逻辑收敛 | `models/block.rs` | 确认 `Block.children` 仅用于存储逻辑因果关系。代码层面定义常量 `RELATION_IMPLEMENT = "implement"`。 | 2 | I6 |
+| **I2-02** | Dir Block 纯化 | `extensions/directory/directory_import.rs` | 确认 `directory.import` **仅**更新 `contents.entries` (JSON) 索引，**不**向 `Block.children` 添加关系。确保物理结构不污染逻辑图。 | 2 | I9 |
+| **I2-03** | 严格 DAG 环检测 | `capabilities/builtins/link.rs` | 在 `core.link` 操作时，对 `implement` 关系执行严格环检测 (DFS)。如果发现 A->B->...->A 的环，**拒绝操作**并报错，强迫保持单向流。 | 6 | I7 |
+| **I2-04** | 反向索引构建 | `engine/state.rs` | 在 `StateProjector` 中构建内存反向索引 `parents: HashMap<String, Vec<String>>`，加速查询"谁定义了我"。 | 2 | I8 |
 
-### 2.4 Dir Block 改造（20 人时）
+### 2.4 .elf/ 元数据管理（5 人时）
+
+**核心定位**：`.elf/` 是 Elfiee 的**系统级配置**，通过软连接注入到外部项目的 `.claude/skills/` 目录中。
+
+**目录结构**：
+```
+.elf/                            # 唯一的 Dir Block（所有人可读写）
+└── Agents/
+    ├── elfiee-client/           # 系统级 Skill：教 Claude 如何使用 Elfiee
+    │   ├── SKILL.md             # Skill 定义（YAML Frontmatter，通过软连接生效）
+    │   ├── mcp.json             # MCP 配置模板（agent.enable 时合并到 .claude/mcp.json）
+    │   ├── scripts/             # 空目录（预留）
+    │   ├── assets/              # 空目录（预留）
+    │   └── references/          # 参考文档
+    │       └── capabilities.md  # Elfiee Capabilities 文档
+    └── session/                 # 统一 Session 存储（按项目组织）
+        └── {project-name}/      # 从 ~/.claude/projects/ 同步的 session
+            └── session_*.jsonl
+```
+
+**设计要点**：
+- **唯一系统级 Agent**：`.elf/Agents/` 只有 `elfiee-client/`，后续可导入外部 skill 成为通用 Agent
+- **软连接注入**：通过 agent.enable 将 `elfiee-client/` 软连接到外部项目 `.claude/skills/elfiee-client/`
+- **MCP 配置独立注入**：`mcp.json` 是模板，agent.enable 时合并写入到外部项目 `.claude/mcp.json`（Claude 只从此路径读取 MCP 配置）
+- **Session 统一存储**：所有项目的活跃 session 同步到 `.elf/Agents/session/{project-name}/`，无法通过软连接管理
+- **快照格式**：`block-{uuid}/body.json` 存储 entries 结构，供软连接使用
 
 **文件结构**: `src-tauri/src/extensions/directory/`
 
 | 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **I10-01** | .elf/ 元数据目录结构 | `extensions/directory/elf_meta.rs` (新建) | 定义 `.elf/` 目录结构：SKILLS.md, Agents/, git/hooks/，自动创建对应 Block | 5 | I10 |
-| **I10-02** | 通用 SKILLS.md 模板 | `templates/skills_template.md` (新建) | 内置通用 SKILLS.md 模板，包含 core.create, markdown.write 等基础命令 | 3 | I10, F7 |
-| **I10-03** | 前端 .elf/ 过滤 | `extensions/directory/mod.rs` | 提供 `is_elf_meta_block()` 方法，前端只显示 SKILLS/Agents/Hooks | 2 | I10 |
-| **I11-01** | directory.import 改造 | `extensions/directory/directory_import.rs` | 复制文件内容到 `block-{uuid}/body.*`，创建索引，建立 `contains` 关系 | 6 | I11 |
-| **I11-02** | 增量导入支持 | `extensions/directory/directory_import.rs` | 支持增量导入：检测已存在的 Block，只导入新增/变更文件 | 4 | I11 |
-| **I12-01** | directory.export 改造 | `extensions/directory/directory_export.rs` | 从 Content Block 读取内容，写入外部目录，保持目录结构 | 4 | I12 |
-| **I12-02** | 部分导出支持 | `extensions/directory/directory_export.rs` | 支持导出指定 Block 子集，而非整个 Directory | 2 | I12 |
+| **I10-01** | .elf/ Dir Block 初始化 | `extensions/directory/elf_meta.rs` (新建) | 创建 .elf 文件时自动生成 `.elf/` Dir Block，entries 包含：`Agents/elfiee-client/`（含 `SKILL.md`、`mcp.json`、空的 `scripts/`, `assets/` 目录、`references/capabilities.md`）及 `Agents/session/` 空目录。生成快照，授予所有人 `directory.write` 权限。 | 5 | I10 |
+
+**已实现，无需改动**：
+- directory.export ✅（checkout.rs）
+- 部分导出 ✅（source_path 参数）
+- 动态路径注入 ✅（inject_block_dir）
+
+**不需要做**：
+- 项目级 SKILLS 生成（移到 3.1 F3-02，由 Agent 创建时触发）
+- 前端 .elf/ 过滤（前端正常显示，不需要特殊处理）
+- 增量导入支持（后续同步机制）
 
 ---
 
-## 三、AI 集成模块（130 人时）
+## 三、AI 集成模块（61 人时）
 
-### 3.1 Agent 模块（22 人时）
+### 3.1 Agent 模块（15 人时）
+
+**核心设计**：
+- **Agent 是 Block 类型**：`block_type: "agent"`，记录项目级 AI 集成配置
+- **内置共用工具**：`.elf/Agents/elfiee-client/` 是静态资源目录，所有 Agent Block 共享
+- **自动软连接**：创建 Agent Block 时，自动将 `elfiee-client/` 软连接到目标项目 `.claude/skills/`
+- **MCP 配置注入**：创建时合并 MCP 配置到目标项目 `.claude/mcp.json`
+- **前提条件**：目标项目必须已有 `.claude/` 目录（已初始化 Claude）
+
+**数据结构**：
+```rust
+// block_type: "agent"
+pub struct AgentContents {
+    pub name: String,              // Agent 名称（默认 "elfiee"）
+    pub target_project_id: String, // 关联的外部项目 Dir Block ID
+    pub status: AgentStatus,       // enabled | disabled
+}
+
+pub enum AgentStatus {
+    Enabled,   // 已启用（软连接存在，MCP 配置已注入）
+    Disabled,  // 已禁用（软连接已清理）
+}
+```
+
+**内置工具目录结构**：
+```
+.elf/Agents/elfiee-client/       # 静态资源，所有 Agent 共享
+├── SKILL.md                     # Claude Skills 定义
+├── mcp.json                     # MCP 配置模板
+└── references/
+    └── capabilities.md          # Elfiee Capabilities 文档
+```
+
+**工作流**：
+1. `agent.create(target_project_id)` → 创建 Agent Block + 自动执行 enable
+2. `agent.disable(agent_block_id)` → 清理软连接 + 移除 MCP 配置 + 状态改为 Disabled
+3. `agent.enable(agent_block_id)` → 重新创建软连接 + 注入 MCP 配置 + 状态改为 Enabled
+
+**幂等性设计**：
+- **enable 已启用的 Agent** → 更新配置（重新创建软连接和 MCP 配置）
+- **disable 已禁用的 Agent** → 静默成功
 
 **文件结构**: `src-tauri/src/extensions/agent/`
 
 | 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **F1-01** | Agent Block 数据结构 | `extensions/agent/mod.rs` | 定义 `AgentConfig`：provider, session_id, editor_id, linked_projects | 3 | F1 |
-| **F1-02** | agent.create Capability | `extensions/agent/agent_create.rs` | 实现 `agent.create`，创建 Agent Block，生成 editor_id = `{provider}:{session_id}` | 4 | F1 |
-| **F2-01** | Claude Session 扫描器 | `extensions/agent/session_scanner.rs` (新建) | 扫描 `~/.claude/projects/` 下的 `.jsonl` 文件，解析活跃 session 列表 | 5 | F2 |
-| **F2-02** | Session 列表 API | `commands/agent.rs` (新建) | 暴露 `scan_claude_sessions` Tauri 命令，返回 session_id, project_path, last_active | 2 | F2 |
-| **F3-01** | Agent 关联命令 | `extensions/agent/agent_link.rs` (新建) | 实现 `agent.link_session`：关联 session，创建 Editor，建立项目关联 | 5 | F3 |
-| **F3-02** | Agent 目录生成 | `extensions/agent/agent_create.rs` | Agent 创建时生成 `.elf/Agents/{name}/` 目录，包含 SKILLS.md | 3 | F3 |
+| **F1-01** | Agent 数据结构 | `extensions/agent/mod.rs` | 定义 `AgentContents`（name, target_project_id, status）、`AgentStatus` 枚举、各 Capability 的 Payload 类型 | 2 | F1 |
+| **F1-02** | agent.create Capability | `extensions/agent/agent_create.rs` (新建) | 实现 `agent.create(target_project_id)`：①检查目标项目 `.claude/` 存在 ②创建 Agent Block ③自动调用 enable 逻辑（软连接 + MCP 配置）④返回提示重启 Claude | 4 | F1 |
+| **F3-01** | agent.enable Capability | `extensions/agent/agent_enable.rs` (新建) | 实现 `agent.enable(agent_block_id)`：①获取 target_project_id 对应的外部路径 ②创建软连接 `.claude/skills/elfiee-client/` → `.elf/Agents/elfiee-client/` ③合并 MCP 配置 ④更新状态为 Enabled | 3 | F3 |
+| **F3-02** | agent.disable Capability | `extensions/agent/agent_disable.rs` (新建) | 实现 `agent.disable(agent_block_id)`：①清理软连接 ②从 `.claude/mcp.json` 移除 `elfiee` 配置 ③更新状态为 Disabled | 3 | F3 |
+| **F3-03** | MCP 配置合并器 | `utils/mcp_config.rs` (新建) | 实现幂等的 MCP 配置合并：①`merge_server(config_path, server_name, server_config)` ②`remove_server(config_path, server_name)` ③替换 `{elf_path}` 占位符 | 3 | F3 |
 
-### 3.2 CLI 模块（28 人时）
+### 3.2 MCP Server 模块（14 人时）
 
-**文件结构**: `src-tauri/src/cli/` (新建模块)
+**核心设计**：
+- **MCP Server 独立运行**：嵌入独立的 Engine 实例，无需 GUI
+- **配置由 agent.enable 注入**：MCP 配置写入外部项目 `.claude/mcp.json`，需重启 Claude 激活
+- **直接操作 EventStore**：MCP 和 GUI 都追加 Event 到 `_eventstore.db`，SQLite WAL 模式支持并发写入
+- **通用 tool: execute_command**：MCP Server 只提供一个工具，执行 Elfiee 命令
+- **SKILL.md 定义工作流**：YAML 格式的静态模板，Phase 2 手动维护
+- **无需实时同步**：GUI（如果开着）定期重新加载 StateProjector，读取最新 Events
 
-| 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **F4-01** | CLI 入口模块 | `cli/mod.rs` (新建) | 创建 CLI 入口，解析命令行参数：`elfiee --agent {id} {capability} {args}` | 4 | F4 |
-| **F4-02** | CLI 参数解析 | `cli/parser.rs` (新建) | 使用 `clap` 解析命令行，支持 `--project`, `--agent`, `--json` 参数 | 3 | F4 |
-| **F4-03** | CLI 输出格式化 | `cli/output.rs` (新建) | 支持 JSON 输出和人类可读输出，返回 block_id、执行状态 | 2 | F4 |
-| **F5-01** | CLI-Engine IPC 通信 | `cli/ipc.rs` (新建) | Unix Socket（Linux/Mac）或 Named Pipe（Windows）与运行中 Elfiee 通信 | 6 | F5 |
-| **F5-02** | CLI 直接操作模式 | `cli/direct.rs` (新建) | Elfiee 未运行时直接操作 .elf 文件（SQLite），打开 Engine 执行命令 | 5 | F5 |
-| **F5-03** | Engine Socket 服务 | `engine/socket_server.rs` (新建) | Engine 启动 Socket 服务，接收 CLI 命令并执行 | 4 | F5 |
-| **F6-01** | elfiee-ext-gen 协议层改造 | `elfiee-ext-gen/src/generator.rs` | 将直接生成改为调用 CLI：`elfiee core.create` + `elfiee code.write` | 4 | F6 |
-
-### 3.3 Skills 模块（16 人时）
-
-**文件结构**: `src-tauri/src/commands/` + `templates/`
+**文件结构**: `src-tauri/src/mcp/` (新建模块)
 
 | 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **F7-01** | Skills 生成器 | `commands/skills.rs` (新建) | 扫描注册的 Capabilities，生成 SKILLS.md 格式 | 4 | F7 |
-| **F7-02** | 多级 SKILLS 合并 | `commands/skills.rs` | 实现通用 + 项目级 + Agent 级 SKILLS 合并逻辑 | 3 | F7, F8 |
-| **F8-01** | 项目级 SKILLS 自动创建 | `extensions/directory/directory_import.rs` | 导入项目时自动创建 `.elf/projects/{name}/SKILLS.md` | 3 | F8 |
-| **F8-02** | 项目级 SKILLS 模板 | `templates/project_skills.md` (新建) | 项目级 SKILLS 模板，包含工作流规范占位符 | 2 | F8 |
-| **F9-01** | Symlink 管理器 | `commands/symlink.rs` (新建) | 创建/删除 symlink 到 `~/.claude/skills/` | 4 | F9 |
+| **F4-01** | MCP Server 入口 | `mcp/mod.rs` (新建) | 创建 MCP Server 入口，支持 `elfiee mcp-server --elf {path}` 命令，解析命令行参数 | 2 | F4 |
+| **F4-02** | MCP 协议实现 | `mcp/protocol.rs` (新建) | 实现 MCP JSON-RPC 协议：`tools/list` 返回 execute_command，`tools/call` 执行命令，stdin/stdout 通信 | 5 | F4 |
+| **F4-03** | execute_command tool | `mcp/tools.rs` (新建) | 实现 MCP tool `execute_command(agent_id, capability, payload)`：解析参数 → 构造 Command → 调用 Engine → 返回结果（JSON 格式） | 3 | F4 |
+| **F5-01** | Engine 独立模式 | `engine/standalone.rs` (新建) | 为 MCP Server 创建独立 Engine：打开 .elf 文件（解压到临时目录），加载 EventStore（WAL 模式），构建 StateProjector，无需 GUI | 3 | F5 |
+| **F5-02** | GUI EventStore 重载 | `commands/reload.rs` (新建) | 为 GUI 提供 Tauri 命令 `reload_events()`：重新从 EventStore 加载所有 Events，重建 StateProjector（用于检测外部 MCP 的修改） | 1 | F5 |
 
-### 3.4 Session 同步模块（28 人时）
+**跨模型 MCP 兼容性（研究发现）**：
+
+| 平台 | MCP 支持 | 配置格式 | 配置位置 | 备注 |
+| :--- | :--- | :--- | :--- | :--- |
+| **Claude Code** | ✅ 原生 | JSON (`mcpServers`) | `.claude/mcp.json` | Phase 2 主要目标 |
+| **OpenAI Codex** | ✅ 原生 | TOML (`mcp_servers`) | `codex.toml` | 格式略有不同 |
+| **Qwen Agent** | ✅ 框架支持 | Python/JSON | 代码配置 | 通过 Qwen-Agent 框架 |
+| **DeepSeek** | ✅ MCP Server | JSON | 自定义 | 标准 MCP 协议 |
+
+**Phase 2 策略**：仅支持 Claude Code，使用标准 MCP 协议实现。
+**Phase 3+ 扩展**：添加配置适配器，支持 TOML/Python 等格式输出，实现跨模型兼容。
+
+### 3.3 Skills 模块（5 人时）
+
+**核心设计**：
+- **唯一系统级 Skill**：只有 `elfiee-client`，教 Claude 如何使用 Elfiee
+- **静态模板**：Phase 2 使用手动维护的模板（SKILL.md + mcp.json）
+- **在 I10-01 创建**：`.elf/Agents/elfiee-client/` 从模板复制，替换 `{elf_path}` 占位符
+- **SKILL.md 通过软连接生效**：agent.enable 创建软连接后，Claude 自动读取 SKILL.md
+- **mcp.json 作为模板**：agent.enable 时合并到外部项目 `.claude/mcp.json`，不通过软连接生效
+- **Phase 3+ 可导入外部 skill**：将外部项目开发的 skill 转换为系统级 Agent
+
+**文件结构**: `src-tauri/templates/` (新建目录)
+
+| 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **F7-01** | elfiee-client SKILL 模板 | `templates/elfiee-client/SKILL.md` (新建) | 系统级 SKILL 模板（YAML Frontmatter），包含所有 core.* 和基础 capabilities（markdown.*, code.*, directory.*），定义 MCP tool `execute_command` 的使用方式 | 2 | F7 |
+| **F7-02** | elfiee-client MCP 配置模板 | `templates/elfiee-client/mcp.json` (新建) | MCP 配置**模板**（由 agent.enable 合并到 `.claude/mcp.json`），格式：`{"mcpServers": {"elfiee": {"command": "elfiee", "args": ["mcp-server", "--elf", "{elf_path}"]}}}`，`{elf_path}` 在 agent.enable 时替换为实际路径 | 1 | F7 |
+| **F7-03** | 模板复制工具 | `utils/template_copy.rs` (新建) | 工具函数：从 `templates/elfiee-client/` 复制文件到 `.elf/Agents/elfiee-client/` Block 目录，替换占位符（elf_path），生成快照 | 2 | F7 |
+
+### 3.4 Session 同步模块（14 人时）
+
+**核心设计**：
+- **基于路径计算 Session 目录**：根据 external_path 计算 Claude session 目录（`~/.claude/projects/{path-hash}/`，规则：`/` → `-`）
+- **监听外部 JSONL**：使用 `notify` 监听计算出的 session 目录下所有 `.jsonl` 文件变化
+- **逐行同步**：每次文件更新，解析新增 JSONL 行，用 `code.write` 追加到内部 Session Block
+- **统一 Session 存储**：`.elf/Agents/session/{project-name}/session_{session_id}.jsonl`（Code Block, language="jsonl"）
+- **简化实现**：无需时序保证（自然由 Event 顺序保证），关联功能移到其他模块
+
+**Session 目录计算**：
+```
+external_path = /home/yaosh/projects/elfiee
+↓ 转换规则（/ → -）
+session_dir = ~/.claude/projects/-home-yaosh-projects-elfiee/
+```
 
 **文件结构**: `src-tauri/src/sync/` (新建模块)
 
 | 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **F10-01** | JSONL 文件监听器 | `sync/watcher.rs` (新建) | 使用 `notify` crate 监听 `~/.claude/projects/{path}/*.jsonl` | 5 | F10 |
-| **F10-02** | 监听器生命周期管理 | `sync/watcher.rs` | 实现 start/stop/pause，支持多项目同时监听 | 3 | F10 |
-| **F11-01** | JSONL 解析器 | `sync/parser.rs` (新建) | 解析 Claude Code JSONL 格式，提取 tool_use、用户消息、响应 | 4 | F11 |
-| **F11-02** | 增量解析优化 | `sync/parser.rs` | 记录文件偏移量，只解析新增内容 | 3 | F11 |
-| **F12-01** | Session Log Block 创建 | `sync/log_writer.rs` (新建) | 创建 `session/log-{timestamp}.md` Block，使用 `markdown.write` | 4 | F12 |
-| **F12-02** | 时序保证机制 | `sync/log_writer.rs` | 确保会话 Event 在代码变更 Event 之前 | 4 | F12 |
-| **F13-01** | Session-Code 关联 | `sync/relation.rs` (新建) | 通过 Vector Clock 匹配，建立 `generated_by` 关系 | 5 | F13 |
+| **F10-01** | Session 目录计算器 | `sync/session_path.rs` (新建) | 根据 external_path 计算对应的 `~/.claude/projects/{path-hash}/` 目录路径（规则：将 `/` 替换为 `-`） | 2 | F10 |
+| **F11-01** | JSONL 文件监听器 | `sync/watcher.rs` (新建) | 使用 `notify` crate 监听计算出的 session 目录下所有 `.jsonl` 文件变化，支持多项目同时监听，实现 start/stop 生命周期管理 | 4 | F11 |
+| **F12-01** | JSONL 增量解析器 | `sync/parser.rs` (新建) | 解析 Claude Code JSONL 格式（用户消息、assistant 消息、tool_use），记录文件偏移量（使用 `BufReader.seek`），只解析新增行 | 4 | F12 |
+| **F13-01** | Session Block 写入器 | `sync/writer.rs` (新建) | 每解析一行 JSONL，用 `code.write` 追加到 `.elf/Agents/session/{project-name}/session_{session_id}.jsonl` Code Block（如不存在则先用 core.create 创建，project-name 从 Dir Block 获取） | 4 | F13 |
 
-### 3.5 Git 集成模块（36 人时）
+### 3.5 Task Block 模块（15 人时）
 
-**文件结构**: `src-tauri/src/git/` (新建模块)
+**核心设计**：
+- **独立 Block 类型**：`block_type: "task"`，与 Markdown 平级（枚举关系，非继承）
+- **专属 Capabilities**：`task.write`, `task.read`, `task.commit`, `task.archive`
+- **不管理 Hooks**：依赖外部项目已有的 pre-commit, pre-push（用户自己配置）
+
+**数据结构**：
+```rust
+// block_type: "task"
+pub struct TaskContents {
+    pub title: String,           // 任务标题（用于分支名、commit message 前缀）
+    pub description: String,     // 任务描述（Markdown 格式）
+    pub status: TaskStatus,      // pending | in_progress | committed | archived
+}
+
+pub enum TaskStatus {
+    Pending,      // 待开始
+    InProgress,   // 进行中
+    Committed,    // 已提交
+    Archived,     // 已归档
+}
+```
+
+**核心用例**：
+```
+Task Block (定义任务标题和描述)
+    ↓ implement 关系（通过 Relation Graph 查询）
+[code blocks...] (关联的代码修改)
+    ↓ task.commit
+1. 查询 Task 的所有 implement 下游 Blocks
+2. 导出这些 Blocks 到外部目录（调用 directory.export）
+3. git add → git commit（commit message 从 Task 提取）
+4. 外部项目的 pre-commit/pre-push 自动执行
+5. 更新 Task 状态为 Committed
+    ↓ task.archive
+6. 生成归档文档到 .elf/Archives/
+7. 更新 Task 状态为 Archived
+```
+
+**文件结构**: `src-tauri/src/extensions/task/` (新建模块)
 
 | 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **F14-01** | Hooks 复制器 | `git/hooks.rs` (新建) | 复制原 `.git/hooks/` 到 `.elf/git/hooks/`，追加 Elfiee 检查逻辑 | 5 | F14 |
-| **F14-02** | Hooks 模板生成 | `git/hooks.rs` | 生成带 Elfiee 检查的 pre-commit, post-merge 模板 | 3 | F14 |
-| **F15-01** | core.hooksPath 管理 | `git/hooks.rs` | 实现 `set_hooks_path` 和 `restore_hooks_path` | 4 | F15 |
-| **F15-02** | Git 配置备份 | `git/config.rs` (新建) | 打开项目时备份原 Git 配置，关闭时恢复 | 3 | F15 |
-| **F16-01** | Task 信息提取 | `git/task_parser.rs` (新建) | 从 task.md 提取 title（分支名）和 content（commit message） | 3 | F16 |
-| **F16-02** | 分支创建命令 | `git/branch.rs` (新建) | 实现 `create_branch_from_task`，自动命名分支 | 3 | F16 |
-| **F16-03** | 一键导出+提交 | `git/commit.rs` (新建) | `directory.export` → git add → git commit，可选 push | 6 | F16 |
-| **F17-01** | Merge 检测器 | `git/merge_detector.rs` (新建) | 监听 git reflog 或定期检查，检测 merge 事件 | 4 | F17 |
-| **F17-02** | 归档文档生成 | `git/archive.rs` (新建) | 汇总对话 + 编辑 Events，生成 summary markdown | 5 | F17 |
+| **F16-01** | Task 数据结构 | `extensions/task/mod.rs` (新建) | 定义 `TaskContents`、`TaskStatus`、各 Capability 的 Payload 类型 | 2 | F16 |
+| **F16-02** | task.write / task.read | `extensions/task/task_rw.rs` (新建) | 实现 Task Block 的读写能力，写入时同步快照到 `block-{uuid}/body.md`（Markdown 格式：`# {title}\n\n{description}`） | 3 | F16 |
+| **F16-03** | task.commit Capability | `extensions/task/task_commit.rs` (新建) | 实现 `task.commit`：①通过 Relation Graph 查询 `implement` 下游 Blocks ②调用 `directory.export` 导出 ③执行 `git add && git commit -m "{title}: {description 首行}"`④可选 `--push` ⑤更新状态为 Committed | 5 | F16 |
+| **F16-04** | task.archive Capability | `extensions/task/task_archive.rs` (新建) | 实现 `task.archive`：①生成归档 Markdown（task 内容 + 关联 Blocks + commit hash + 时间戳）②创建 `.elf/Archives/{date}-{title}.md` Markdown Block ③更新状态为 Archived | 5 | F16 |
 
 ---
 
-## 四、前端开发（30 人时）
+## 四、前端开发（16 人时）
 
-### 4.1 基础设施相关 UI（8 人时）
+**设计原则**：
+- 复用现有组件（BlockEditor, VfsTree, AgentContext 等）
+- 最小化新增 UI，只覆盖必要的后端接口
+- 其他 UI 功能通过 Dogfooding 自举开发
 
-| 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **UI-I-01** | .elf/ 目录置顶展示 | `src/components/FileTree.tsx` | 将 SKILLS/Agents/Hooks 置顶，添加特殊图标 | 3 | I10 |
-| **UI-I-02** | 关系可视化 | `src/components/RelationGraph.tsx` (新建) | 显示 Block 间的关系图，支持 `contains`, `implements` 等 | 5 | I7, I8 |
-
-### 4.2 Agent 模块 UI（10 人时）
+### 4.1 Block 类型扩展（6 人时）
 
 | 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **UI-F-01** | Claude Session 选择器 | `src/components/Agent/SessionSelector.tsx` (新建) | 显示活跃 sessions 列表，支持搜索和选择 | 4 | F2 |
-| **UI-F-02** | Agent 关联向导 | `src/components/Agent/AgentLinkWizard.tsx` (新建) | 多步骤向导：选择 session → 配置 → 确认 | 4 | F3 |
-| **UI-F-03** | Symlink 状态指示 | `src/components/Agent/SymlinkStatus.tsx` (新建) | 显示 symlink 状态，支持手动修复 | 2 | F9 |
+| **UI-01** | Task Block 编辑器 | `src/components/editor/TaskBlockEditor.tsx` (新建) | 复用 BlockEditor 结构，添加 title/description 字段、状态显示、Commit/Archive 按钮 | 4 | F16 |
+| **UI-02** | VfsTree Task 图标 | `src/components/editor/VfsTree.tsx` (修改) | 为 task 类型 Block 添加专属图标，显示状态标记 | 2 | F16 |
 
-### 4.3 Session 同步 UI（6 人时）
-
-| 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **UI-F-04** | Session Log 查看器 | `src/components/Session/LogViewer.tsx` (新建) | 时间线展示对话记录，高亮 tool_use | 4 | F12 |
-| **UI-F-05** | 同步状态指示器 | `src/components/Session/SyncStatus.tsx` (新建) | 显示同步状态，手动同步按钮 | 2 | F10 |
-
-### 4.4 Git 模块 UI（6 人时）
+### 4.2 Agent 管理（6 人时）
 
 | 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **UI-F-06** | 一键导出+提交面板 | `src/components/Git/CommitPanel.tsx` (新建) | 显示待导出 Blocks，编辑 commit message | 4 | F16 |
-| **UI-F-07** | 归档查看器 | `src/components/Git/ArchiveViewer.tsx` (新建) | 渲染归档 markdown，支持关联跳转 | 2 | F17 |
+| **UI-03** | Agent Enable/Disable | `src/components/editor/AgentContext.tsx` (修改) | 扩展现有 AgentContext，添加 Enable/Disable 按钮，显示启用状态和 MCP 连接状态 | 4 | F3 |
+| **UI-04** | Session 同步状态 | `src/components/editor/ContextPanel.tsx` (修改) | 在 ContextPanel 显示 Session 同步状态（同步中/已同步/错误） | 2 | F10-F13 |
+
+### 4.3 基础设施 UI（4 人时）
+
+| 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 对应模块 |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **UI-05** | .elf/ 目录置顶 | `src/components/editor/VfsTree.tsx` (修改) | 将 `.elf/` 目录置顶显示，添加特殊图标 | 2 | I10 |
+| **UI-06** | Relation 指示器 | `src/components/editor/BlockEditor.tsx` (修改) | 在 Block 编辑器显示 implement 关系（上游/下游 Block 列表） | 2 | I7-I8 |
 
 ---
 
-## 五、测试（20 人时）
+## 五、测试（12 人时）
+
+**设计原则**：
+- 聚焦核心路径测试
+- 复杂 UI 测试通过 Dogfooding 验证
 
 | 编号 | 任务名称 | 文件位置 | 详细内容 | 预估人时 | 覆盖范围 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **T-I-01** | Block 存储单元测试 | `engine/block_storage_test.rs` | 测试物理文件读写、目录创建/删除 | 3 | I1-I3 |
-| **T-I-02** | Relation 单元测试 | `engine/relation_graph_test.rs` | 测试双向索引、关系类型验证 | 2 | I6-I8 |
-| **T-I-03** | Dir Block 集成测试 | `extensions/directory/tests.rs` | 测试 import/export 完整流程 | 3 | I9-I12 |
-| **T-F-01** | CLI 单元测试 | `cli/tests.rs` | 测试参数解析、IPC 通信 Mock | 3 | F4-F5 |
-| **T-F-02** | Agent 单元测试 | `extensions/agent/tests.rs` | 测试 session 扫描、Agent 关联 | 2 | F1-F3 |
-| **T-F-03** | Session 同步集成测试 | `sync/tests.rs` | 测试 JSONL 解析、增量解析、时序 | 3 | F10-F13 |
-| **T-F-04** | Git 模块单元测试 | `git/tests.rs` | 测试 Hooks 管理、Task 解析 | 2 | F14-F17 |
-| **T-E2E-01** | 端到端测试 | `tests/integration/e2e.rs` | 完整 Dogfooding 场景自动化 | 2 | 全模块 |
+| **T-01** | Block 快照测试 | `extensions/*/tests.rs` | 测试 write 时物理文件同步写入 | 2 | I1 |
+| **T-02** | Relation DAG 测试 | `engine/state_test.rs` | 测试环检测、反向索引 | 2 | I6-I8 |
+| **T-03** | Agent enable/disable 测试 | `extensions/agent/tests.rs` | 测试幂等性、MCP 配置合并、软连接创建 | 3 | F1-F3 |
+| **T-04** | MCP Server 测试 | `mcp/tests.rs` | 测试 execute_command 工具、JSON-RPC 协议 | 2 | F4-F5 |
+| **T-05** | Task Block 测试 | `extensions/task/tests.rs` | 测试 commit/archive 流程、状态转换 | 3 | F16 |
 
 ---
 
@@ -245,122 +382,65 @@
 
 | 里程碑 | 时间节点 | 开发内容 | 验收标准 | 对应任务 |
 | :--- | :--- | :--- | :--- | :--- |
-| **M0: 基础设施-Block 存储** | Week 1 Day 1-3 | Block 物理存储、Event 轻量化 | ✓ 内容存储到 `block-{uuid}/body.*` <br> ✓ Event 只存元数据 <br> ✓ StateProjector 从物理文件加载 | I1-01~I4-02 |
-| **M1: 基础设施-Relation & Dir** | Week 1 Day 4-5 | Relation 增强、Dir Block 改造 | ✓ 支持 `contains` 等新关系类型 <br> ✓ 反向索引可用 <br> ✓ .elf/ 元数据自动创建 | I6-01~I12-02 |
-| **M2: CLI 可用** | Week 2 Day 1-2 | CLI 入口、IPC、直接操作 | ✓ `elfiee --agent {id} core.create` 可执行 <br> ✓ 支持 IPC 和直接操作两种模式 | F4-01~F5-03 |
-| **M3: Agent + Skills** | Week 2 Day 3-4 | Agent 关联、Skills 生成、Symlink | ✓ 可扫描活跃 Claude sessions <br> ✓ Agent Block 创建成功 <br> ✓ SKILLS symlink 正确 | F1-01~F9-01 |
-| **M4: Session 同步** | Week 2 Day 5 ~ Week 3 Day 1 | JSONL 监听、解析、Log 写入 | ✓ Claude 会话自动同步 <br> ✓ 时序正确 <br> ✓ 关系可查询 | F10-01~F13-01 |
-| **M5: Git 集成** | Week 3 Day 2-3 | Hooks 管理、导出+提交、归档 | ✓ Hooks 正确复制和切换 <br> ✓ task.md 驱动 Git 操作 <br> ✓ 归档生成成功 | F14-01~F17-02 |
-| **M6: Dogfooding** | Week 3 Day 4-5 | 产品执行、研发修复 | ✓ 完成 2 个场景 <br> ✓ P0 Bug 修复 | P-DOG-03~04, T-E2E-01 |
-| **M7: 优化与收尾** | Week 4 Day 1-2 | Bug 修复、归因报告 | ✓ P0/P1 Bug 修复 <br> ✓ 归因报告输出 | P-ATTR-02~03 |
+| **M0: 基础设施** | Week 1 Day 1-3 | Block 快照、Relation DAG、.elf/ 初始化 | ✓ write 时同步物理文件 <br> ✓ implement 关系 + 环检测 <br> ✓ .elf/ 自动创建 | I1, I2, I10 |
+| **M1: MCP Server** | Week 1 Day 4-5 | MCP 协议、execute_command、独立 Engine | ✓ `elfiee mcp-server --elf {path}` 可运行 <br> ✓ Claude 可通过 MCP 调用 Elfiee | F4, F5 |
+| **M2: Agent 模块** | Week 2 Day 1-2 | agent.enable/disable、MCP 配置合并 | ✓ 软连接创建成功 <br> ✓ MCP 配置幂等合并 <br> ✓ 重启后 Claude 可连接 | F1, F3 |
+| **M3: Skills + Session** | Week 2 Day 3-5 | elfiee-client 模板、Session JSONL 同步 | ✓ SKILL.md 生效 <br> ✓ 会话自动同步到 .elf/ | F7, F10-F13 |
+| **M4: Task Block** | Week 3 Day 1-2 | task.write/read/commit/archive | ✓ Task Block CRUD <br> ✓ commit 导出关联代码 <br> ✓ archive 生成文档 | F16 |
+| **M5: 前端 + 测试** | Week 3 Day 3-4 | Task 编辑器、Agent UI、核心测试 | ✓ UI 覆盖所有接口 <br> ✓ 核心路径测试通过 | UI-01~06, T-01~05 |
+| **M6: Dogfooding** | Week 3 Day 5 ~ Week 4 | 产品验证、Bug 修复、归因报告 | ✓ 完成 2 个场景 <br> ✓ P0 Bug 修复 <br> ✓ 归因报告输出 | P-DOG, P-ATTR |
 
 ### 7.2 关键依赖关系
 
 ```mermaid
 graph TD
     subgraph 基础设施
-        M0[M0: Block存储+Event优化] --> M1[M1: Relation+DirBlock]
+        M0[M0: 基础设施] --> M1[M1: MCP Server]
     end
 
     subgraph AI集成
-        M1 --> M2[M2: CLI可用]
-        M2 --> M3[M3: Agent+Skills]
-        M3 --> M4[M4: Session同步]
-        M1 --> M5[M5: Git集成]
+        M1 --> M2[M2: Agent模块]
+        M2 --> M3[M3: Skills+Session]
+        M0 --> M4[M4: Task Block]
     end
 
     subgraph 验证
-        M4 --> M6[M6: Dogfooding]
-        M5 --> M6
-        M6 --> M7[M7: 优化收尾]
+        M3 --> M5[M5: 前端+测试]
+        M4 --> M5
+        M5 --> M6[M6: Dogfooding]
     end
 ```
 
-| 依赖关系 | 说明 | 影响范围 |
-| :--- | :--- | :--- |
-| **M0 → M1** | Relation 和 Dir Block 依赖 Block 物理存储 | Week 1 Day 4 |
-| **M1 → M2** | CLI 依赖 .elf 目录结构和 SKILLS 模板 | Week 2 Day 1 |
-| **M2 → M3** | Agent 关联依赖 CLI 和 Symlink 能力 | Week 2 Day 3 |
-| **M3 → M4** | Session 同步依赖 Agent（需要 editor_id） | Week 2 Day 5 |
-| **M1 → M5** | Git 集成依赖 Dir Block 和 Relation | Week 3 Day 2 |
-| **M4, M5 → M6** | Dogfooding 依赖全部核心功能就绪 | Week 3 Day 4 |
+| 依赖关系 | 说明 |
+| :--- | :--- |
+| **M0 → M1** | MCP Server 依赖 Block 快照和 .elf/ 结构 |
+| **M1 → M2** | Agent enable 需要 MCP Server 可运行 |
+| **M2 → M3** | Skills 模板和 Session 同步依赖 Agent 启用 |
+| **M0 → M4** | Task Block 依赖 Relation 系统 |
+| **M3, M4 → M5** | 前端需要后端接口就绪 |
+| **M5 → M6** | Dogfooding 依赖全部功能可用 |
 
 ---
 
-### 7.3 开发节奏时间线
+### 7.3 简化时间线
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                    Phase 2 开发时间线（4 周）                                 │
-├────────────────────────────────────────────────────────────────────────────┤
-│                                                                            │
-│  Week 1（基础设施周）                                                        │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │ Day 1-3: M0 Block 存储 + Event 优化                                    │  │
-│  │   - Block 物理存储层                                                   │  │
-│  │   - code.write / markdown.write 改造                                  │  │
-│  │   - Event 轻量化                                                      │  │
-│  │   - StateProjector 物理文件加载                                        │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│           │                                                                │
-│           v                                                                │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │ Day 4-5: M1 Relation 增强 + Dir Block 改造                             │  │
-│  │   - 关系类型扩展、反向索引                                              │  │
-│  │   - .elf/ 元数据目录自动创建                                           │  │
-│  │   - directory.import/export 改造                                      │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│           │                                                                │
-│           v                                                                │
-│  Week 2（AI 集成周）                                                        │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │ Day 1-2: M2 CLI 可用                                                   │  │
-│  │   - CLI 入口和参数解析                                                 │  │
-│  │   - IPC 通信 / 直接操作模式                                            │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│           │                                                                │
-│           v                                                                │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │ Day 3-4: M3 Agent + Skills                                             │  │
-│  │   - Claude Session 扫描                                               │  │
-│  │   - Agent 关联流程                                                     │  │
-│  │   - SKILLS 合并和 Symlink                                              │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│           │                                                                │
-│           v                                                                │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │ Day 5 ~ Week 3 Day 1: M4 Session 同步                                  │  │
-│  │   - JSONL 监听和解析                                                   │  │
-│  │   - Session Log 写入                                                   │  │
-│  │   - 时序保证和关系关联                                                  │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│           │                                                                │
-│           v                                                                │
-│  Week 3（集成验证周）                                                        │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │ Day 2-3: M5 Git 集成                                                   │  │
-│  │   - Hooks 复制和切换                                                   │  │
-│  │   - 一键导出+提交                                                      │  │
-│  │   - Merge 检测和归档                                                   │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│           │                                                                │
-│           v                                                                │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │ Day 4-5: M6 Dogfooding                                                 │  │
-│  │   - 产品执行 2 个场景                                                   │  │
-│  │   - 研发修复 P0 Bug                                                    │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│           │                                                                │
-│           v                                                                │
-│  Week 4（优化收尾周）                                                        │
-│  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │ Day 1-2: M7 优化与收尾                                                  │  │
-│  │   - Bug 修复                                                          │  │
-│  │   - 归因报告输出                                                       │  │
-│  │   - Phase 3 建议整理                                                   │  │
-│  └──────────────────────────────────────────────────────────────────────┘  │
-│                                                                            │
-└────────────────────────────────────────────────────────────────────────────┘
+Week 1: 基础设施 + MCP Server
+├── Day 1-3: M0 基础设施（Block 快照、Relation、.elf/）
+└── Day 4-5: M1 MCP Server（协议、execute_command）
+
+Week 2: Agent + Session + Task
+├── Day 1-2: M2 Agent 模块（enable/disable、MCP 配置）
+├── Day 3-5: M3 Skills + Session（模板、JSONL 同步）
+└── Day 1-2: M4 Task Block（write/read/commit/archive）
+
+Week 3: 前端 + 测试 + Dogfooding
+├── Day 1-2: M4 Task Block 完成
+├── Day 3-4: M5 前端 + 测试
+└── Day 5+:  M6 Dogfooding 开始
+
+Week 4: Dogfooding + 收尾
+└── Dogfooding 验证、Bug 修复、归因报告
 ```
 
 ---
@@ -369,59 +449,41 @@ graph TD
 
 ### 8.1 风险评估
 
-| 风险类型 | 风险等级 | 描述 | 影响模块 |
-| :--- | :--- | :--- | :--- |
-| **Block 存储迁移** | 高 | 现有实现需要较大改动，可能影响已有功能 | I1-I4, 全模块 |
-| **CLI IPC 通信** | 中 | 跨平台 IPC 实现复杂 | F4-F5 |
-| **Session 同步稳定性** | 中 | 文件监听、增量解析、时序保证 | F10-F13 |
-| **Claude 格式变化** | 低 | session 文件格式可能变化 | F2, F11 |
+| 风险类型 | 风险等级 | 描述 |
+| :--- | :--- | :--- |
+| **MCP 协议兼容性** | 中 | Claude MCP 规范可能变化 |
+| **Session 同步稳定性** | 中 | 文件监听、增量解析 |
+| **Git 操作权限** | 低 | 外部项目可能有特殊 hooks |
 
 ### 8.2 风险预留策略
 
-**总预算**: 330 人时
-**风险预留**: 35 人时（约 11% 缓冲）
+**总预算**: 188 人时
+**风险预留**: 20 人时（约 10% 缓冲）
 
 | 风险类型 | 预留时间 | 应对策略 |
 | :--- | :--- | :--- |
-| **Block 存储迁移问题** | 12 人时 | 分阶段迁移，保持向后兼容 |
-| **CLI IPC 调试** | 8 人时 | 优先实现直接操作模式，IPC 延后 |
-| **Session 同步问题** | 8 人时 | 降级为手动同步 |
-| **其他意外** | 7 人时 | 灵活调配 |
+| **MCP 协议问题** | 8 人时 | 参考官方 SDK，保持协议简单 |
+| **Session 同步问题** | 6 人时 | 降级为手动触发同步 |
+| **其他意外** | 6 人时 | 灵活调配 |
 
 ### 8.3 降级策略
 
 | 功能 | 正常实现 | 降级方案 |
 | :--- | :--- | :--- |
-| **CLI 通信** | IPC + 直接操作 | 仅直接操作模式 |
 | **Session 同步** | 自动监听 | 手动触发同步 |
-| **Git Merge 检测** | 自动检测 | 手动触发归档 |
-| **反向索引** | 实时更新 | 定期重建 |
+| **task.commit** | 自动导出+提交 | 手动 export + 外部 git |
+| **反向索引** | 实时更新 | 查询时遍历 |
 
 ---
 
 ## 九、人时汇总
 
-| 模块 | 后端 | 前端 | 测试 | 产品 | 小计 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **基础设施** | 80 | 8 | 8 | - | 96 |
-| **AI 集成** | 130 | 22 | 12 | - | 164 |
-| **产品研究** | - | - | - | 55 | 55 |
-| **缓冲预留** | - | - | - | - | 35 |
-| **总计** | 210 | 30 | 20 | 55 | **330** |
-
----
-
-## 十、与 target-and-story_v2.md 模块对照
-
-| 分类 | target-and-story_v2 编号 | task-and-cost_v3 任务编号 |
+| 模块 | 人时 | 说明 |
 | :--- | :--- | :--- |
-| **Block 存储** | I1, I2, I3 | I1-01~I3-02 |
-| **Event 优化** | I4, I5 | I4-01~I5-01 |
-| **Relation 增强** | I6, I7, I8 | I6-01~I8-01 |
-| **Dir Block 改造** | I9, I10, I11, I12 | I10-01~I12-02 |
-| **Agent 模块** | F1, F2, F3 | F1-01~F3-02 |
-| **CLI 模块** | F4, F5, F6 | F4-01~F6-01 |
-| **Skills 模块** | F7, F8, F9 | F7-01~F9-01 |
-| **Session 同步** | F10, F11, F12, F13 | F10-01~F13-01 |
-| **Git 集成** | F14, F15, F16, F17 | F14-01~F17-02 |
-| **产品研究** | R1, R2, R3 | P-DOG-*, P-METRIC-*, P-ATTR-* |
+| **基础设施** | 24 | Block 快照 + Relation + .elf/ |
+| **AI 集成** | 63 | Agent (15) + MCP (14) + Skills (5) + Session (14) + Task (15) |
+| **前端开发** | 16 | Task UI + Agent UI + 基础 UI |
+| **测试** | 12 | 核心路径测试 |
+| **产品研究** | 55 | Dogfooding + 指标 + 归因 |
+| **缓冲预留** | 20 | 风险应对 |
+| **总计** | **190** | **约 2.5-3 周** |
