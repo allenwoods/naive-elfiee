@@ -1,0 +1,62 @@
+{
+  "lspServers": {
+    "rust": {
+      "command": "rust-analyzer",
+      "args": [],
+      "extensionToLanguage": {
+        ".rs": "rust"
+      },
+      "settings": {
+        "rust-analyzer": {
+          "checkOnSave": {
+            "command": "clippy"
+          },
+          "cargo": {
+            "allFeatures": true
+          },
+          "procMacro": {
+            "enable": true
+          }
+        }
+      },
+      "transport": "stdio",
+      "workspaceFolder": "${CLAUDE_PROJECT_DIR}/src-tauri",
+      "restartOnCrash": true,
+      "startupTimeout": 60000
+    },
+    "javascript": {
+      "command": "typescript-language-server",
+      "args": ["--stdio"],
+      "extensionToLanguage": {
+        ".js": "javascript",
+        ".jsx": "javascriptreact",
+        ".ts": "typescript",
+        ".tsx": "typescriptreact"
+      },
+      "settings": {
+        "typescript": {
+          "format": {
+            "indentSize": 2,
+            "tabSize": 2
+          },
+          "preferences": {
+            "includePackageJsonAutoImports": "on"
+          }
+        },
+        "javascript": {
+          "format": {
+            "indentSize": 2,
+            "tabSize": 2
+          },
+          "suggest": {
+            "autoImports": true
+          }
+        }
+      },
+      "transport": "stdio",
+      "workspaceFolder": "${CLAUDE_PROJECT_DIR}",
+      "restartOnCrash": true,
+      "startupTimeout": 30000
+    }
+  }
+}

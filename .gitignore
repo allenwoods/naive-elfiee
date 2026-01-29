@@ -157,7 +157,6 @@ lerna-debug.log*
 .idea/
 
 # Local documentation / workspace artifacts
-.claude/
 elfiee-ext-gen/docs/
 docs/analyze/
 temp/
