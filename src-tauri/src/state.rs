@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Information about an open file
+#[derive(Clone)]
 pub struct FileInfo {
     pub archive: Arc<ElfArchive>,
     pub path: PathBuf,
@@ -14,6 +15,7 @@ pub struct FileInfo {
 ///
 /// This state manages multiple open .elf files and their corresponding engine actors.
 /// Each file has a unique file_id and is managed independently.
+#[derive(Clone)]
 pub struct AppState {
     /// Engine manager for processing commands on .elf files
     pub engine_manager: EngineManager,

@@ -1,16 +1,17 @@
 pub mod capabilities;
-pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod elf;
 pub mod engine;
 pub mod extensions;
-pub mod ipc;
+pub mod mcp;
 pub mod models;
 pub mod state;
 pub mod utils;
 
 use state::AppState;
+use std::sync::Arc;
+use tauri::Manager;
 
 #[cfg(debug_assertions)]
 use specta_typescript::{BigIntExportBehavior, Typescript};
@@ -23,14 +24,15 @@ pub fn run() {
         .manage(AppState::new())
         .manage(extensions::terminal::TerminalState::new())
         .setup(|app| {
-            // Start IPC Server in background with AppHandle
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                let port = ipc::server::DEFAULT_PORT;
-                println!("Starting IPC Server on port {}...", port);
+            // Start MCP Server (independent port, background task)
+            let app_state: tauri::State<AppState> = app.state();
+            let mcp_state = Arc::new((*app_state).clone());
 
-                if let Err(e) = ipc::server::start_with_handle(app_handle, port).await {
-                    eprintln!("IPC Server error: {}", e);
+            tauri::async_runtime::spawn(async move {
+                let port = mcp::MCP_PORT;
+                if let Err(e) = mcp::start_mcp_server(mcp_state, port).await {
+                    eprintln!("MCP Server error: {}", e);
+                    // MCP startup failure does not block GUI
                 }
             });
 

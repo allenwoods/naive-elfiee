@@ -43,8 +43,13 @@ portable-pty = "0.8"
 base64 = "0.21"
 log = "0.4"
 dirs = "5.0"
-axum = "0.7"
-tower-http = { version = "0.5", features = ["cors"] }
+axum = "0.8"
+
+# MCP (Model Context Protocol)
+rmcp = { version = "0.5", features = ["server", "transport-sse-server"] }
+schemars = "1"
+async-trait = "0.1"
+tokio-util = "0.7"
 
 # GUI binary (Tauri app)
 [[bin]]

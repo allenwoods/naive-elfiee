@@ -1,5 +1,9 @@
 {
   "mcpServers": {
+    "elfiee": {
+      "type": "sse",
+      "url": "http://127.0.0.1:47200/sse"
+    },
     "shadcn": {
       "command": "npx",
       "args": [

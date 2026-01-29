@@ -161,3 +161,6 @@ elfiee-ext-gen/docs/
 docs/analyze/
 temp/
 **/temp/
+
+# Claude Code local settings (user-specific, not to be committed)
+.claude/settings.local.json
