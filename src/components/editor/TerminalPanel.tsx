@@ -30,7 +30,7 @@ export function TerminalPanel({ fileId, onClose }: TerminalPanelProps) {
   const [blockId, setBlockId] = useState<string | null>(null)
   const [isInitializing, setIsInitializing] = useState(true)
   const [editorId, setEditorId] = useState<string | null>(null)
-  const saveIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const saveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isPtyInitialized = useRef<boolean>(false)
   const isBlockCreated = useRef<boolean>(false)
 

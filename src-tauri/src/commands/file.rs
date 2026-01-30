@@ -127,6 +127,9 @@ pub async fn create_file(path: String, state: State<'_, AppState>) -> Result<Str
     // Bootstrap editors (create system editor if none exist)
     bootstrap_editors(&file_id, &state).await?;
 
+    // Bootstrap .elf/ system Dir Block (directory skeleton for Agents, Session, git hooks)
+    crate::extensions::directory::elf_meta::bootstrap_elf_meta(&file_id, &state).await?;
+
     Ok(file_id)
 }
 
