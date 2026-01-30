@@ -173,7 +173,7 @@ impl ElfileEngineActor {
                             &block.name,
                             &block.contents,
                         ) {
-                            eprintln!("Snapshot error for {}: {}", event.entity, e);
+                            log::warn!("Snapshot error for {}: {}", event.entity, e);
                         }
                     }
                 }
@@ -187,7 +187,7 @@ impl ElfileEngineActor {
                             &block.name,
                             &block.contents,
                         ) {
-                            eprintln!("Snapshot error for directory {}: {}", event.entity, e);
+                            log::warn!("Snapshot error for directory {}: {}", event.entity, e);
                         }
                     }
                 }
@@ -201,7 +201,7 @@ impl ElfileEngineActor {
                             &block.name,
                             &block.contents,
                         ) {
-                            eprintln!("Snapshot error for new block {}: {}", event.entity, e);
+                            log::warn!("Snapshot error for new block {}: {}", event.entity, e);
                         }
                     }
                 }
@@ -474,8 +474,8 @@ impl ElfileEngineActor {
         // For MVP, we just log if there's a potential conflict but don't reject
         // In production, this would trigger merge/resolution logic
         if self.state.has_conflict(&cmd.editor_id, current_count) {
-            eprintln!(
-                "Warning: Potential conflict detected for editor {} (expected: {}, current: {})",
+            log::warn!(
+                "Potential conflict detected for editor {} (expected: {}, current: {})",
                 cmd.editor_id,
                 current_count,
                 self.state.get_editor_count(&cmd.editor_id)

@@ -250,7 +250,7 @@ pub async fn init_pty_session(
                 }
                 Err(e) => {
                     // Log error but continue (may be temporary)
-                    eprintln!("PTY read error for {}: {}", block_id_clone, e);
+                    log::warn!("PTY read error for {}: {}", block_id_clone, e);
                     // Small delay to prevent busy loop on persistent errors
                     thread::sleep(std::time::Duration::from_millis(10));
                 }

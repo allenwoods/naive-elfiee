@@ -8,6 +8,14 @@ use crate::state::AppState;
 use crate::utils::time::now_utc;
 use serde_json::json;
 
+/// `.elf/` Dir Block 的名称。
+///
+/// 系统初始化时创建的唯一系统级 Dir Block，用于存放 Agent 配置、Session 等元数据。
+pub const ELF_META_BLOCK_NAME: &str = ".elf";
+
+/// `.elf/` Dir Block 的描述。
+pub const ELF_META_DESCRIPTION: &str = "Elfiee system metadata directory";
+
 /// `.elf/` 目录骨架中的虚拟目录路径列表。
 ///
 /// 每个路径会生成一个 `type: "directory"` 的 entry。
@@ -72,11 +80,11 @@ pub async fn bootstrap_elf_meta(file_id: &str, state: &AppState) -> Result<(), S
         "core.create".to_string(),
         "".to_string(), // core.create 不需要已有 block_id
         json!({
-            "name": ".elf",
+            "name": ELF_META_BLOCK_NAME,
             "block_type": "directory",
             "source": "outline",
             "metadata": {
-                "description": "Elfiee system metadata directory"
+                "description": ELF_META_DESCRIPTION
             }
         }),
     );
