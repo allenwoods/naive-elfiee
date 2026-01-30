@@ -182,7 +182,7 @@ mod tests {
             "core.link".to_string(),
             block.block_id.clone(),
             serde_json::json!({
-                "relation": "references",
+                "relation": "implement",
                 "target_id": "block2"
             }),
         );
@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn test_unlink_capability_execution() {
-        use crate::models::{Block, Command};
+        use crate::models::{Block, Command, RELATION_IMPLEMENT};
         use std::collections::HashMap;
 
         let registry = CapabilityRegistry::new();
@@ -272,7 +272,7 @@ mod tests {
         );
         let mut children = HashMap::new();
         children.insert(
-            "references".to_string(),
+            RELATION_IMPLEMENT.to_string(),
             vec!["block2".to_string(), "block3".to_string()],
         );
         block.children = children;
@@ -282,7 +282,7 @@ mod tests {
             "core.unlink".to_string(),
             block.block_id.clone(),
             serde_json::json!({
-                "relation": "references",
+                "relation": RELATION_IMPLEMENT,
                 "target_id": "block2"
             }),
         );
@@ -296,8 +296,8 @@ mod tests {
         let value_obj = events[0].value.as_object().unwrap();
         let new_children: HashMap<String, Vec<String>> =
             serde_json::from_value(value_obj.get("children").unwrap().clone()).unwrap();
-        assert_eq!(new_children.get("references").unwrap().len(), 1);
-        assert_eq!(new_children.get("references").unwrap()[0], "block3");
+        assert_eq!(new_children.get(RELATION_IMPLEMENT).unwrap().len(), 1);
+        assert_eq!(new_children.get(RELATION_IMPLEMENT).unwrap()[0], "block3");
     }
 
     #[test]
@@ -349,7 +349,7 @@ mod tests {
             "core.link".to_string(),
             block.block_id.clone(),
             serde_json::json!({
-                "relation": "references",
+                "relation": "implement",
                 "target_id": "block2"
             }),
         );
@@ -388,7 +388,7 @@ mod tests {
             "core.link".to_string(),
             block.block_id.clone(),
             serde_json::json!({
-                "relation": "references",
+                "relation": "implement",
                 "target_id": "block2"
             }),
         );
@@ -431,7 +431,7 @@ mod tests {
             "core.link".to_string(),
             block.block_id.clone(),
             serde_json::json!({
-                "relation": "references",
+                "relation": "implement",
                 "target_id": "block2"
             }),
         );
@@ -484,7 +484,7 @@ mod tests {
             "core.link".to_string(),
             block1.block_id.clone(),
             serde_json::json!({
-                "relation": "references",
+                "relation": "implement",
                 "target_id": "other_block"
             }),
         );
@@ -495,7 +495,7 @@ mod tests {
             "core.link".to_string(),
             block2.block_id.clone(),
             serde_json::json!({
-                "relation": "references",
+                "relation": "implement",
                 "target_id": "other_block"
             }),
         );

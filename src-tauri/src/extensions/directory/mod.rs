@@ -29,6 +29,8 @@ pub use directory_rename::*;
 pub mod directory_rename_with_type_change;
 pub use directory_rename_with_type_change::*;
 
+pub mod elf_meta;
+
 // ============================================================================
 // Payload Definitions
 // ============================================================================
