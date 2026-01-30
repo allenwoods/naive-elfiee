@@ -900,6 +900,31 @@ export const commands = {
       else return { status: 'error', error: e as any }
     }
   },
+  /**
+   * Reload events from the EventStore for a specific file.
+   *
+   * When an external MCP server (standalone mode) writes events to the same
+   * .elf file's EventStore, the GUI's in-memory StateProjector becomes stale.
+   * This command reloads all events and rebuilds the StateProjector.
+   *
+   * # Arguments
+   * * `file_id` - The file ID (path) to reload events for
+   *
+   * # Returns
+   * * `Ok(event_count)` - Number of events after reload
+   * * `Err(String)` - Error message if reload failed
+   */
+  async reloadEvents(fileId: string): Promise<Result<number, string>> {
+    try {
+      return {
+        status: 'ok',
+        data: await TAURI_INVOKE('reload_events', { fileId }),
+      }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e as any }
+    }
+  },
 }
 
 /** user-defined events **/

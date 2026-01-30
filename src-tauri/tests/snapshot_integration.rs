@@ -25,7 +25,9 @@ async fn setup_engine() -> (
 
     let archive = ElfArchive::open(&elf_path).unwrap();
     let event_pool = archive.event_pool().await.unwrap();
-    let handle = spawn_engine("test".to_string(), event_pool).await.unwrap();
+    let handle = spawn_engine("test".to_string(), event_pool, None)
+        .await
+        .unwrap();
 
     // 创建 system editor
     let cmd = Command::new(

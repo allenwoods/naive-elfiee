@@ -1,11 +1,12 @@
 use crate::capabilities::registry::CapabilityRegistry;
 use crate::engine::event_store::{EventPoolWithPath, EventStore};
 use crate::engine::state::StateProjector;
+use crate::mcp::notifications::StateChangeEvent;
 use crate::models::{Block, Command, Editor, Event, LinkBlockPayload, RELATION_IMPLEMENT};
 use crate::utils::write_block_snapshot;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 /// Prefix for block-specific directories
 const BLOCK_DIR_PREFIX: &str = "block-";
@@ -94,6 +95,10 @@ pub enum EngineMessage {
     GetAllEvents {
         response: oneshot::Sender<Result<Vec<Event>, String>>,
     },
+    /// Reload state from EventStore (re-read all events, rebuild StateProjector)
+    ReloadState {
+        response: oneshot::Sender<Result<usize, String>>,
+    },
     /// Shutdown the actor
     Shutdown,
 }
@@ -104,7 +109,6 @@ pub enum EngineMessage {
 /// for that file. This prevents race conditions and maintains consistency.
 pub struct ElfileEngineActor {
     /// Unique identifier for this file
-    #[allow(dead_code)]
     file_id: String,
 
     /// Event pool with database path for temp_dir derivation
@@ -118,6 +122,11 @@ pub struct ElfileEngineActor {
 
     /// Mailbox for receiving messages
     mailbox: mpsc::UnboundedReceiver<EngineMessage>,
+
+    /// Optional broadcast sender for state change notifications.
+    /// When set, the actor broadcasts committed events so MCP dispatchers
+    /// can notify connected peers about resource changes.
+    state_change_tx: Option<broadcast::Sender<StateChangeEvent>>,
 }
 
 impl ElfileEngineActor {
@@ -256,10 +265,17 @@ impl ElfileEngineActor {
     ///
     /// This initializes the actor by replaying all events from the database
     /// to rebuild the current state.
+    ///
+    /// # Arguments
+    /// * `file_id` - Unique identifier for this file
+    /// * `event_pool_with_path` - Event pool with database path
+    /// * `mailbox` - Channel receiver for incoming messages
+    /// * `state_change_tx` - Optional broadcast sender for state change notifications
     pub async fn new(
         file_id: String,
         event_pool_with_path: EventPoolWithPath,
         mailbox: mpsc::UnboundedReceiver<EngineMessage>,
+        state_change_tx: Option<broadcast::Sender<StateChangeEvent>>,
     ) -> Result<Self, String> {
         let registry = CapabilityRegistry::new();
         let mut state = StateProjector::new();
@@ -276,6 +292,7 @@ impl ElfileEngineActor {
             state,
             registry,
             mailbox,
+            state_change_tx,
         })
     }
 
@@ -358,6 +375,10 @@ impl ElfileEngineActor {
                 } => {
                     let authorized = self.state.is_authorized(&editor_id, &cap_id, &block_id);
                     let _ = response.send(authorized);
+                }
+                EngineMessage::ReloadState { response } => {
+                    let result = self.reload_state_from_db().await;
+                    let _ = response.send(result);
                 }
                 EngineMessage::Shutdown => {
                     break;
@@ -508,8 +529,38 @@ impl ElfileEngineActor {
         // Errors are logged but do not fail the command.
         self.write_snapshots(&events);
 
+        // 11. Broadcast state change notification for MCP dispatchers.
+        // Uses the persisted events (without runtime fields like _block_dir).
+        if let Some(ref tx) = self.state_change_tx {
+            let _ = tx.send(StateChangeEvent {
+                file_id: self.file_id.clone(),
+                events: events_to_persist,
+            });
+        }
+
         // Return original events (with _block_dir) for caller
         Ok(events)
+    }
+
+    /// Reload state from the EventStore.
+    ///
+    /// Re-reads all events from SQLite and rebuilds the StateProjector.
+    /// This is used when an external process (e.g., standalone MCP server)
+    /// has written new events to the same database.
+    ///
+    /// Returns the total number of events after reload.
+    async fn reload_state_from_db(&mut self) -> Result<usize, String> {
+        let events = EventStore::get_all_events(&self.event_pool_with_path.pool)
+            .await
+            .map_err(|e| format!("Failed to reload events from database: {}", e))?;
+
+        let event_count = events.len();
+
+        // Rebuild state from scratch
+        self.state = StateProjector::new();
+        self.state.replay(events);
+
+        Ok(event_count)
     }
 }
 
@@ -672,6 +723,22 @@ impl EngineHandle {
             .map_err(|_| "Engine actor did not respond".to_string())?
     }
 
+    /// Reload state from the EventStore.
+    ///
+    /// Re-reads all events from SQLite and rebuilds the StateProjector.
+    /// Use this when an external process has written new events to the database.
+    ///
+    /// Returns the total number of events after reload.
+    pub async fn reload_state(&self) -> Result<usize, String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(EngineMessage::ReloadState { response: tx })
+            .map_err(|_| "Engine actor has shut down".to_string())?;
+
+        rx.await
+            .map_err(|_| "Engine actor did not respond".to_string())?
+    }
+
     /// Shutdown the engine actor.
     pub async fn shutdown(&self) {
         let _ = self.sender.send(EngineMessage::Shutdown);
@@ -681,13 +748,21 @@ impl EngineHandle {
 /// Spawn a new engine actor for a file.
 ///
 /// Returns a handle for interacting with the actor.
+///
+/// # Arguments
+/// * `file_id` - Unique identifier for the file
+/// * `event_pool_with_path` - Event pool with database path
+/// * `state_change_tx` - Optional broadcast sender for state change notifications.
+///   Pass `Some(tx)` to enable MCP notifications, `None` for tests or standalone use.
 pub async fn spawn_engine(
     file_id: String,
     event_pool_with_path: EventPoolWithPath,
+    state_change_tx: Option<broadcast::Sender<StateChangeEvent>>,
 ) -> Result<EngineHandle, String> {
     let (tx, rx) = mpsc::unbounded_channel();
 
-    let actor = ElfileEngineActor::new(file_id.clone(), event_pool_with_path, rx).await?;
+    let actor =
+        ElfileEngineActor::new(file_id.clone(), event_pool_with_path, rx, state_change_tx).await?;
 
     // Spawn the actor on tokio runtime
     tokio::spawn(async move {
@@ -704,7 +779,7 @@ mod tests {
     #[tokio::test]
     async fn test_engine_actor_creation() {
         let event_pool = EventStore::create(":memory:").await.unwrap();
-        let handle = spawn_engine("test_file".to_string(), event_pool)
+        let handle = spawn_engine("test_file".to_string(), event_pool, None)
             .await
             .expect("Failed to spawn engine");
 
@@ -718,7 +793,7 @@ mod tests {
     #[tokio::test]
     async fn test_engine_create_block() {
         let event_pool = EventStore::create(":memory:").await.unwrap();
-        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone(), None)
             .await
             .expect("Failed to spawn engine");
 
@@ -751,7 +826,7 @@ mod tests {
     #[tokio::test]
     async fn test_engine_authorization_owner() {
         let event_pool = EventStore::create(":memory:").await.unwrap();
-        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone(), None)
             .await
             .expect("Failed to spawn engine");
 
@@ -792,7 +867,7 @@ mod tests {
     #[tokio::test]
     async fn test_engine_authorization_non_owner_rejected() {
         let event_pool = EventStore::create(":memory:").await.unwrap();
-        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone(), None)
             .await
             .expect("Failed to spawn engine");
 
@@ -834,7 +909,7 @@ mod tests {
     #[tokio::test]
     async fn test_engine_authorization_with_grant() {
         let event_pool = EventStore::create(":memory:").await.unwrap();
-        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone(), None)
             .await
             .expect("Failed to spawn engine");
 
@@ -892,7 +967,7 @@ mod tests {
     #[tokio::test]
     async fn test_engine_vector_clock_updates() {
         let event_pool = EventStore::create(":memory:").await.unwrap();
-        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone(), None)
             .await
             .expect("Failed to spawn engine");
 
@@ -938,7 +1013,7 @@ mod tests {
     #[tokio::test]
     async fn test_engine_get_block() {
         let event_pool = EventStore::create(":memory:").await.unwrap();
-        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone(), None)
             .await
             .expect("Failed to spawn engine");
 
@@ -979,7 +1054,7 @@ mod tests {
         let db_path = temp_dir.path().join("events.db");
         let event_pool = EventStore::create(db_path.to_str().unwrap()).await.unwrap();
 
-        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone(), None)
             .await
             .expect("Failed to spawn engine");
 
@@ -1020,7 +1095,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_block_with_metadata() {
         let event_pool = EventStore::create(":memory:").await.unwrap();
-        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone(), None)
             .await
             .expect("Failed to spawn engine");
 
@@ -1061,7 +1136,7 @@ mod tests {
     #[tokio::test]
     async fn test_write_updates_timestamp() {
         let event_pool = EventStore::create(":memory:").await.unwrap();
-        let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+        let handle = spawn_engine("test_file".to_string(), event_pool.clone(), None)
             .await
             .expect("Failed to spawn engine");
 
@@ -1118,7 +1193,7 @@ mod tests {
 
         // 创建第一个 handle，执行操作
         {
-            let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+            let handle = spawn_engine("test_file".to_string(), event_pool.clone(), None)
                 .await
                 .unwrap();
 
@@ -1141,7 +1216,7 @@ mod tests {
 
         // 创建第二个 handle，重放事件
         {
-            let handle = spawn_engine("test_file".to_string(), event_pool.clone())
+            let handle = spawn_engine("test_file".to_string(), event_pool.clone(), None)
                 .await
                 .unwrap();
 

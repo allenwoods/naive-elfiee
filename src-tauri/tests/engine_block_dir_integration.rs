@@ -29,7 +29,7 @@ async fn test_end_to_end_block_dir_persistence() {
     let event_pool_with_path = archive.event_pool().await.unwrap();
 
     let file_id = "test-file".to_string();
-    let handle = spawn_engine(file_id.clone(), event_pool_with_path.clone())
+    let handle = spawn_engine(file_id.clone(), event_pool_with_path.clone(), None)
         .await
         .unwrap();
 
@@ -113,7 +113,9 @@ async fn test_end_to_end_block_dir_persistence() {
     let reopened_archive = ElfArchive::open(elf_path).unwrap();
     let reopened_pool = reopened_archive.event_pool().await.unwrap();
 
-    let reopened_handle = spawn_engine(file_id.clone(), reopened_pool).await.unwrap();
+    let reopened_handle = spawn_engine(file_id.clone(), reopened_pool, None)
+        .await
+        .unwrap();
 
     println!("✓ Reopened elf and started new engine");
 
@@ -181,7 +183,7 @@ async fn test_multiple_blocks_with_files() {
 
     let archive = ElfArchive::open(elf_path).unwrap();
     let event_pool_with_path = archive.event_pool().await.unwrap();
-    let handle = spawn_engine("test-file".to_string(), event_pool_with_path)
+    let handle = spawn_engine("test-file".to_string(), event_pool_with_path, None)
         .await
         .unwrap();
 

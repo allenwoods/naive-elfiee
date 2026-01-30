@@ -1,6 +1,8 @@
 use crate::engine::{spawn_engine, EngineHandle, EventPoolWithPath};
+use crate::mcp::notifications::StateChangeEvent;
 use dashmap::DashMap;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 
 /// Manages multiple engine instances (one per .elf file).
 ///
@@ -29,6 +31,7 @@ impl EngineManager {
     /// # Arguments
     /// * `file_id` - Unique identifier for the .elf file
     /// * `event_pool_with_path` - Event pool with database path for this file's event store
+    /// * `state_change_tx` - Optional broadcast sender for state change notifications
     ///
     /// # Returns
     /// A handle to communicate with the spawned engine actor.
@@ -36,6 +39,7 @@ impl EngineManager {
         &self,
         file_id: String,
         event_pool_with_path: EventPoolWithPath,
+        state_change_tx: Option<broadcast::Sender<StateChangeEvent>>,
     ) -> Result<EngineHandle, String> {
         // Check if engine already exists
         if self.engines.contains_key(&file_id) {
@@ -43,7 +47,7 @@ impl EngineManager {
         }
 
         // Spawn new engine (registry is created inside the actor)
-        let handle = spawn_engine(file_id.clone(), event_pool_with_path).await?;
+        let handle = spawn_engine(file_id.clone(), event_pool_with_path, state_change_tx).await?;
 
         // Store handle
         self.engines.insert(file_id.clone(), handle.clone());
@@ -147,7 +151,9 @@ mod tests {
         let manager = EngineManager::new();
         let pool = create_test_pool().await;
 
-        let result = manager.spawn_engine("test.elf".to_string(), pool).await;
+        let result = manager
+            .spawn_engine("test.elf".to_string(), pool, None)
+            .await;
 
         assert!(result.is_ok());
         assert_eq!(manager.count(), 1);
@@ -162,12 +168,14 @@ mod tests {
 
         // First spawn succeeds
         manager
-            .spawn_engine("test.elf".to_string(), pool1)
+            .spawn_engine("test.elf".to_string(), pool1, None)
             .await
             .expect("First spawn should succeed");
 
         // Second spawn fails
-        let result = manager.spawn_engine("test.elf".to_string(), pool2).await;
+        let result = manager
+            .spawn_engine("test.elf".to_string(), pool2, None)
+            .await;
 
         assert!(result.is_err());
         assert!(result
@@ -186,7 +194,7 @@ mod tests {
 
         // Spawn engine
         manager
-            .spawn_engine("test.elf".to_string(), pool)
+            .spawn_engine("test.elf".to_string(), pool, None)
             .await
             .expect("Failed to spawn engine");
 
@@ -218,7 +226,7 @@ mod tests {
         let pool = create_test_pool().await;
 
         manager
-            .spawn_engine("test.elf".to_string(), pool)
+            .spawn_engine("test.elf".to_string(), pool, None)
             .await
             .expect("Failed to spawn engine");
 
@@ -252,7 +260,7 @@ mod tests {
             let file_id = format!("test{}.elf", i);
 
             manager
-                .spawn_engine(file_id, pool)
+                .spawn_engine(file_id, pool, None)
                 .await
                 .expect("Failed to spawn engine");
         }
@@ -303,7 +311,7 @@ mod tests {
             let file_id = format!("test{}.elf", i);
 
             manager
-                .spawn_engine(file_id, pool)
+                .spawn_engine(file_id, pool, None)
                 .await
                 .expect("Failed to spawn engine");
         }

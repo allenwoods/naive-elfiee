@@ -288,7 +288,7 @@ async fn setup_terminal_test_env() -> (Arc<AppState>, ElfArchive, String, String
     let state = Arc::new(AppState::default());
     state
         .engine_manager
-        .spawn_engine(file_id.clone(), event_pool)
+        .spawn_engine(file_id.clone(), event_pool, None)
         .await
         .unwrap();
 

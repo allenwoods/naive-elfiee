@@ -176,7 +176,7 @@ mod tests {
         let event_pool = archive.event_pool().await.unwrap();
         let engine_manager = crate::engine::EngineManager::new();
         engine_manager
-            .spawn_engine(file_id.clone(), event_pool)
+            .spawn_engine(file_id.clone(), event_pool, None)
             .await
             .unwrap();
 

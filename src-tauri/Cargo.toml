@@ -46,7 +46,7 @@ dirs = "5.0"
 axum = "0.8"
 
 # MCP (Model Context Protocol)
-rmcp = { version = "0.5", features = ["server", "transport-sse-server"] }
+rmcp = { version = "0.5", features = ["server", "transport-sse-server", "transport-io"] }
 schemars = "1"
 async-trait = "0.1"
 tokio-util = "0.7"

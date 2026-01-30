@@ -1,6 +1,7 @@
 mod actor;
 mod event_store;
 mod manager;
+pub mod standalone;
 mod state;
 
 pub use actor::{spawn_engine, EngineHandle, EngineMessage};
