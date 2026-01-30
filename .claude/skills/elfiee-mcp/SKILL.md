@@ -1,13 +1,35 @@
 ---
 name: elfiee-mcp
-description: "Guide for using Elfiee MCP tools to interact with .elf files. Use when Claude needs to read, write, or manage blocks inside .elf projects via MCP tools (elfiee_file_list, elfiee_block_*, elfiee_markdown_*, elfiee_code_*, elfiee_directory_*, elfiee_terminal_*, elfiee_grant/revoke, elfiee_editor_*, elfiee_exec). Triggers: working with .elf files, managing blocks, reading/writing markdown or code in blocks, directory operations inside .elf, terminal sessions, permission management."
+description: "Guide for using Elfiee MCP tools to interact with .elf files. Use when Claude needs to read, write, or manage blocks inside .elf projects via MCP tools (elfiee_file_list, elfiee_block_*, elfiee_markdown_*, elfiee_code_*, elfiee_directory_*, elfiee_terminal_*, elfiee_grant/revoke, elfiee_editor_*, elfiee_exec) or MCP resources (elfiee://files, elfiee://{project}/blocks, elfiee://{project}/block/{id}, elfiee://{project}/grants, elfiee://{project}/events). Triggers: working with .elf files, managing blocks, reading/writing markdown or code in blocks, directory operations inside .elf, terminal sessions, permission management."
 ---
 
 # Elfiee MCP Tools
 
-Elfiee exposes MCP tools (SSE on port 47200) for interacting with `.elf` files. Elfiee GUI **must be running** with files open.
+Elfiee exposes MCP tools and resources for interacting with `.elf` files. Two connection modes:
+
+| Mode | Transport | When to use |
+|------|-----------|-------------|
+| **GUI mode** | SSE on port 47200 | Elfiee GUI is running with files open |
+| **Standalone mode** | stdio (JSON-RPC) | No GUI needed; Claude Code launches `elfiee mcp-server --elf <path>` |
 
 **CRITICAL**: NEVER use filesystem commands (`cat`, `ls`, `rm`, etc.) on `.elf` contents. Always use MCP tools.
+
+## Standalone Mode
+
+Run `elfiee mcp-server --elf /path/to/project.elf` as a subprocess. Configure in `.claude/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "elfiee": {
+      "command": "elfiee",
+      "args": ["mcp-server", "--elf", "/path/to/project.elf"]
+    }
+  }
+}
+```
+
+Standalone mode auto-creates an `mcp-agent` editor with full permissions. Uses SQLite WAL mode for concurrent access.
 
 ## Quick Start
 
@@ -135,6 +157,27 @@ Use `elfiee_exec` for capabilities not covered by dedicated tools.
 4. elfiee_terminal_execute(project, block_id, command="cargo build")
 5. elfiee_terminal_close(project, block_id)
 ```
+
+## MCP Resources
+
+Read-only data accessible via `ReadMcpResourceTool` (server: `elfiee`). Use resources for quick state inspection without calling tools.
+
+### Static Resources
+
+| URI | Description |
+|-----|-------------|
+| `elfiee://files` | List of currently open .elf project files |
+
+### Dynamic Resources (per project)
+
+| URI Pattern | Description |
+|-------------|-------------|
+| `elfiee://{project}/blocks` | All blocks in project (summary) |
+| `elfiee://{project}/block/{block_id}` | Full content of a specific block |
+| `elfiee://{project}/grants` | Permission grants table |
+| `elfiee://{project}/events` | Event sourcing log |
+
+Replace `{project}` with the project path (e.g., `./my.elf`) and `{block_id}` with the block ID.
 
 ## Error Handling
 
