@@ -19,7 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
-        .manage(extensions::terminal::pty::TerminalState::new());
+        .manage(extensions::terminal::TerminalState::new());
 
     // Generate TypeScript bindings in debug mode
     #[cfg(debug_assertions)]
@@ -59,11 +59,13 @@ pub fn run() {
                 commands::editor::get_block_grants,
                 // Workspace/Checkout operations
                 commands::checkout::checkout_workspace,
-                // Terminal operations
-                extensions::terminal::pty::async_init_terminal,
-                extensions::terminal::pty::write_to_pty,
-                extensions::terminal::pty::resize_pty,
-                extensions::terminal::pty::close_terminal_session,
+                // Terminal operations (from extensions/terminal/commands.rs)
+                // Note: These are high-frequency "patch" operations that don't record Events.
+                // Event-producing operations use capabilities via execute_command.
+                extensions::terminal::commands::init_pty_session,
+                extensions::terminal::commands::write_to_pty,
+                extensions::terminal::commands::resize_pty,
+                extensions::terminal::commands::close_pty_session,
             ])
             // Explicitly export payload types for frontend type generation
             // These types are used inside Command.payload but not in Tauri command signatures,
@@ -91,18 +93,8 @@ pub fn run() {
             // Extension payload types
             .typ::<extensions::markdown::MarkdownWritePayload>()
             .typ::<extensions::terminal::TerminalSavePayload>()
-            .typ::<extensions::terminal::pty::TerminalInitPayload>()
-            .typ::<extensions::terminal::pty::TerminalWritePayload>()
-            .typ::<extensions::terminal::pty::TerminalResizePayload>()
-            // Agent extension payload types
-            .typ::<extensions::agent::AgentConfig>()
-            .typ::<extensions::agent::ProposedCommand>()
-            .typ::<extensions::agent::ProposalStatus>()
-            .typ::<extensions::agent::Proposal>()
-            .typ::<extensions::agent::AgentCreatePayload>()
-            .typ::<extensions::agent::AgentConfigurePayload>()
-            .typ::<extensions::agent::AgentInvokePayload>()
-            .typ::<extensions::agent::AgentApprovePayload>()
+            .typ::<extensions::terminal::TerminalExecutePayload>()
+            .typ::<extensions::terminal::TerminalInitPayload>()
             // File metadata types
             .typ::<commands::FileMetadata>()
             // Block metadata types
@@ -114,7 +106,9 @@ pub fn run() {
         #[cfg(debug_assertions)]
         specta_builder
             .export(
-                Typescript::default().bigint(BigIntExportBehavior::Number),
+                Typescript::default()
+                    .bigint(BigIntExportBehavior::Number)
+                    .header("// @ts-nocheck"),
                 "../src/bindings.ts",
             )
             .expect("Failed to export TypeScript bindings");
@@ -158,11 +152,11 @@ pub fn run() {
         commands::editor::get_block_grants,
         // Workspace/Checkout operations
         commands::checkout::checkout_workspace,
-        // Terminal operations
-        extensions::terminal::pty::async_init_terminal,
-        extensions::terminal::pty::write_to_pty,
-        extensions::terminal::pty::resize_pty,
-        extensions::terminal::pty::close_terminal_session,
+        // Terminal operations (from extensions/terminal/commands.rs)
+        extensions::terminal::commands::init_pty_session,
+        extensions::terminal::commands::write_to_pty,
+        extensions::terminal::commands::resize_pty,
+        extensions::terminal::commands::close_pty_session,
     ]);
 
     builder

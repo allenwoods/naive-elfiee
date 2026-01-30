@@ -1,5 +1,5 @@
 use crate::capabilities::grants::GrantsTable;
-use crate::models::{Block, BlockMetadata, Editor, EditorType, Event};
+use crate::models::{Block, BlockMetadata, Editor, EditorType, Event, RELATION_IMPLEMENT};
 use log;
 use std::collections::HashMap;
 
@@ -19,6 +19,12 @@ pub struct StateProjector {
 
     /// Vector clock counts for each editor (for conflict detection)
     pub editor_counts: HashMap<String, i64>,
+
+    /// Reverse index: child_block_id → list of parent_block_ids
+    ///
+    /// Maintained for `implement` relations only (the sole relation type).
+    /// Updated on core.link, core.unlink, and core.delete events.
+    pub parents: HashMap<String, Vec<String>>,
 }
 
 impl StateProjector {
@@ -29,6 +35,7 @@ impl StateProjector {
             editors: HashMap::new(),
             grants: GrantsTable::new(),
             editor_counts: HashMap::new(),
+            parents: HashMap::new(),
         }
     }
 
@@ -105,12 +112,24 @@ impl StateProjector {
                             })
                             .unwrap_or_default(),
                     };
+                    // Build reverse index for initial children
+                    if let Some(targets) = block.children.get(RELATION_IMPLEMENT) {
+                        for target in targets {
+                            self.parents
+                                .entry(target.clone())
+                                .or_default()
+                                .push(block.block_id.clone());
+                        }
+                    }
                     self.blocks.insert(block.block_id.clone(), block);
                 }
             }
 
-            // Block updates (write, link, unlink)
-            _ if cap_id.ends_with(".write") || cap_id.ends_with(".link") => {
+            // Block updates (write, link, save)
+            _ if cap_id.ends_with(".write")
+                || cap_id.ends_with(".link")
+                || cap_id.ends_with(".save") =>
+            {
                 if let Some(block) = self.blocks.get_mut(&event.entity) {
                     // Update contents if present
                     if let Some(contents) = event.value.get("contents") {
@@ -122,9 +141,42 @@ impl StateProjector {
                             }
                         }
                     }
-                    // Update children if present
+                    // Update children if present, maintaining reverse index
                     if let Some(children) = event.value.get("children") {
-                        if let Ok(new_children) = serde_json::from_value(children.clone()) {
+                        if let Ok(new_children) =
+                            serde_json::from_value::<HashMap<String, Vec<String>>>(children.clone())
+                        {
+                            let old_targets: Vec<String> = block
+                                .children
+                                .get(RELATION_IMPLEMENT)
+                                .cloned()
+                                .unwrap_or_default();
+                            let new_targets: Vec<String> = new_children
+                                .get(RELATION_IMPLEMENT)
+                                .cloned()
+                                .unwrap_or_default();
+
+                            // Add new parent entries
+                            for target in &new_targets {
+                                if !old_targets.contains(target) {
+                                    self.parents
+                                        .entry(target.clone())
+                                        .or_default()
+                                        .push(event.entity.clone());
+                                }
+                            }
+                            // Remove old parent entries
+                            for target in &old_targets {
+                                if !new_targets.contains(target) {
+                                    if let Some(parent_list) = self.parents.get_mut(target) {
+                                        parent_list.retain(|id| id != &event.entity);
+                                        if parent_list.is_empty() {
+                                            self.parents.remove(target);
+                                        }
+                                    }
+                                }
+                            }
+
                             block.children = new_children;
                         }
                     }
@@ -149,9 +201,33 @@ impl StateProjector {
 
             "core.unlink" => {
                 if let Some(block) = self.blocks.get_mut(&event.entity) {
-                    // Update children
+                    // Update children, maintaining reverse index
                     if let Some(children) = event.value.get("children") {
-                        if let Ok(new_children) = serde_json::from_value(children.clone()) {
+                        if let Ok(new_children) =
+                            serde_json::from_value::<HashMap<String, Vec<String>>>(children.clone())
+                        {
+                            let old_targets: Vec<String> = block
+                                .children
+                                .get(RELATION_IMPLEMENT)
+                                .cloned()
+                                .unwrap_or_default();
+                            let new_targets: Vec<String> = new_children
+                                .get(RELATION_IMPLEMENT)
+                                .cloned()
+                                .unwrap_or_default();
+
+                            // Remove parent entries for targets that were unlinked
+                            for target in &old_targets {
+                                if !new_targets.contains(target) {
+                                    if let Some(parent_list) = self.parents.get_mut(target) {
+                                        parent_list.retain(|id| id != &event.entity);
+                                        if parent_list.is_empty() {
+                                            self.parents.remove(target);
+                                        }
+                                    }
+                                }
+                            }
+
                             block.children = new_children;
                         }
                     }
@@ -160,6 +236,22 @@ impl StateProjector {
 
             // Block deletion
             "core.delete" => {
+                // Clean up reverse index: remove this block as a parent of its children
+                if let Some(block) = self.blocks.get(&event.entity) {
+                    if let Some(targets) = block.children.get(RELATION_IMPLEMENT) {
+                        for target in targets {
+                            if let Some(parent_list) = self.parents.get_mut(target) {
+                                parent_list.retain(|id| id != &event.entity);
+                                if parent_list.is_empty() {
+                                    self.parents.remove(target);
+                                }
+                            }
+                        }
+                    }
+                }
+                // Also remove this block's own parents entry
+                self.parents.remove(&event.entity);
+
                 self.blocks.remove(&event.entity);
             }
 
@@ -315,6 +407,24 @@ impl StateProjector {
     /// Get a block by ID.
     pub fn get_block(&self, block_id: &str) -> Option<&Block> {
         self.blocks.get(block_id)
+    }
+
+    /// Get all parent (upstream) block IDs for a given block.
+    ///
+    /// Returns blocks that have an `implement` relation pointing to this block.
+    pub fn get_parents(&self, block_id: &str) -> Vec<String> {
+        self.parents.get(block_id).cloned().unwrap_or_default()
+    }
+
+    /// Get all child (downstream) block IDs for a given block.
+    ///
+    /// Returns blocks that this block has an `implement` relation to.
+    pub fn get_children(&self, block_id: &str) -> Vec<String> {
+        self.blocks
+            .get(block_id)
+            .and_then(|b| b.children.get(RELATION_IMPLEMENT))
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Check if an editor is authorized to execute a capability on a block.
@@ -1029,5 +1139,168 @@ mod tests {
         // 3. Verify block type updated
         let block = state.get_block("block1").unwrap();
         assert_eq!(block.block_type, "code");
+    }
+
+    // ========================================================================
+    // Reverse index (parents) tests
+    // ========================================================================
+
+    fn create_block_event(entity: &str, name: &str, owner: &str, count: i64) -> Event {
+        Event::new(
+            entity.to_string(),
+            format!("{}/core.create", owner),
+            serde_json::json!({
+                "name": name,
+                "type": "markdown",
+                "owner": owner,
+                "contents": {},
+                "children": {}
+            }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert(owner.to_string(), count);
+                ts
+            },
+        )
+    }
+
+    fn link_event(source: &str, target: &str, editor: &str, count: i64) -> Event {
+        let mut children = StdHashMap::new();
+        children.insert(RELATION_IMPLEMENT.to_string(), vec![target.to_string()]);
+        Event::new(
+            source.to_string(),
+            format!("{}/core.link", editor),
+            serde_json::json!({ "children": children }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert(editor.to_string(), count);
+                ts
+            },
+        )
+    }
+
+    #[test]
+    fn test_parents_after_link() {
+        let mut state = StateProjector::new();
+
+        state.apply_event(&create_block_event("a", "A", "alice", 1));
+        state.apply_event(&create_block_event("b", "B", "alice", 2));
+
+        // Link A → B
+        state.apply_event(&link_event("a", "b", "alice", 3));
+
+        assert_eq!(state.get_parents("b"), vec!["a".to_string()]);
+        assert_eq!(state.get_children("a"), vec!["b".to_string()]);
+        assert!(state.get_parents("a").is_empty());
+        assert!(state.get_children("b").is_empty());
+    }
+
+    #[test]
+    fn test_parents_after_unlink() {
+        let mut state = StateProjector::new();
+
+        state.apply_event(&create_block_event("a", "A", "alice", 1));
+        state.apply_event(&create_block_event("b", "B", "alice", 2));
+
+        // Link A → B
+        state.apply_event(&link_event("a", "b", "alice", 3));
+        assert_eq!(state.get_parents("b"), vec!["a".to_string()]);
+
+        // Unlink A → B (children becomes empty)
+        let unlink_event = Event::new(
+            "a".to_string(),
+            "alice/core.unlink".to_string(),
+            serde_json::json!({ "children": {} }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 4);
+                ts
+            },
+        );
+        state.apply_event(&unlink_event);
+
+        assert!(state.get_parents("b").is_empty());
+        assert!(state.get_children("a").is_empty());
+    }
+
+    #[test]
+    fn test_parents_multiple_parents() {
+        let mut state = StateProjector::new();
+
+        state.apply_event(&create_block_event("a", "A", "alice", 1));
+        state.apply_event(&create_block_event("b", "B", "alice", 2));
+        state.apply_event(&create_block_event("d", "D", "alice", 3));
+
+        // A → D
+        state.apply_event(&link_event("a", "d", "alice", 4));
+        // B → D
+        state.apply_event(&link_event("b", "d", "alice", 5));
+
+        let parents = state.get_parents("d");
+        assert_eq!(parents.len(), 2);
+        assert!(parents.contains(&"a".to_string()));
+        assert!(parents.contains(&"b".to_string()));
+    }
+
+    #[test]
+    fn test_parents_cleanup_on_delete() {
+        let mut state = StateProjector::new();
+
+        state.apply_event(&create_block_event("a", "A", "alice", 1));
+        state.apply_event(&create_block_event("b", "B", "alice", 2));
+
+        // A → B
+        state.apply_event(&link_event("a", "b", "alice", 3));
+        assert_eq!(state.get_parents("b"), vec!["a".to_string()]);
+
+        // Delete A
+        let delete_event = Event::new(
+            "a".to_string(),
+            "alice/core.delete".to_string(),
+            serde_json::json!({ "deleted": true }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 4);
+                ts
+            },
+        );
+        state.apply_event(&delete_event);
+
+        // B should no longer have A as parent
+        assert!(state.get_parents("b").is_empty());
+        // A should not exist
+        assert!(state.get_block("a").is_none());
+    }
+
+    #[test]
+    fn test_get_children_convenience() {
+        let mut state = StateProjector::new();
+
+        state.apply_event(&create_block_event("a", "A", "alice", 1));
+        state.apply_event(&create_block_event("b", "B", "alice", 2));
+        state.apply_event(&create_block_event("c", "C", "alice", 3));
+
+        // A → B, A → C (build children with both targets)
+        let mut children = StdHashMap::new();
+        children.insert(
+            RELATION_IMPLEMENT.to_string(),
+            vec!["b".to_string(), "c".to_string()],
+        );
+        let link_event = Event::new(
+            "a".to_string(),
+            "alice/core.link".to_string(),
+            serde_json::json!({ "children": children }),
+            {
+                let mut ts = StdHashMap::new();
+                ts.insert("alice".to_string(), 4);
+                ts
+            },
+        );
+        state.apply_event(&link_event);
+
+        let children = state.get_children("a");
+        assert_eq!(children.len(), 2);
+        assert!(children.contains(&"b".to_string()));
+        assert!(children.contains(&"c".to_string()));
     }
 }

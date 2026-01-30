@@ -1,6 +1,8 @@
 pub mod block_type_inference;
 pub mod fs_scanner;
 pub mod path_validator;
+pub mod pty;
+pub mod snapshot;
 /// Utility modules for Elfiee application
 ///
 /// This module provides common utility functions used throughout the application.
@@ -20,3 +22,12 @@ pub use fs_scanner::{scan_directory, FileInfo, ScanOptions};
 
 /// Validates file paths to prevent traversal attacks and access to sensitive directories.
 pub use path_validator::{is_safe_path, validate_virtual_path};
+
+/// Block snapshot utilities for writing physical files.
+pub use snapshot::write_block_snapshot;
+
+/// PTY (Pseudo-Terminal) pure utility functions for terminal operations.
+pub use pty::{
+    close as pty_close, resize as pty_resize, spawn as pty_spawn, write as pty_write, PtyHandle,
+    SpawnConfig,
+};

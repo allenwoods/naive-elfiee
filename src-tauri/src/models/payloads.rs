@@ -33,7 +33,7 @@ fn default_source() -> String {
 /// This payload is used to create a link (relation) from one block to another.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct LinkBlockPayload {
-    /// The relation type (e.g., "references", "depends_on", "contains")
+    /// The relation type (must be "implement")
     pub relation: String,
     /// The target block ID to link to
     pub target_id: String,
@@ -44,7 +44,7 @@ pub struct LinkBlockPayload {
 /// This payload is used to remove a link (relation) from one block to another.
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct UnlinkBlockPayload {
-    /// The relation type (e.g., "references", "depends_on", "contains")
+    /// The relation type (must be "implement")
     pub relation: String,
     /// The target block ID to unlink
     pub target_id: String,
@@ -179,23 +179,27 @@ mod tests {
 
     #[test]
     fn test_link_block_payload() {
+        use crate::models::RELATION_IMPLEMENT;
+
         let json = serde_json::json!({
-            "relation": "references",
+            "relation": RELATION_IMPLEMENT,
             "target_id": "block-456"
         });
         let payload: LinkBlockPayload = serde_json::from_value(json).unwrap();
-        assert_eq!(payload.relation, "references");
+        assert_eq!(payload.relation, RELATION_IMPLEMENT);
         assert_eq!(payload.target_id, "block-456");
     }
 
     #[test]
     fn test_unlink_block_payload() {
+        use crate::models::RELATION_IMPLEMENT;
+
         let json = serde_json::json!({
-            "relation": "depends_on",
+            "relation": RELATION_IMPLEMENT,
             "target_id": "block-789"
         });
         let payload: UnlinkBlockPayload = serde_json::from_value(json).unwrap();
-        assert_eq!(payload.relation, "depends_on");
+        assert_eq!(payload.relation, RELATION_IMPLEMENT);
         assert_eq!(payload.target_id, "block-789");
     }
 
