@@ -7,6 +7,7 @@ version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
+default-run = "elfiee-app"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -42,4 +43,16 @@ portable-pty = "0.8"
 base64 = "0.21"
 log = "0.4"
 dirs = "5.0"
+axum = "0.8"
+
+# MCP (Model Context Protocol)
+rmcp = { version = "0.5", features = ["server", "transport-sse-server"] }
+schemars = "1"
+async-trait = "0.1"
+tokio-util = "0.7"
+
+# GUI binary (Tauri app)
+[[bin]]
+name = "elfiee-app"
+path = "src/main.rs"
 

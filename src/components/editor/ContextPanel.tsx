@@ -561,6 +561,9 @@ const ActiveTerminalsList = ({ documentId }: { documentId: string }) => {
     return fileState?.activeEditorId
   })
 
+  // useState must be called before any conditional returns (React Hooks rules)
+  const [blockToDelete, setBlockToDelete] = useState<Block | null>(null)
+
   // Filter ONLY 'terminal' type blocks
   // Reverse to show newest first (assuming append order)
   const terminalBlocks = blocks
@@ -569,8 +572,6 @@ const ActiveTerminalsList = ({ documentId }: { documentId: string }) => {
 
   // Show nothing if no terminal blocks exist
   if (terminalBlocks.length === 0) return null
-
-  const [blockToDelete, setBlockToDelete] = useState<Block | null>(null)
 
   const handleCopyId = (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
