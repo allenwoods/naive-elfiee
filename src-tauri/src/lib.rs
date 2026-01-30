@@ -66,6 +66,10 @@ pub fn run() {
                 extensions::terminal::commands::write_to_pty,
                 extensions::terminal::commands::resize_pty,
                 extensions::terminal::commands::close_pty_session,
+                // Agent operations (Phase 2)
+                commands::agent::agent_create,
+                commands::agent::agent_enable,
+                commands::agent::agent_disable,
             ])
             // Explicitly export payload types for frontend type generation
             // These types are used inside Command.payload but not in Tauri command signatures,
@@ -95,6 +99,15 @@ pub fn run() {
             .typ::<extensions::terminal::TerminalSavePayload>()
             .typ::<extensions::terminal::TerminalExecutePayload>()
             .typ::<extensions::terminal::TerminalInitPayload>()
+            // Agent extension types (Phase 2)
+            .typ::<extensions::agent::AgentCreateV2Payload>()
+            .typ::<extensions::agent::AgentEnablePayload>()
+            .typ::<extensions::agent::AgentDisablePayload>()
+            .typ::<extensions::agent::AgentContents>()
+            .typ::<extensions::agent::AgentStatus>()
+            .typ::<extensions::agent::AgentCreateResult>()
+            .typ::<extensions::agent::AgentEnableResult>()
+            .typ::<extensions::agent::AgentDisableResult>()
             // File metadata types
             .typ::<commands::FileMetadata>()
             // Block metadata types
@@ -157,6 +170,10 @@ pub fn run() {
         extensions::terminal::commands::write_to_pty,
         extensions::terminal::commands::resize_pty,
         extensions::terminal::commands::close_pty_session,
+        // Agent operations (Phase 2)
+        commands::agent::agent_create,
+        commands::agent::agent_enable,
+        commands::agent::agent_disable,
     ]);
 
     builder

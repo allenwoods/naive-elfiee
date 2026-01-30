@@ -1,5 +1,6 @@
 pub mod block_type_inference;
 pub mod fs_scanner;
+pub mod mcp_config;
 pub mod path_validator;
 pub mod pty;
 pub mod snapshot;
