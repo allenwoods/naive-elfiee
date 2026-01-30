@@ -122,14 +122,36 @@ impl GrantsTable {
     }
 
     /// Check if an editor has a specific grant.
+    ///
+    /// Matching order:
+    /// 1. Exact match: editor_id has (cap_id, block_id) or (cap_id, "*")
+    /// 2. Wildcard editor: "*" has (cap_id, block_id) or (cap_id, "*")
+    ///
+    /// The wildcard editor_id "*" means "all editors have this grant".
     pub fn has_grant(&self, editor_id: &str, cap_id: &str, block_id: &str) -> bool {
-        if let Some(editor_grants) = self.grants.get(editor_id) {
-            editor_grants
+        let check = |grants: &Vec<(String, String)>| {
+            grants
                 .iter()
                 .any(|(cap, blk)| cap == cap_id && (blk == block_id || blk == "*"))
-        } else {
-            false
+        };
+
+        // 1. Exact match on editor_id
+        if let Some(editor_grants) = self.grants.get(editor_id) {
+            if check(editor_grants) {
+                return true;
+            }
         }
+
+        // 2. Wildcard editor_id "*" (grant to all editors)
+        if editor_id != "*" {
+            if let Some(wildcard_grants) = self.grants.get("*") {
+                if check(wildcard_grants) {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 }
 
@@ -289,5 +311,85 @@ mod tests {
 
         let table = GrantsTable::from_events(&[grant_event, revoke_event]);
         assert!(!table.has_grant("bob", "markdown.write", "block1"));
+    }
+
+    #[test]
+    fn test_wildcard_editor_grant() {
+        let mut table = GrantsTable::new();
+        // Grant directory.write to ALL editors ("*") for a specific block
+        table.add_grant(
+            "*".to_string(),
+            "directory.write".to_string(),
+            "elf-block".to_string(),
+        );
+
+        // Any editor should match
+        assert!(table.has_grant("alice", "directory.write", "elf-block"));
+        assert!(table.has_grant("bob", "directory.write", "elf-block"));
+        assert!(table.has_grant("system", "directory.write", "elf-block"));
+
+        // Wrong capability or block should not match
+        assert!(!table.has_grant("alice", "markdown.write", "elf-block"));
+        assert!(!table.has_grant("alice", "directory.write", "other-block"));
+    }
+
+    #[test]
+    fn test_wildcard_editor_revoke() {
+        let mut table = GrantsTable::new();
+        table.add_grant(
+            "*".to_string(),
+            "directory.write".to_string(),
+            "elf-block".to_string(),
+        );
+
+        assert!(table.has_grant("alice", "directory.write", "elf-block"));
+
+        // Revoke the wildcard grant
+        table.remove_grant("*", "directory.write", "elf-block");
+
+        assert!(!table.has_grant("alice", "directory.write", "elf-block"));
+        assert!(!table.has_grant("bob", "directory.write", "elf-block"));
+    }
+
+    #[test]
+    fn test_wildcard_editor_with_exact_grant() {
+        let mut table = GrantsTable::new();
+
+        // Exact grant for alice
+        table.add_grant(
+            "alice".to_string(),
+            "markdown.write".to_string(),
+            "block1".to_string(),
+        );
+        // Wildcard grant for all editors
+        table.add_grant(
+            "*".to_string(),
+            "directory.write".to_string(),
+            "elf-block".to_string(),
+        );
+
+        // alice: exact grant works
+        assert!(table.has_grant("alice", "markdown.write", "block1"));
+        // alice: wildcard grant also works
+        assert!(table.has_grant("alice", "directory.write", "elf-block"));
+        // bob: only wildcard grant works
+        assert!(table.has_grant("bob", "directory.write", "elf-block"));
+        assert!(!table.has_grant("bob", "markdown.write", "block1"));
+    }
+
+    #[test]
+    fn test_wildcard_editor_combined_with_wildcard_block() {
+        let mut table = GrantsTable::new();
+        // Grant to all editors on all blocks
+        table.add_grant(
+            "*".to_string(),
+            "directory.write".to_string(),
+            "*".to_string(),
+        );
+
+        assert!(table.has_grant("alice", "directory.write", "any-block"));
+        assert!(table.has_grant("bob", "directory.write", "other-block"));
+        // Wrong capability still doesn't match
+        assert!(!table.has_grant("alice", "markdown.write", "any-block"));
     }
 }

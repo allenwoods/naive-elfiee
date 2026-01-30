@@ -4,6 +4,18 @@ use std::collections::HashMap;
 
 use super::BlockMetadata;
 
+/// 唯一允许的 relation type，表示"上游定义/决定下游"的因果关系。
+///
+/// `Block.children` 的 key 仅允许使用此常量值。
+/// 语义：`A.children["implement"] = [B]` 表示 A 的改动导致 B 需要改动。
+/// 例如：Task → Code, PRD → Task → Test
+pub const RELATION_IMPLEMENT: &str = "implement";
+
+/// Block 是 Elfiee 的基本内容单元。
+///
+/// `children` 字段存储逻辑因果关系图（Logical Causal Graph），
+/// key 仅允许 `RELATION_IMPLEMENT`（即 `"implement"`），
+/// value 为下游 block_id 列表。
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct Block {
     pub block_id: String,

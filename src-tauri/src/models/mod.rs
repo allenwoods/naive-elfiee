@@ -7,7 +7,7 @@ mod grant;
 pub mod metadata;
 pub mod payloads;
 
-pub use block::Block;
+pub use block::{Block, RELATION_IMPLEMENT};
 pub use capability::Capability;
 pub use command::Command;
 pub use editor::{Editor, EditorType};

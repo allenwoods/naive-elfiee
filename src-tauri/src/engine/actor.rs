@@ -1,8 +1,9 @@
 use crate::capabilities::registry::CapabilityRegistry;
 use crate::engine::event_store::{EventPoolWithPath, EventStore};
 use crate::engine::state::StateProjector;
-use crate::models::{Block, Command, Editor, Event};
-use std::collections::HashMap;
+use crate::models::{Block, Command, Editor, Event, LinkBlockPayload, RELATION_IMPLEMENT};
+use crate::utils::write_block_snapshot;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tokio::sync::{mpsc, oneshot};
 
@@ -140,6 +141,115 @@ impl ElfileEngineActor {
         self.with_temp_dir(|temp_dir| {
             let _ = inject_block_dir(temp_dir, &block.block_id, &mut block.contents);
         });
+    }
+
+    /// Write physical snapshot files for events that modify block content.
+    ///
+    /// Called after events are committed and state is projected.
+    /// Handles: markdown.write, code.write, directory.write, directory.import,
+    /// directory.create, and core.create (for blocks with content).
+    fn write_snapshots(&self, events: &[Event]) {
+        let temp_dir = match self
+            .event_pool_with_path
+            .db_path
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+        {
+            Some(dir) => dir,
+            None => return, // :memory: database, no filesystem
+        };
+
+        for event in events {
+            let cap_id = Self::extract_cap_id(&event.attribute);
+
+            match cap_id {
+                "markdown.write" | "code.write" => {
+                    // Content write: get block from state and write snapshot
+                    if let Some(block) = self.state.get_block(&event.entity) {
+                        if let Err(e) = write_block_snapshot(
+                            temp_dir,
+                            &block.block_id,
+                            &block.block_type,
+                            &block.name,
+                            &block.contents,
+                        ) {
+                            log::warn!("Snapshot error for {}: {}", event.entity, e);
+                        }
+                    }
+                }
+                "directory.write" => {
+                    // Directory entries changed: write body.json snapshot
+                    if let Some(block) = self.state.get_block(&event.entity) {
+                        if let Err(e) = write_block_snapshot(
+                            temp_dir,
+                            &block.block_id,
+                            &block.block_type,
+                            &block.name,
+                            &block.contents,
+                        ) {
+                            log::warn!("Snapshot error for directory {}: {}", event.entity, e);
+                        }
+                    }
+                }
+                "core.create" => {
+                    // New block created: write snapshot if it has content
+                    if let Some(block) = self.state.get_block(&event.entity) {
+                        if let Err(e) = write_block_snapshot(
+                            temp_dir,
+                            &block.block_id,
+                            &block.block_type,
+                            &block.name,
+                            &block.contents,
+                        ) {
+                            log::warn!("Snapshot error for new block {}: {}", event.entity, e);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Extract the capability ID from an event attribute.
+    ///
+    /// Attribute format: `{editor_id}/{cap_id}` (e.g., "alice/markdown.write")
+    fn extract_cap_id(attribute: &str) -> &str {
+        attribute.split('/').nth(1).unwrap_or("")
+    }
+
+    /// Check if linking source → target would create a cycle in the DAG.
+    ///
+    /// From target, DFS along `implement` children. If we reach source,
+    /// a cycle would be formed: source → target → ... → source.
+    /// Also rejects self-links (source == target).
+    fn check_link_cycle(&self, source_id: &str, target_id: &str) -> Result<(), String> {
+        // Self-link is always a cycle
+        if source_id == target_id {
+            return Err(format!(
+                "Cycle detected: linking {} → {} would create a self-cycle",
+                source_id, target_id
+            ));
+        }
+
+        let mut visited = HashSet::new();
+        let mut stack = vec![target_id.to_string()];
+
+        while let Some(current) = stack.pop() {
+            if current == source_id {
+                return Err(format!(
+                    "Cycle detected: linking {} → {} would create a cycle",
+                    source_id, target_id
+                ));
+            }
+            if visited.insert(current.clone()) {
+                if let Some(block) = self.state.get_block(&current) {
+                    if let Some(targets) = block.children.get(RELATION_IMPLEMENT) {
+                        stack.extend(targets.iter().cloned());
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Create a new engine actor for a file.
@@ -318,6 +428,13 @@ impl ElfileEngineActor {
             }
         }
 
+        // 3.5. DAG cycle detection for core.link
+        if cmd.cap_id == "core.link" {
+            let payload: LinkBlockPayload = serde_json::from_value(cmd.payload.clone())
+                .map_err(|e| format!("Invalid payload for cycle check: {}", e))?;
+            self.check_link_cycle(&cmd.block_id, &payload.target_id)?;
+        }
+
         // 4. Execute handler (block now contains _block_dir)
         let mut events = handler.handler(&cmd, block_opt.as_ref())?;
 
@@ -357,8 +474,8 @@ impl ElfileEngineActor {
         // For MVP, we just log if there's a potential conflict but don't reject
         // In production, this would trigger merge/resolution logic
         if self.state.has_conflict(&cmd.editor_id, current_count) {
-            eprintln!(
-                "Warning: Potential conflict detected for editor {} (expected: {}, current: {})",
+            log::warn!(
+                "Potential conflict detected for editor {} (expected: {}, current: {})",
                 cmd.editor_id,
                 current_count,
                 self.state.get_editor_count(&cmd.editor_id)
@@ -385,6 +502,11 @@ impl ElfileEngineActor {
         for event in &events {
             self.state.apply_event(event);
         }
+
+        // 10. Write block snapshots to physical files (non-critical)
+        // Snapshots are derived data for symlinks and external access.
+        // Errors are logged but do not fail the command.
+        self.write_snapshots(&events);
 
         // Return original events (with _block_dir) for caller
         Ok(events)
@@ -656,7 +778,7 @@ mod tests {
             "core.link".to_string(),
             block_id.clone(),
             serde_json::json!({
-                "relation": "references",
+                "relation": "implement",
                 "target_id": "other_block"
             }),
         );
@@ -697,7 +819,7 @@ mod tests {
             "core.link".to_string(),
             block_id.clone(),
             serde_json::json!({
-                "relation": "references",
+                "relation": "implement",
                 "target_id": "other_block"
             }),
         );
@@ -756,7 +878,7 @@ mod tests {
             "core.link".to_string(),
             block_id.clone(),
             serde_json::json!({
-                "relation": "references",
+                "relation": "implement",
                 "target_id": "other_block"
             }),
         );
