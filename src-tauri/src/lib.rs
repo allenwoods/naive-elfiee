@@ -84,8 +84,6 @@ pub fn run() {
                 extensions::terminal::commands::write_to_pty,
                 extensions::terminal::commands::resize_pty,
                 extensions::terminal::commands::close_pty_session,
-                // Reload operations (for MCP standalone mode sync)
-                commands::reload::reload_events,
             ])
             // Explicitly export payload types for frontend type generation
             // These types are used inside Command.payload but not in Tauri command signatures,
@@ -177,8 +175,6 @@ pub fn run() {
         extensions::terminal::commands::write_to_pty,
         extensions::terminal::commands::resize_pty,
         extensions::terminal::commands::close_pty_session,
-        // Reload operations (for MCP standalone mode sync)
-        commands::reload::reload_events,
     ]);
 
     builder

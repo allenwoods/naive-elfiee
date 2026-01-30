@@ -109,14 +109,10 @@ pub async fn create_file(path: String, state: State<'_, AppState>) -> Result<Str
         .await
         .map_err(|e| format!("Failed to get event pool: {}", e))?;
 
-    // Spawn engine actor for this file (with state change notifications)
+    // Spawn engine actor for this file
     state
         .engine_manager
-        .spawn_engine(
-            file_id.clone(),
-            event_pool,
-            Some(state.state_change_tx.clone()),
-        )
+        .spawn_engine(file_id.clone(), event_pool)
         .await?;
 
     // Store file info
@@ -161,14 +157,10 @@ pub async fn open_file(path: String, state: State<'_, AppState>) -> Result<Strin
         .await
         .map_err(|e| format!("Failed to get event pool: {}", e))?;
 
-    // Spawn engine actor for this file (with state change notifications)
+    // Spawn engine actor for this file
     state
         .engine_manager
-        .spawn_engine(
-            file_id.clone(),
-            event_pool,
-            Some(state.state_change_tx.clone()),
-        )
+        .spawn_engine(file_id.clone(), event_pool)
         .await?;
 
     // Store file info

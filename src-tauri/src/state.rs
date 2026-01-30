@@ -1,10 +1,8 @@
 use crate::elf::ElfArchive;
 use crate::engine::EngineManager;
-use crate::mcp::notifications::StateChangeEvent;
 use dashmap::DashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::broadcast;
 
 /// Information about an open file
 #[derive(Clone)]
@@ -30,22 +28,15 @@ pub struct AppState {
     /// This is UI state and is NOT persisted to .elf file
     /// Using DashMap for thread-safe concurrent access
     pub active_editors: Arc<DashMap<String, String>>,
-
-    /// Broadcast channel for engine state change notifications.
-    /// MCP dispatchers subscribe to this channel to push resource-updated
-    /// notifications to connected MCP peers.
-    pub state_change_tx: broadcast::Sender<StateChangeEvent>,
 }
 
 impl AppState {
     /// Create a new application state with empty file list.
     pub fn new() -> Self {
-        let (tx, _) = broadcast::channel(256);
         Self {
             engine_manager: EngineManager::new(),
             files: Arc::new(DashMap::new()),
             active_editors: Arc::new(DashMap::new()),
-            state_change_tx: tx,
         }
     }
 

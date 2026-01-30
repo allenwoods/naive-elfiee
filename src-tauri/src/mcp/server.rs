@@ -4,7 +4,6 @@
 //! All tools call EngineManager directly, no intermediate layers.
 
 use crate::mcp;
-use crate::mcp::peer_registry::PeerRegistry;
 use crate::models::Command;
 use crate::state::AppState;
 use rmcp::{
@@ -13,10 +12,9 @@ use rmcp::{
         Annotated, CallToolResult, Content, Implementation, ListResourceTemplatesResult,
         ListResourcesResult, PaginatedRequestParam, RawResource, RawResourceTemplate,
         ReadResourceRequestParam, ReadResourceResult, ResourceContents, ResourcesCapability,
-        ServerCapabilities, ServerInfo, SubscribeRequestParam, ToolsCapability,
-        UnsubscribeRequestParam,
+        ServerCapabilities, ServerInfo, ToolsCapability,
     },
-    service::{NotificationContext, RequestContext, RoleServer},
+    service::{RequestContext, RoleServer},
     tool, tool_handler, tool_router, ErrorData as McpError,
 };
 use schemars::JsonSchema;
@@ -33,11 +31,6 @@ use std::sync::Arc;
 pub struct ElfieeMcpServer {
     app_state: Arc<AppState>,
     tool_router: ToolRouter<Self>,
-    /// Shared registry of connected MCP peers and their subscriptions
-    peer_registry: PeerRegistry,
-    /// This server instance's peer ID (assigned during construction,
-    /// used as key in the registry when the peer connects via on_initialized)
-    peer_id: String,
 }
 
 // ============================================================================
@@ -281,24 +274,12 @@ pub struct ExecInput {
 
 #[tool_router]
 impl ElfieeMcpServer {
-    /// Create a new MCP server instance.
-    ///
-    /// # Arguments
-    /// * `app_state` - Shared application state
-    /// * `peer_registry` - Shared registry of connected MCP peers
-    pub fn new(app_state: Arc<AppState>, peer_registry: PeerRegistry) -> Self {
-        let peer_id = peer_registry.next_peer_id();
+    /// Create a new MCP server instance
+    pub fn new(app_state: Arc<AppState>) -> Self {
         Self {
             app_state,
             tool_router: Self::tool_router(),
-            peer_registry,
-            peer_id,
         }
-    }
-
-    /// Get a reference to this server's peer registry.
-    pub fn peer_registry(&self) -> &PeerRegistry {
-        &self.peer_registry
     }
 
     // ========================================================================
@@ -1244,56 +1225,10 @@ impl rmcp::handler::server::ServerHandler for ElfieeMcpServer {
             ),
             capabilities: ServerCapabilities {
                 tools: Some(ToolsCapability::default()),
-                resources: Some(ResourcesCapability {
-                    subscribe: Some(true),
-                    list_changed: Some(true),
-                }),
+                resources: Some(ResourcesCapability::default()),
                 ..Default::default()
             },
             ..Default::default()
-        }
-    }
-
-    /// Called when the MCP client has completed initialization.
-    /// We register the peer handle so the notification dispatcher can reach it.
-    fn on_initialized(
-        &self,
-        context: NotificationContext<RoleServer>,
-    ) -> impl Future<Output = ()> + Send + '_ {
-        async move {
-            log::info!("MCP client initialized (peer_id={})", self.peer_id);
-            self.peer_registry
-                .register(self.peer_id.clone(), context.peer);
-        }
-    }
-
-    /// Handle resource subscription requests from MCP clients.
-    fn subscribe(
-        &self,
-        request: SubscribeRequestParam,
-        _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<(), McpError>> + Send + '_ {
-        async move {
-            log::info!("MCP client {} subscribed to: {}", self.peer_id, request.uri);
-            self.peer_registry.subscribe(&self.peer_id, request.uri);
-            Ok(())
-        }
-    }
-
-    /// Handle resource unsubscription requests from MCP clients.
-    fn unsubscribe(
-        &self,
-        request: UnsubscribeRequestParam,
-        _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<(), McpError>> + Send + '_ {
-        async move {
-            log::info!(
-                "MCP client {} unsubscribed from: {}",
-                self.peer_id,
-                request.uri
-            );
-            self.peer_registry.unsubscribe(&self.peer_id, &request.uri);
-            Ok(())
         }
     }
 

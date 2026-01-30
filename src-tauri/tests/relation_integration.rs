@@ -14,7 +14,7 @@ use elfiee_lib::models::{Command, RELATION_IMPLEMENT};
 /// 辅助函数：创建内存 engine
 async fn setup_engine() -> elfiee_lib::engine::EngineHandle {
     let event_pool = EventStore::create(":memory:").await.unwrap();
-    spawn_engine("test_relation".to_string(), event_pool, None)
+    spawn_engine("test_relation".to_string(), event_pool)
         .await
         .unwrap()
 }

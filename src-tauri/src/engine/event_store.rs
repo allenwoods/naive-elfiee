@@ -63,7 +63,7 @@ impl EventStore {
     }
 
     /// Initialize the database schema (tables and indexes).
-    pub(crate) async fn init_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    async fn init_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         // Create events table
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS events (

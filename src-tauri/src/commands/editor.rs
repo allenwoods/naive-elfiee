@@ -434,7 +434,7 @@ mod tests {
         // Spawn engine
         state
             .engine_manager
-            .spawn_engine(file_id.clone(), event_pool, None)
+            .spawn_engine(file_id.clone(), event_pool)
             .await
             .unwrap();
 

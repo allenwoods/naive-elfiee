@@ -44,16 +44,10 @@
 //! - `elfiee_editor_create/delete` - Editor operations
 //! - `elfiee_exec` - Execute any capability
 
-pub mod dispatcher;
-pub mod notifications;
-pub mod peer_registry;
 pub mod server;
-pub mod standalone;
-pub mod stdio_transport;
 pub mod transport;
 
 pub use server::ElfieeMcpServer;
-pub use standalone::run_mcp_server;
 pub use transport::{start_mcp_server, MCP_PORT};
 
 use rmcp::ErrorData as McpError;
